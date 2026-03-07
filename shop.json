@@ -7,6 +7,7 @@
         "buyPrice": 10,
         "sellPrice": 5
     },
+
     "wood": {
         "id": "wood",
         "name": "Madera",
@@ -14,7 +15,7 @@
         "icon": "🪵",
         "buyPrice": 15,
         "sellPrice": 7
-    },
+    },	
     "iron_ore": {
         "id": "iron_ore",
         "name": "Mena de Hierro",
@@ -23,6 +24,7 @@
         "buyPrice": 50,
         "sellPrice": 25
     },
+
     "diamond": {
         "id": "diamond",
         "name": "Diamante",
@@ -31,36 +33,88 @@
         "buyPrice": 5000,
         "sellPrice": 2500
     },
+
     "fishing_rod": {
         "id": "fishing_rod",
         "name": "Caña de Pescar",
         "description": "Para pescar en ríos y lagos.",
         "icon": "🎣",
         "buyPrice": 300,
-        "sellPrice": 150
+        "sellPrice": 150,
+        "type": "tool"
     },
-    "pickaxe": {
-        "id": "pickaxe",
-        "name": "Pico",
-        "description": "Necesario para minar rocas.",
+	"pickaxe_wood": {
+        "id": "pickaxe_wood",
+        "name": "Pico de madera",
+        "description": "Necesario para minar zonas básicas.",
         "icon": "⛏️",
         "buyPrice": 350,
-        "sellPrice": 175
-    },
+        "power": 20,
+        "sellPrice": 175,
+        "type": "tool"
+    },	
+	"pickaxe_stone": {
+        "id": "pickaxe_stone",
+        "name": "Pico de piedra",
+        "description": "Necesario para minar zonas intermedias.",
+        "icon": "⛏️",
+        "buyPrice": 1000,
+        "power": 50,
+        "sellPrice": 500,
+        "type": "tool"
+    },	
     "common_fish": {
         "id": "common_fish",
         "name": "Pez Común",
         "description": "Un pez bastante normal.",
         "icon": "🐟",
         "buyPrice": null,
-        "sellPrice": 20
+        "sellPrice": 20,
+        "type": "fish"
     },
     "rare_fish": {
         "id": "rare_fish",
         "name": "Pez Raro",
         "description": "¡Qué hallazgo!",
         "icon": "🐠",
-        "buyPrice": null,
-        "sellPrice": 100
+        "buyPrice": 500,
+    },
+  "pickaxe_mythic": {
+        "id": "pickaxe_mythic",
+        "name": "Pico Mítico",
+        "description": "Necesario para minar zonas exclusivas.",
+        "icon": "⛏️",
+        "buyPrice": 10000,
+        "sellPrice": 5000
+  }
+
+    },
+    "health_potion": {
+        "id": "health_potion",
+        "name": "Poción de Curación",
+        "description": "Cura una pequeña cantidad de vida durante la batalla contra un jefe.",
+        "icon": "❤️",
+        "buyPrice": 500,
+        "sellPrice": 100,
+        "type": "potion"
+    },
+    "luck_potion": {
+        "id": "luck_potion",
+        "name": "Poción de Suerte",
+        "description": "Aumenta tu suerte al pescar peces raros.",
+        "icon": "🍀",
+        "buyPrice": 1000,
+        "sellPrice": 250,
+        "type": "potion"
+    },
+    "xp_potion": {
+        "id": "xp_potion",
+        "name": "Poción de Experiencia",
+        "description": "Duplica la experiencia obtenida al pescar.",
+        "icon": "✨",
+        "buyPrice": 1500,
+        "sellPrice": 300,
+        "type": "potion"
     }
+
 }

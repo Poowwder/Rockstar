@@ -20,22 +20,19 @@ client.prefix = prefix;
 client.commands = new Collection();
 
 // Cargar comandos desde ./commands
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+const loadCommands = async (dir = commandsPath) => {
+	const files = fs.readdirSync(dir);
 
-for (const file of commandFiles) {
-    try {
-        const command = require(`./commands/${file}`);
-        // Soporte para cargar múltiples comandos desde un solo archivo (Array)
-        if (Array.isArray(command)) {
-            for (const cmd of command) {
-                client.commands.set(cmd.data.name, cmd);
-            }
-        } else {
-            client.commands.set(command.data.name, command);
-        }
-    } catch (error) {
-        console.error(`[ERROR] No se pudo cargar el comando ${file}:`, error.message);
+	for (const file of files) {
+		const filePath = path.join(dir, file);
+		const stat = fs.lstatSync(filePath);
+		if (stat.isDirectory()) {
+			loadCommands(filePath);
+		} else if (file.endsWith(".js")) {
+			const command = require(filePath);
+			client.commands.set(command.data.name, command);
+			console.log(`cargado ${command.data.name}`)
+		}
     }
 }
 
@@ -50,9 +47,17 @@ for (const file of eventFiles) {
     else client.on(event.name, (...args) => event.execute(...args, client));
 }
 
+
+// Cargar el manejador de experiencia (Eventos)
+const experienceHandler = require(path.join(__dirname,'./events/experience.js'));
+client.on(experienceHandler.name, (...args) => experienceHandler.execute(...args, client));
+
+
 // Registrar comandos slash al iniciar
 client.once(Events.ClientReady, async () => {
     // Filtramos los comandos que tienen skipSlash: true para no saturar el límite de 100
+		loadCommands()
+
     const slashCommands = client.commands.filter(cmd => !cmd.skipSlash).map(cmd => cmd.data.toJSON());
     console.log(`Registrando ${slashCommands.length} comandos slash...`);
     await client.application.commands.set(slashCommands);
