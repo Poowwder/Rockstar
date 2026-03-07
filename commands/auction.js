@@ -3,7 +3,7 @@ const { getUserData, updateUserData, addItemToInventory, removeItemFromInventory
 const fs = require('fs');
 const path = require('path');
 
-const auctionsDataPath = path.join(__dirname, '../../auctions.json');
+const auctionsDataPath = path.join(__dirname, '..', '..', 'auctions.json');
 const ICONS = {
     money: '🌸',
 	error: '❌',
