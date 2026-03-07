@@ -3,12 +3,8 @@
 
 echo "Iniciando el despliegue en Render..."
 
-# Reemplaza con tu API key de Render y el ID del servicio
-API_KEY="tu_api_key_de_render"
-SERVICE_ID="tu_service_id_de_render"
-
-# URL para activar el despliegue en Render
-DEPLOY_URL="https://api.render.com/v1/services/${SERVICE_ID}/deploy"
+# URL del Deploy Hook (reemplaza con la URL de Render)
+DEPLOY_URL="https://api.render.com/deploy/srv-d6lu9lftskes73dkqfp0?key=dPFCdL1ZTRY"
 
 # Comprobar si curl está instalado
 if ! command -v curl &> /dev/null
@@ -17,9 +13,8 @@ then
   exit 1
 fi
 
-# Envía una solicitud POST a la API de Render para activar el despliegue
-curl -X POST $DEPLOY_URL \
-  -H "Authorization: Bearer $API_KEY"
+# Envía una solicitud POST a la URL del Deploy Hook
+curl -X POST $DEPLOY_URL
 
 # Comprobar el código de retorno del comando curl
 if [ $? -ne 0 ]; then
@@ -28,3 +23,4 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Despliegue iniciado en Render."
+
