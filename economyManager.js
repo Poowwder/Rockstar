@@ -13,6 +13,7 @@ const auctionsPath = path.join(dataDir, 'auctions.json');
 // --- Helper Functions ---
 function readJSON(filePath, defaultValue = {}) {
     try {
+
         if (fs.existsSync(filePath)) {
             const data = fs.readFileSync(filePath, 'utf8');
             return JSON.parse(data);
@@ -22,6 +23,7 @@ function readJSON(filePath, defaultValue = {}) {
         console.error(`Error reading ${filePath}:`, error);
         return defaultValue;
     }
+
 }
 
 function writeJSON(filePath, data) {
@@ -32,21 +34,55 @@ function writeJSON(filePath, data) {
     }
 }
 
+const shopItems = () => {
+    const p = path.join(__dirname, 'data', 'shop.json');
+    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
+};
 // --- User Data ---
 function getUserData(userId) {
     const economyData = readJSON(economyDataPath);
     if (!economyData[userId]) {
         economyData[userId] = {
             wallet: 0,
-            bank: 0,
+            bank: 0,            
             inventory: [], // Ahora será un array de objetos: { id: 'item_id', quantity: 1 }
-            dailyQuest: null,
+
+           dailyQuest: null,
             pet: null,
+			job: 'unemployed',
+            level: 1,
+            experience: 0,
             activeBoosts: []
         };
     }
+
     return economyData[userId];
 }
+
+
+function applyLevelRewards(userId, oldLevel, newLevel) {
+    let data = getUserData(userId);
+    let rewardMoney = 0;
+
+    for (let i = oldLevel + 1; i <= newLevel; i++) {
+        rewardMoney += i * 100; // Ejemplo: recompensa base = nivel * 100
+
+        if (i % 5 === 0) {
+            // Recompensa especial cada 5 niveles
+            addItemToInventory(userId, { id: 'rare_item', quantity: 1 });
+        }
+    }
+
+    data.wallet += rewardMoney;
+    updateUserData(userId, data);
+    return rewardMoney;
+}
+
+
+
+
+
+
 
 function updateUserData(userId, data) {
     const economyData = readJSON(economyDataPath);
@@ -67,11 +103,45 @@ function addItemToInventory(userId, item) { // item es un objeto { id: 'string',
     updateUserData(userId, data);
 }
 
+function decreaseDurability(userId, itemId, amount = 1) {
+    const data = getUserData(userId);
+    const item = data.inventory.find(i => i.id === itemId);
+	 if (!item) return
+    item.durability -= amount;
+	 updateUserData(userId, data);
+
+}
+function hasActiveBoost(data, boostId) {
+    return data.activeBoosts && data.activeBoosts.some(boost => boost.id === boostId && boost.expiresAt > Date.now());
+}
+""
+function getBoostMultiplier(data, boostType) {
+    let multiplier = 1;
+    if (hasActiveBoost(data, 'boost_dinero_premium')) multiplier *= 5;
+    if (hasActiveBoost(data, 'boost_exp_premium')) multiplier *= 5;
+    if (hasActiveBoost(data, 'boost_suerte_premium')) multiplier *= 5;
+
+    return multiplier;
+}
+""
+
+function addMiningPickToInventory(userId, item) {
+    const data = getUserData(userId);
+    const existingItem = data.inventory.find(i => i.id === item.id);
+
+    if (existingItem) {
+        existingItem.quantity += item.quantity;
+    } else {
+        data.inventory.push({...item, durability: 100, maxDurability: 100});
+    }
+    updateUserData(userId, data);
+}
 function removeItemFromInventory(userId, itemId, quantity = 1) {
     const data = getUserData(userId);
     const itemIndex = data.inventory.findIndex(i => i.id === itemId);
 
     if (itemIndex > -1) {
+
         const item = data.inventory[itemIndex];
         if (item.quantity > quantity) {
             item.quantity -= quantity;
@@ -84,8 +154,7 @@ function removeItemFromInventory(userId, itemId, quantity = 1) {
     return false; // Indicate item not found or not enough quantity
 }
 
-
-// --- Cooldown Management ---
+// Cooldown Management
 const cooldowns = readJSON(cooldownsPath);
 
 function checkAndSetCooldown(userId, command, durationSeconds) {
@@ -102,6 +171,10 @@ function checkAndSetCooldown(userId, command, durationSeconds) {
     writeJSON(cooldownsPath, cooldowns);
     
     return 0; // No cooldown
+}
+
+function calculateLevel(exp) {
+    return Math.floor(Math.sqrt(exp) / 10);
 }
 
 // --- Auction Management ---
@@ -141,7 +214,10 @@ function placeBid(auctionId, userId, amount) {
 }
 
 
+
+
 module.exports = {
+    
     getUserData,
     updateUserData,
     addItemToInventory,
@@ -149,5 +225,14 @@ module.exports = {
     checkAndSetCooldown,
     getAuctions,
     createAuction,
-    placeBid,
+   placeBid,
+   applyLevelRewards,
+  shopItems,
+ decreaseDurability,
+   hasActiveBoost,
+    getBoostMultiplier,
+    equipMiningPick,
+
+	getPets,
+
 };

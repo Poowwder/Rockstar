@@ -1,8 +1,9 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { getUserData, updateUserData, addItemToInventory, removeItemFromInventory } = require('./economyManager.js');
+const { getUserData, updateUserData, addItemToInventory, removeItemFromInventory } = require('../economyManager.js');
 const fs = require('fs');
 const path = require('path');
 
+const petsDataPath = path.join(__dirname, '../../pets.json');
 const ICONS = {
 	pet: '🐶',
     money: '🌸',
@@ -26,13 +27,26 @@ function writeJSON(filePath, data) {
 }
 
 const getPets = () => {
-    const p = path.join(__dirname, 'data', 'pets.json');
+    const p = path.join(__dirname, '..', '..', 'pets.json');
     return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
 };
 
+	
+async function createEconomyEmbed(ctx, title, description, color, thumbnailType = 'default') {
+    const guildName = ctx.guild ? ctx.guild.name : 'R☆ckstar';
+    const guildIcon = ctx.guild ? ctx.guild.iconURL() : null;
+    const embed = new EmbedBuilder()
+        .setColor(color)
+        .setTitle(title)
+        .setDescription(description)
+        .setThumbnail(THUMBNAILS[thumbnailType] || THUMBNAILS.default)
+        .setFooter({ text: guildName, iconURL: guildIcon })
+        .setTimestamp();
+    return embed;
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
-		.setName('pet')
         .setDescription('Gestiona tus mascotas.')
         .addSubcommand(sub => sub.setName('list').setDescription('Lista tus mascotas.'))
         .addSubcommand(sub => sub.setName('equip').setDescription('Equipa una mascota.').addStringOption(o => o.setName('id').setDescription('ID de la mascota').setRequired(true)))
@@ -78,6 +92,7 @@ module.exports = {
         const embed = new EmbedBuilder()
             .setTitle(`Mascotas de ${user.username}`)
             .setDescription(description)
+			.setImage("https://i.imgur.com/HCF2J9A.gif")
             .setColor('#FFD700');
         
         await ctx.reply({ embeds: [embed] });
@@ -121,7 +136,9 @@ module.exports = {
                 { name: 'Bonus Suerte', value: `+${info.bonus.luck}%`, inline: true },
                 { name: 'Bonus Recolección', value: `+${info.bonus.yield}%`, inline: true }
             )
-            .setColor('#FFA500')
+			.setImage("https://i.imgur.com/HCF2J9A.gif")
+           .setColor('#FFA500')
+          
             .setThumbnail('https://i.imgur.com/sB02t2v.gif'); // Placeholder aesthetic
 
         await ctx.reply({ embeds: [embed] });

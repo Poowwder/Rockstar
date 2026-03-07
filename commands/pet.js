@@ -92,6 +92,7 @@ module.exports = {
         const embed = new EmbedBuilder()
             .setTitle(`Mascotas de ${user.username}`)
             .setDescription(description)
+			.setImage("https://i.imgur.com/HCF2J9A.gif")
             .setColor('#FFD700');
         
         await ctx.reply({ embeds: [embed] });
@@ -135,7 +136,9 @@ module.exports = {
                 { name: 'Bonus Suerte', value: `+${info.bonus.luck}%`, inline: true },
                 { name: 'Bonus Recolección', value: `+${info.bonus.yield}%`, inline: true }
             )
-            .setColor('#FFA500')
+			.setImage("https://i.imgur.com/HCF2J9A.gif")
+           .setColor('#FFA500')
+          
             .setThumbnail('https://i.imgur.com/sB02t2v.gif'); // Placeholder aesthetic
 
         await ctx.reply({ embeds: [embed] });
