@@ -1,16 +1,13 @@
 const fs = require('fs');
 const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir);
 }
 
-const economyDataPath = path.join(dataDir, 'economy.json');
-const cooldownsPath = path.join(dataDir, 'cooldowns.json');
-const auctionsPath = path.join(dataDir, 'auctions.json');
-
-// --- Helper Functions ---
+const dbPath = path.join(dataDir, 'economy.db');
 function readJSON(filePath, defaultValue = {}) {
     try {
 
@@ -34,15 +31,57 @@ function writeJSON(filePath, data) {
     }
 }
 
-const shopItems = () => {
-    const p = path.join(__dirname, 'data', 'shop.json');
-    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
-};
+// Initialize SQLite database
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+        console.error("Error opening database:", err.message);
+    } else {
+        console.log('Connected to SQLite database.');
+        db.serialize(() => {
+            db.run(`
+                CREATE TABLE IF NOT EXISTS users (
+                    userId TEXT PRIMARY KEY,
+                    wallet INTEGER DEFAULT 0,
+                    bank INTEGER DEFAULT 0,
+                    inventory TEXT DEFAULT '[]',
+                    dailyQuest TEXT,
+                    pet TEXT,
+                    job TEXT DEFAULT 'unemployed',
+                    level INTEGER DEFAULT 1,
+					equippedFishingRod TEXT,
+                    experience INTEGER DEFAULT 0,
+                    activeBoosts TEXT DEFAULT '[]'
+                )
+            `);
+
+            db.run(`
+                CREATE TABLE IF NOT EXISTS cooldowns (
+                    userId TEXT,
+                    command TEXT,
+                    timestamp INTEGER,
+                    PRIMARY KEY (userId, command)
+                )
+            `);
+
+          
+        });
+    }
+});
+
+
+
+
 // --- User Data ---
 function getUserData(userId) {
-    const economyData = readJSON(economyDataPath);
-    if (!economyData[userId]) {
-        economyData[userId] = {
+    return new Promise((resolve, reject) => {
+        db.get("SELECT * FROM users WHERE userId = ?", [userId], (err, row) => {
+            if (err) {
+                console.error(err.message);
+                reject(err);
+                return;
+            }
+            if (!row) {
+                const defaultData = {
             wallet: 0,
             bank: 0,            
             inventory: [], // Ahora será un array de objetos: { id: 'item_id', quantity: 1 }
@@ -50,15 +89,43 @@ function getUserData(userId) {
            dailyQuest: null,
             pet: null,
 			job: 'unemployed',
-            level: 1,
+			equippedFishingRod: null,
+	hasPremium: false,
+            level: 1,	
             experience: 0,
             activeBoosts: []
         };
-    }
 
-    return economyData[userId];
+                db.run(
+                    "INSERT INTO users (userId, wallet, bank, inventory, dailyQuest, pet, job, level, experience, activeBoosts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [userId, defaultData.wallet, defaultData.bank, JSON.stringify(defaultData.inventory), defaultData.dailyQuest, defaultData.pet, defaultData.job, defaultData.level,defaultData.equippedFishingRod, defaultData.experience, JSON.stringify(defaultData.activeBoosts)],
+                    (err) => {
+                        if (err) {
+                            console.error(err.message);
+                            reject(err);
+                            return;
+                        }
+                        resolve(defaultData);
+                    }
+                );
+            } else {
+                resolve({
+                    userId: row.userId,
+                    wallet: row.wallet,
+                    bank: row.bank,
+                    inventory: JSON.parse(row.inventory),
+                    dailyQuest: row.dailyQuest,
+                    pet: row.pet,
+                    job: row.job,
+                    level: row.level,
+					equippedFishingRod: row.equippedFishingRod,
+                    experience: row.experience,
+                    activeBoosts: JSON.parse(row.activeBoosts)
+                });
+            }
+        });
+    });
 }
-
 
 function applyLevelRewards(userId, oldLevel, newLevel) {
     let data = getUserData(userId);
@@ -82,15 +149,24 @@ function applyLevelRewards(userId, oldLevel, newLevel) {
 
 
 
-
-
-function updateUserData(userId, data) {
-    const economyData = readJSON(economyDataPath);
-    economyData[userId] = data;
-    writeJSON(economyDataPath, economyData);
+async function updateUserData(userId, data) {
+    return new Promise((resolve, reject) => {
+        db.run(
+            `UPDATE users SET wallet = ?, bank = ?, inventory = ?, dailyQuest = ?, pet = ?, job = ?, level = ?,equippedFishingRod = ?, experience = ?, activeBoosts = ? WHERE userId = ?`,
+            [data.wallet, data.bank, JSON.stringify(data.inventory), data.dailyQuest, data.pet, data.job, data.level, data.experience, JSON.stringify(data.activeBoosts), userId],
+            (err) => {
+                if (err) {
+                    console.error(err.message);
+                    reject(err);
+                    return;
+                }
+                resolve();
+            }
+        );
+    });
 }
 
-// --- Inventory Management ---
+
 function addItemToInventory(userId, item) { // item es un objeto { id: 'string', quantity: number }
     const data = getUserData(userId);
     const existingItem = data.inventory.find(i => i.id === item.id);
@@ -177,6 +253,11 @@ function calculateLevel(exp) {
     return Math.floor(Math.sqrt(exp) / 10);
 }
 
+const shopItems = () => {
+    const p = path.join(__dirname, 'data', 'shop.json');
+    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
+};
+
 // --- Auction Management ---
 function getAuctions() {
     return readJSON(auctionsPath);
@@ -223,15 +304,17 @@ module.exports = {
     addItemToInventory,
     removeItemFromInventory,
     checkAndSetCooldown,
+    decreaseResource,
     getAuctions,
     createAuction,
    placeBid,
    applyLevelRewards,
   shopItems,
- decreaseDurability,
+    decreaseDurability,
    hasActiveBoost,
     getBoostMultiplier,
     equipMiningPick,
+
 
 
 
@@ -242,4 +325,3 @@ function equipMiningPick(userId, pickId) {
 }
 
 function getPets() { return }
-

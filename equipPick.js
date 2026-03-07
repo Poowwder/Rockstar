@@ -1,8 +1,9 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData, checkAndSetCooldown, calculateLevel } = require('../../economyManager.js'); // Ajusta la ruta si es necesario
 const fs = require('fs');
+const { MessageFlags } = require('discord.js');
 const path = require('path');
-
+const { addMiningPickToInventory } = require('../../economyManager.js');
 const ICONS = {
     work: '💼',
     money: '🌸',

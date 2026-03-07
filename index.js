@@ -27,6 +27,7 @@ for (const file of commandFiles) {
     if (Array.isArray(commandOrCommands)) {
         // Handle files exporting an array of commands
         for (const command of commandOrCommands) {
+
             if (command.data && command.data.name) {
                 client.commands.set(command.data.name, command);
                 console.log(`Comando cargado: ${command.data.name}`);
