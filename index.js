@@ -114,7 +114,8 @@ client.on(Events.InteractionCreate, async interaction => {
             if (command.executeSlash) {
                 await command.executeSlash(interaction);
             } else {
-                // Fallback o error si el comando no está preparado para slash
+ // Fallback o error si el comando no está preparado para slash
+ console.log("There was an error");
                 await interaction.reply({ content: 'Este comando no está disponible como comando de barra.', ephemeral: true });
             }
             return;
@@ -162,5 +163,6 @@ client.on(Events.InteractionCreate, async interaction => {
         }
     }
 });
+
 
 client.login(process.env.TOKEN);

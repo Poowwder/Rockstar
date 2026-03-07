@@ -233,6 +233,12 @@ module.exports = {
     getBoostMultiplier,
     equipMiningPick,
 
-	getPets,
+
 
 };
+
+function equipMiningPick(userId, pickId) {
+    // Implement the logic to equip a mining pick for a user
+}
+
+function getPets() {

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { getUserData, updateUserData, checkAndSetCooldown, addItemToInventory} = require('../../economyManager.js');
+const { getUserData, updateUserData, checkAndSetCooldown, addItemToInventory, hasActiveBoost} = require('../../economyManager.js');
 const fs = require('fs');
 const path = require('path');
 const ICONS = {
@@ -7,7 +7,7 @@ const ICONS = {
     money: '🌸',
     error: '❌',
 	premium: '⭐'
- };
+};
 
 const COLORS = {
     primary: '#FFB6C1',
@@ -17,22 +17,37 @@ const COLORS = {
 };
 
 const getFishingRods = () => {
- const p = path.join(__dirname, '../data/fishing_rods.json');
- return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
+    const p = path.join(__dirname, '../data/fishing_bosses.json');
+    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
 };
 
- data: new SlashCommandBuilder()
- .setName('boss_fight')
- .setDescription('Pelea contra el jefe.'),
- category: 'currency',
- async execute(interaction) {
+const getFishingRods = () => {
+    const p = path.join(__dirname, '../data/fishing_rods.json');
+    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
+};
+
+    data: new SlashCommandBuilder()
+        .setName('boss_fight')
+        .setDescription('Pelea contra el boss.'),
+    category: 'currency',
+    async execute(interaction) {
 
         const user = interaction.user;
         const userId = user.id;
 
 
+
+		
+
         const fishingRods = getFishingRods();
+
 		const data = getUserData(userId);
-  //const miningBosses = getMiningBosses();
-  }
-}
+
+
+
+
+
+        const fishingRods = getFishingRods();
+
+        await interaction.followUp('testing');
+   }
