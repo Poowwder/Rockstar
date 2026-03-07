@@ -12,7 +12,7 @@ module.exports = {
                 .setDescription('El comando sobre el que quieres obtener información.')
                 .setRequired(false)
         ),
-    category: 'info',
+    category: 'config',
     description: 'Muestra el menú de ayuda o información sobre un comando específico.',
     async execute(message, args) {
         const { commands } = message.client;
