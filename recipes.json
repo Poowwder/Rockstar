@@ -1,0 +1,9 @@
+{
+    "pickaxe": {
+        "result": { "id": "pickaxe", "quantity": 1 },
+        "materials": {
+            "wood": 2,
+            "stone": 3
+        }
+    }
+}
