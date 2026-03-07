@@ -137,6 +137,6 @@ module.exports = [
         aliases: [],
         async execute(message, args) { return cmdConfig.execute(message, args); },
         async executeSlash(interaction) { return cmdConfig.execute(interaction); }
-    })),
+	})),
     userCommand
 ];

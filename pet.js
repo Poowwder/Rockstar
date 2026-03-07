@@ -1,135 +1,129 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { getUserData, updateUserData, addItemToInventory, removeItemFromInventory, applyFishingBonus, applyMiningBonus } = require('../../economyManager.js');
+const { getUserData, updateUserData, addItemToInventory, removeItemFromInventory } = require('./economyManager.js');
 const fs = require('fs');
 const path = require('path');
-const ms = require('ms');
 
-const petsData = JSON.parse(fs.readFileSync(path.join(__dirname, '../../pets.json'), 'utf8'));
 const ICONS = {
-    pet: '🐶',
+	pet: '🐶',
     money: '🌸',
-    error: '❌'
-};
+	error: '❌'
+}
 const COLORS = {
     primary: '#FFB6C1',
-    error: '#FF6961'
+	error: '#FF6961'
 };
 
-async function createEconomyEmbed(ctx, title, description, color, thumbnailType = 'default') {
-    const user = ctx.user || ctx.author;
-    const member = ctx.member || ctx.guild.members.cache.get(user.id);
-    const name = member ? member.displayName : user.username;
-    const embed = new EmbedBuilder()
-        .setColor(COLORS.primary);
-        return embed
+function readJSON(filePath) {
+    if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, JSON.stringify({}, null, 2));
+        return {};
+    }
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
+function writeJSON(filePath, data) {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+}
 
-
-
-
+const getPets = () => {
+    const p = path.join(__dirname, 'data', 'pets.json');
+    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
+};
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('pet')
-        .setDescription('Interactúa con tu mascota.')
+		.setName('pet')
+        .setDescription('Gestiona tus mascotas.')
         .addSubcommand(sub => sub.setName('list').setDescription('Lista tus mascotas.'))
-        .addSubcommand(sub => sub.setName('equip').setDescription('Equipa una mascota.').addStringOption(o => o.setName('id').setDescription('ID de la mascota a equipar.').setRequired(true)))
-        .addSubcommand(sub => sub.setName('info').setDescription('Muestra información de tu mascota equipada.')),
-		 skipSlash: true, // No registrar individualmente
-        category: 'currency',
-    description: 'list, equip or get info from your pet',
-    usage: 'pet < list | equip | info>',
+        .addSubcommand(sub => sub.setName('equip').setDescription('Equipa una mascota.').addStringOption(o => o.setName('id').setDescription('ID de la mascota').setRequired(true)))
+        .addSubcommand(sub => sub.setName('info').setDescription('Información de tu mascota equipada.')),
+    category: 'currency',
+    description: 'Gestiona tus mascotas.',
+    usage: '!!pet <list|equip|info>',
+    aliases: ['pets'],
     async execute(message, args) {
         const sub = args[0];
+        if (sub === 'list') return this.listPets(message);
+        if (sub === 'equip') return this.equipPet(message, args[1]);
+        if (sub === 'info') return this.petInfo(message);
+        return message.reply('Uso: `!!pet <list|equip|info>`');
     },
-	
-
-        async executeSlash(interaction) {
-        const { options, user } = interaction;
+    async executeSlash(interaction) {
         const sub = interaction.options.getSubcommand();
-		    if (sub === 'list') {
-				return this.list(interaction);
-			}
-
-            if (sub === 'equip') {
-				return this.equip(interaction, interaction.options.getString('id'))
-			}
-            if (sub === 'info') {
-			}
-    return embed;
-}
-
-			this.info(interaction)
+        if (sub === 'list') return this.listPets(interaction);
+        if (sub === 'equip') return this.equipPet(interaction, interaction.options.getString('id'));
+        if (sub === 'info') return this.petInfo(interaction);
     },
 
-    async list(ctx) {
-        const user = ctx.user || ctx.author
+    async listPets(ctx) {
+        const user = ctx.user || ctx.author;
         const data = getUserData(user.id);
+        const items = getPets()
 
         if (!data.inventory || data.inventory.length === 0) {
-            return ctx.reply({ content: '🐶 No tienes mascotas. ¡Consigue una en cajas de botín o eventos!', flags: MessageFlags.Ephemeral });
+            return ctx.reply('🐶 No tienes mascotas. ¡Consigue una en cajas de botín o eventos!');
         }
-
 		const petList = data.inventory.filter(item => items[item.id])
+
+
         if (!petList || petList.length === 0) {
-            return ctx.reply({ content: '🐶 No tienes mascotas. ¡Consigue una en cajas de botín o eventos!', flags: MessageFlags.Ephemeral });
+            return ctx.reply('🐶 No tienes mascotas. ¡Consigue una en cajas de botín o eventos!');
         }
 
-            // Construct the embed with the pet list
-            // Reply to the user with the embed
-        }
+        const description = petList.map(pet => {
+            const info = items[pet.id];
+            return `**${info.name}** - ID: \`${pet.id}\``;
+        }).join('\n');
+
+        const embed = new EmbedBuilder()
+            .setTitle(`Mascotas de ${user.username}`)
+            .setDescription(description)
+            .setColor('#FFD700');
+        
+        await ctx.reply({ embeds: [embed] });
     },
-    async equip(ctx, petId) {
-		
-        const user = ctx.user || ctx.author
+
+    async equipPet(ctx, petId) {
+        const user = ctx.user || ctx.author;
         const data = getUserData(user.id);
-		const item = items[data.pet]
-		
-        // Verify if user have a pet
+        const items = getPets()
 
-            if (data.inventory && data.inventory === petId){
-                return ctx.reply({ content: `${ICONS.error} El pet no es valido`, flags: MessageFlags.Ephemeral });
+        const petToEquip = data.inventory.find(item => item.id === petId);
+        if (!petToEquip) return ctx.reply(`${ICONS.error} No tienes esa mascota en el inventario.`);
 
-           
-		else return
-		 petToEquip = items[petId];
-	 if (!petToEquip) return ctx.reply({ content: `${ICONS.error} No existe una pet con ese nombre en la tienda.`, flags: MessageFlags.Ephemeral });
-
-
-           const msg = await ctx.reply({ content:`equipaste ${item.name} exitosamente`, flags: MessageFlags.Ephemeral })
-            updateUserData(user.id, data)
-        return ctx.reply({ content:`no tienes este pet en tu inventario. para poder equiparlo, primero compralo`, flags: MessageFlags.Ephemeral })
-    }
-        
-        
-        let message = ""
-  //      let itemToEquip = findShopItem(itemName)
-   //     if (message.isChatInputCommand?.() && (message.deferred || message.replied)) await message.editReply('esto tardara un momento');
-     
-        
-
-    },
-    async petInfo(ctx) {
-    if (ctx.isChatInputCommand?.() && !ctx.deferred && !ctx.replied) await ctx.deferReply();
-
-	 const user = ctx.user?.id || ctx.author?.id;
-    const data = getUserData(user);
-
-            if (hasPet){
-          let message = "no tienes ninguna pet equipada"
-            if (ctx.isChatInputCommand?.() && (ctx.deferred || ctx.replied)) await ctx.editReply("no tienes pet equipada")
-            else await ctx.reply("no tienes ninguna pet equipada")
-            } else {
-          const hasPet = data.pet
-           const embed = await createEconomyEmbed(ctx, "mira las caracteristicas de tu pet", "si", COLORS.primary, 'level');
-            }
+		const pet = items[petId]
+        if (!pet) return ctx.reply(`${ICONS.error} Esa mascota no existe en el inventario.`);
 
         data.pet = petId;
+        updateUserData(user.id, data);
 
-     const embed = await createEconomyEmbed(ctx, `${ICONS.shop} Tienda del Servidor`, description || 'La tienda está vacía en este momento.', COLORS.info, 'shop');
+        const info = getPets()[petId];
+        await ctx.reply(`✅ Has equipado a **${info.name}**.`);
+    },
 
-    if (ctx.isChatInputCommand?.() && (ctx.deferred || ctx.replied)) await ctx.editReply({ embeds: [embed] });
-            else await ctx.reply({ embeds: [embed] });
+    async petInfo(ctx) {
+        const user = ctx.user || ctx.author;
+        const data = getUserData(user.id);
+
+        if (!data.pet) return ctx.reply('❌ No tienes ninguna mascota equipada.');
+
+        const items = getPets()
+        const pet = items[data.pet]
+		if (!pet) return ctx.reply('❌ No tienes ninguna mascota equipada.');
+
+        const info = getPets()[data.pet];
+        const embed = new EmbedBuilder()
+            .setTitle(`🐶 ${info.name}`)
+            .setDescription(info.description)
+            .addFields(
+                { name: 'Tipo', value: info.type, inline: true },
+                { name: 'Rareza', value: info.rarity, inline: true },
+                { name: 'Bonus Suerte', value: `+${info.bonus.luck}%`, inline: true },
+                { name: 'Bonus Recolección', value: `+${info.bonus.yield}%`, inline: true }
+            )
+            .setColor('#FFA500')
+            .setThumbnail('https://i.imgur.com/sB02t2v.gif'); // Placeholder aesthetic
+
+        await ctx.reply({ embeds: [embed] });
+    }
 };
-}

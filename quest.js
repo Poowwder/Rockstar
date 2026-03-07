@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const ms = require('ms');
 
-const questsDataPath = path.join(__dirname, '../../quests.json');
+const questsDataPath = path.join(__dirname, '../../data/quests.json');
 const ICONS = {
     quest: '📜',
     money: '🌸',
@@ -35,7 +35,7 @@ function writeJSON(filePath, data) {
 }
 
 const getQuests = () => {
-    const p = path.join(__dirname, '..', '..', 'quests.json');
+    const p = path.join(__dirname, '..', '..', 'data/quests.json');
     return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
 };
 

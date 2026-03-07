@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const marriageDataPath = path.join(__dirname, 'marriages.json');
+const marriageDataPath = path.join(__dirname, 'data', 'marriages.json');
 
 // Almacenamiento en memoria para propuestas. Clave: targetId, Valor: proposerId
 const proposals = new Map();

@@ -781,7 +781,7 @@ module.exports = commands.map(cmdConfig => {
         async executeSlash(interaction) {
             // Slash commands handle permissions automatically via setDefaultMemberPermissions
             // Argument parsing is handled by the builder in the command config
-            const options = interaction.options;
+			const options = interaction.options;
             const reason = options.getString('razon');
 
             switch(cmdConfig.name) {

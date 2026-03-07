@@ -88,7 +88,7 @@ const commands = [
         async execute(ctx) {
             const size = Math.floor(Math.random() * 30);
             await ctx.reply(`🍌 Tu banana mide **${size} cm**. ¡Impresionante!`);
-        }
+		}
     },
     {
         name: 'lucky',

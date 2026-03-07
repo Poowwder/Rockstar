@@ -3,8 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 // --- File I/O Helpers ---
-const blockedUsersPath = path.join(__dirname, '..', 'blockedUsers.json');
-const serverConfigsPath = path.join(__dirname, '..', 'serverConfigs.json');
+const blockedUsersPath = path.join(__dirname, '..', 'data/blockedUsers.json');
+const serverConfigsPath = path.join(__dirname, '..', 'data/serverConfigs.json');
 
 function readJSON(filePath) {
     if (!fs.existsSync(filePath)) return {};
@@ -169,8 +169,8 @@ const commands = [
         name: 'language-view',
         description: 'Muestra el idioma actual del bot para el servidor.',
         usage: '!!language-view',
-        async execute(ctx) {
-            const serverConfigs = readJSON(serverConfigsPath);
+		async execute(ctx) {
+           const serverConfigs = readJSON(serverConfigsPath);
             const lang = serverConfigs[ctx.guild.id]?.language || 'es'; // Default to 'es'
 
             await ctx.reply({ content: `El idioma actual del bot en este servidor es: **${lang}**.` });

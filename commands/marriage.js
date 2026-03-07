@@ -276,4 +276,5 @@ module.exports = commands.map(cmdConfig => {
         cmdConfig.builder(command.data);
     }
     return command;
+	
 });

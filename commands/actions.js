@@ -22,6 +22,18 @@ const actions = [
     { name: 'punch', desc: 'Dale un puñetazo a alguien.', category: 'punch', text: 'le dio un puñetazo a' }
 ];
 
+/**
+ * Crea un comando de acción basado en la configuración proporcionada.
+ * @param {object} config - Objeto de configuración para la acción.
+ * @param {string} config.name - Nombre del comando.
+ * @param {string} config.desc - Descripción del comando.
+ * @param {string} config.category - Categoría de la imagen de la API waifu.pics.
+ * @param {string} config.text - Texto que describe la acción.
+ * @returns {object} - Objeto del comando listo para ser registrado.
+ *
+ * Este comando permite a los usuarios realizar acciones como abrazar, besar, etc.,
+ * mencionando a otro usuario. Utiliza la API waifu.pics para obtener imágenes relacionadas.
+ */
 function createActionCommand(config) {
     return {
         data: new SlashCommandBuilder()

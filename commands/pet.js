@@ -31,7 +31,7 @@ const getPets = () => {
     return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
 };
 
-
+	
 async function createEconomyEmbed(ctx, title, description, color, thumbnailType = 'default') {
     const guildName = ctx.guild ? ctx.guild.name : 'R☆ckstar';
     const guildIcon = ctx.guild ? ctx.guild.iconURL() : null;

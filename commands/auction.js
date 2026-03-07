@@ -7,7 +7,7 @@ const auctionsDataPath = path.join(__dirname, '../../auctions.json');
 const ICONS = {
     money: '🌸',
 	error: '❌',
-    auction: ' নিলাম'
+    auction: '💰'
 }
 const COLORS = {
     primary: '#FFB6C1',
@@ -57,7 +57,7 @@ module.exports = {
     aliases: ['auctions'],
     async execute(message, args) {
         message.reply('Por favor usa los comandos de barra `/auction` para las subastas.');
-    },
+	},
     async executeSlash(interaction) {
         const {options, user, guild} = interaction;
         const sub = interaction.options.getSubcommand();

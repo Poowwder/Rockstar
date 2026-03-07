@@ -88,7 +88,6 @@
         "sellPrice": 5000
   }
 
-    },
     "health_potion": {
         "id": "health_potion",
         "name": "Poción de Curación",

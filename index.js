@@ -8,74 +8,76 @@ const http = require('http');
 const port = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is alive!');
-}).listen(port, () => console.log(`Keep-Alive server running on port ${port}`));
+    res.end('Bot está vivo!');
+}).listen(port, () => console.log(`Servidor Keep-Alive corriendo en el puerto ${port}`));
 // ------------------------------
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers] });
-const prefix = '!!';
-client.prefix = prefix;
-
-// Colección para comandos
+client.prefix = '!!';
 client.commands = new Collection();
 
-// Cargar comandos desde ./commands
-const loadCommands = async (dir = commandsPath) => {
-	const files = fs.readdirSync(dir);
+// --- Command Loader ---
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-	for (const file of files) {
-		const filePath = path.join(dir, file);
-		const stat = fs.lstatSync(filePath);
-		if (stat.isDirectory()) {
-			loadCommands(filePath);
-		} else if (file.endsWith(".js")) {
-			const command = require(filePath);
-			client.commands.set(command.data.name, command);
-			console.log(`cargado ${command.data.name}`)
-		}
+for (const file of commandFiles) {
+    const filePath = path.join(commandsPath, file);
+    const commandOrCommands = require(filePath);
+
+    if (Array.isArray(commandOrCommands)) {
+        // Handle files exporting an array of commands
+        for (const command of commandOrCommands) {
+            if (command.data && command.data.name) {
+                client.commands.set(command.data.name, command);
+                console.log(`Comando cargado: ${command.data.name}`);
+            }
+        }
+    } else if (commandOrCommands.data && commandOrCommands.data.name) {
+        // Handle files exporting a single command object
+        client.commands.set(commandOrCommands.data.name, commandOrCommands);
+        console.log(`Comando cargado: ${commandOrCommands.data.name}`);
     }
 }
 
-// Cargar eventos desde ./events
+
+// --- Event Loader ---
 const eventsPath = path.join(__dirname, 'events');
 const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
 for (const file of eventFiles) {
     const filePath = path.join(eventsPath, file);
     const event = require(filePath);
-    if (event.once) client.once(event.name, (...args) => event.execute(...args, client));
-    else client.on(event.name, (...args) => event.execute(...args, client));
+    if (event.once) {
+        client.once(event.name, (...args) => event.execute(...args, client));
+    } else {
+        client.on(event.name, (...args) => event.execute(...args, client));
+    }
 }
 
-
-// Cargar el manejador de experiencia (Eventos)
-const experienceHandler = require(path.join(__dirname,'./events/experience.js'));
-client.on(experienceHandler.name, (...args) => experienceHandler.execute(...args, client));
-
-
-// Registrar comandos slash al iniciar
+// --- Client Ready ---
 client.once(Events.ClientReady, async () => {
-    // Filtramos los comandos que tienen skipSlash: true para no saturar el límite de 100
-		loadCommands()
-
-    const slashCommands = client.commands.filter(cmd => !cmd.skipSlash).map(cmd => cmd.data.toJSON());
-    console.log(`Registrando ${slashCommands.length} comandos slash...`);
-    await client.application.commands.set(slashCommands);
-    console.log(`Bot listo como ${client.user.tag}`);
+    try {
+        const slashCommands = client.commands.map(cmd => cmd.data.toJSON());
+        console.log(`Registrando ${slashCommands.length} comandos slash...`);
+        await client.application.commands.set(slashCommands);
+        console.log(`Bot listo como ${client.user.tag}`);
+    } catch (error) {
+        console.error('Error al registrar comandos slash:', error);
+    }
 });
 
-// Manejo de comandos con prefijo
+// --- MessageCreate (Prefix Commands) ---
 client.on(Events.MessageCreate, async message => {
-    if (!message.content.startsWith(prefix) || message.author.bot) return;
+    if (!message.content.startsWith(client.prefix) || message.author.bot) return;
 
     // Blocked user check
-    const blockedUsersPath = path.join(__dirname, 'blockedUsers.json');
+    const blockedUsersPath = path.join(__dirname, 'data', 'blockedUsers.json');
     if (fs.existsSync(blockedUsersPath)) {
         const blockedUsers = JSON.parse(fs.readFileSync(blockedUsersPath, 'utf8'));
         if (blockedUsers[message.guild.id]?.includes(message.author.id)) return;
     }
 
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
+    const args = message.content.slice(client.prefix.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
 
     const command = client.commands.get(commandName) || client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
@@ -91,80 +93,66 @@ client.on(Events.MessageCreate, async message => {
 
 const { categoriasTexto } = require('./constants.js');
 
-// Manejo de comandos slash y menús/botones de ayuda
+// --- InteractionCreate (Slash Commands & Components) ---
 client.on(Events.InteractionCreate, async interaction => {
     try {
         // Blocked user check
-        if (interaction.guild) {
-            const blockedUsersPath = path.join(__dirname, 'blockedUsers.json');
-            if (fs.existsSync(blockedUsersPath)) {
-                const blockedUsers = JSON.parse(fs.readFileSync(blockedUsersPath, 'utf8'));
-                if (blockedUsers[interaction.guild.id]?.includes(interaction.user.id)) return;
-            }
+        const blockedUsersPath = path.join(__dirname, 'data', 'blockedUsers.json');
+        if (interaction.guild && fs.existsSync(blockedUsersPath)) {
+            const blockedUsers = JSON.parse(fs.readFileSync(blockedUsersPath, 'utf8'));
+            if (blockedUsers[interaction.guild.id]?.includes(interaction.user.id)) return;
         }
 
-        // Slash commands
+        // Slash Command Handling
         if (interaction.isChatInputCommand()) {
             const command = client.commands.get(interaction.commandName);
             if (!command) {
                 console.error(`No se encontró el comando ${interaction.commandName}.`);
                 return;
             }
-            await command.executeSlash(interaction);
+             // Asegurarse de que `executeSlash` exista
+            if (command.executeSlash) {
+                await command.executeSlash(interaction);
+            } else {
+                // Fallback o error si el comando no está preparado para slash
+                await interaction.reply({ content: 'Este comando no está disponible como comando de barra.', ephemeral: true });
+            }
             return;
         }
 
-        // Menú de Selección del help (dinámico)
+        // --- Component Handling ---
+
+        // Help Menu
         if (interaction.isStringSelectMenu() && interaction.customId === 'help-menu') {
             const categoria = interaction.values[0];
-
             const allCategoryCommands = client.commands.filter(cmd => cmd.category === categoria);
-            const masterCommand = allCategoryCommands.find(cmd => cmd.data.options?.some(opt => opt.toJSON().type === 1)); // 1 = SUB_COMMAND
 
-            let description;
-            let commandCount = 0;
+            let description = allCategoryCommands.map(cmd => {
+                const desc = cmd.description || cmd.data?.description || 'Sin descripción disponible.';
+                return `\`/${cmd.data.name}\` - ${desc}`;
+            }).join('\n');
 
-            if (masterCommand) {
-                // Si encontramos un comando maestro (con subcomandos), lo mostramos
-                const subcommands = masterCommand.data.options.filter(opt => opt.toJSON().type === 1);
-                description = subcommands
-                    .map(sub => `\`/${masterCommand.data.name} ${sub.name}\` - ${sub.description}`)
-                    .join('\n');
-                commandCount = subcommands.length;
-            } else {
-                // Si no, mostramos los comandos individuales de la categoría
-                description = allCategoryCommands.size > 0
-                    ? allCategoryCommands.map(cmd => {
-                        const desc = cmd.description || cmd.data?.description || 'Sin descripción disponible.';
-                        return `\`/${cmd.data.name}\` - ${desc}`;
-                    }).join('\n')
-                    : 'No hay comandos en esta categoría.';
-                commandCount = allCategoryCommands.size;
-            }
-
-            // Fallback para asegurar que la descripción nunca esté vacía
-            if (!description || description.trim() === '') {
-                description = 'No se encontraron comandos para esta categoría o está en construcción.';
+            if (!description) {
+                description = 'No hay comandos en esta categoría o está en construcción.';
             }
 
             const catInfo = categoriasTexto.find(c => c.key === categoria);
-
             const embed = new EmbedBuilder()
                 .setTitle(`Categoría: ${catInfo ? catInfo.label : categoria}`)
                 .setColor(Math.floor(Math.random() * 0xFFFFFF))
                 .setDescription(description)
-                .setFooter({ text: `Total: ${commandCount} comandos.` });
+                .setFooter({ text: `Total: ${allCategoryCommands.size} comandos.` });
 
-            // Usamos update para mantener el menú y solo cambiar el contenido del embed
             await interaction.update({ embeds: [embed], components: interaction.message.components });
             return;
         }
 
-        // Botón de cerrar del help
+        // Help Close Button
         if (interaction.isButton() && interaction.customId === 'help-close') {
             await interaction.message.delete();
             return;
         }
+
     } catch (error) {
         console.error('Error en el manejador de interacciones:', error);
         if (interaction.replied || interaction.deferred) {
