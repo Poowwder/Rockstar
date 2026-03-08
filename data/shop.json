@@ -2,28 +2,28 @@
   "stone": {
     "name": "Piedra",
     "icon": "🪨",
-    "description": "Material básico para construcción y herramientas.",
+    "description": "Material básico para construcción.",
     "price": 50,
     "sellPrice": 25
   },
   "iron_ore": {
     "name": "Mineral de Hierro",
     "icon": "⛓️",
-    "description": "Un metal resistente para herramientas de nivel medio.",
+    "description": "Un metal resistente para mejores herramientas.",
     "price": 300,
     "sellPrice": 150
   },
   "diamond": {
     "name": "Diamante",
     "icon": "💎",
-    "description": "La gema más valiosa y resistente de la mina.",
+    "description": "La gema más valiosa y rara de las minas.",
     "price": 5000,
     "sellPrice": 2500
   },
   "wood": {
     "name": "Madera",
     "icon": "🪵",
-    "description": "Madera de roble, esencial para mangos de herramientas.",
+    "description": "Esencial para mangos de herramientas.",
     "price": 40,
     "sellPrice": 20
   },
@@ -41,41 +41,32 @@
     "price": 600,
     "sellPrice": 300
   },
+  "dye": {
+    "name": "Tinte Mágico",
+    "icon": "🎨",
+    "description": "Cambia el color de tu perfil a uno aleatorio (Se consume al usar /setcolor).",
+    "price": 2500,
+    "sellPrice": 500
+  },
   "pickaxe_stone": {
     "name": "Pico de Piedra",
     "icon": "⛏️",
-    "description": "Más duradero que el de madera.",
+    "description": "Herramienta básica para minar.",
     "price": 500,
-    "sellPrice": 100,
-    "maxDurability": 50
-  },
-  "pickaxe_iron": {
-    "name": "Pico de Hierro",
-    "icon": "⚒️",
-    "description": "Permite extraer diamantes con facilidad.",
-    "price": 2000,
-    "sellPrice": 500,
-    "maxDurability": 150
+    "sellPrice": 100
   },
   "fishing_rod": {
     "name": "Caña de Pescar",
     "icon": "🎣",
-    "description": "Caña estándar para pescar en agua dulce.",
+    "description": "Caña estándar para pescar.",
     "price": 400,
     "sellPrice": 150
   },
   "daily_box": {
     "name": "Caja Diaria",
     "icon": "🎁",
-    "description": "Contiene flores y materiales sorpresa.",
+    "description": "Contiene flores y sorpresas.",
     "price": 0,
     "sellPrice": 0
-  },
-  "luck_potion": {
-    "name": "Poción de Suerte",
-    "icon": "🧪",
-    "description": "Aumenta ligeramente tus probabilidades de éxito.",
-    "price": 1000,
-    "sellPrice": 200
   }
 }
