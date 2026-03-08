@@ -1,19 +1,18 @@
 const { getUserData } = require('./economyManager.js');
 
 class MarriageManager {
-    static async isMarried(userId) {
+    static async getMaxSlots(userId) {
         const data = await getUserData(userId);
-        return !!data.marry; // Devuelve true si tiene ID de pareja
+        const type = data.premiumType?.toLowerCase() || 'normal';
+
+        if (type === 'bimestral') return 20; // 💎 Elite
+        if (type === 'mensual') return 15;   // 🎀 Premium
+        return 10; // 🌸 Normal
     }
 
-    static async getPartner(userId) {
+    static async getHarem(userId) {
         const data = await getUserData(userId);
-        return data.marry || null;
-    }
-
-    static async hasPendingRequest(userId) {
-        const data = await getUserData(userId);
-        return data.pendingMarriage || null;
+        return data.harem || []; 
     }
 }
 

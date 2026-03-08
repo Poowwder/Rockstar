@@ -1,32 +1,45 @@
-const { EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
-
-const zones = {
-    "lago": { name: "🌸 Lago Cristal", fish: ["🐟", "🐠"], min: 50, max: 150, premium: false, boss: { name: "Rey Rana", chance: 10, reward: 1000 } },
-    "oceano": { name: "⚓ Océano VIP", fish: ["🦈", "🐳"], min: 500, max: 2000, premium: true, boss: { name: "Kraken", chance: 15, reward: 5000 } }
-};
 
 module.exports = {
     name: 'fish',
-    category: 'economía',
-    async execute(message, args) {
-        let data = await getUserData(message.author.id);
-        const zoneKey = args[0]?.toLowerCase();
+    data: new SlashCommandBuilder().setName('fish').setDescription('🎣 Pesca en Zonas Secretas'),
 
-        if (!zoneKey || !zones[zoneKey]) return message.reply("Usa: `!!fish lago` u `!!fish oceano` (VIP)");
-        const zone = zones[zoneKey];
+    async execute(input) {
+        const user = input.user || input.author;
+        const member = input.member;
+        let data = await getUserData(user.id);
 
-        if (zone.premium && data.premiumType === 'none') return message.reply("🔒 Zona VIP");
+        const tieneCaña = data.inventory?.some(i => i.toLowerCase().includes('caña'));
+        if (!tieneCaña) return input.reply("╰┈➤ 🌊 **¡Oh no!** No tienes una **Caña**. ¡Consigue una en `!!shop`! ✨");
 
-        if (Math.random() * 100 <= zone.boss.chance) {
-            data.wallet += zone.boss.reward;
-            await updateUserData(message.author.id, data);
-            return message.reply(`🔱 ¡DERROTASTE AL ${zone.boss.name.toUpperCase()}! Ganaste **${zone.boss.reward}** flores.`);
-        }
+        let boost = 1;
+        let zona = "🛶 Lago de Malvavisco";
+        if (data.premiumType === 'mensual') { boost = 5; zona = "🌊 Arrecife de Perlas"; }
+        if (data.premiumType === 'bimestral') { boost = 8; zona = "🧜‍♀️ Reino de las Sirenas"; }
 
-        const win = Math.floor(Math.random() * (zone.max - zone.min)) + zone.min;
-        data.wallet += win;
-        await updateUserData(message.author.id, data);
-        message.reply(`🎣 Pescaste un ${zone.fish[0]} y ganaste **${win}** flores.`);
+        let gananciaBase = (boost > 1) ? 3500 : 700;
+        let gananciaFinal = Math.floor((Math.random() * 500) + gananciaBase) * boost;
+
+        data.wallet += gananciaFinal;
+        await updateUserData(user.id, data);
+
+        const fishEmbed = new EmbedBuilder()
+            .setTitle(`🫧 ‧₊˚ Pesca Estelar ˚₊‧ 🫧`)
+            .setColor('#B2E2F2')
+            .setThumbnail('https://i.pinimg.com/originals/81/44/7b/81447bc9546059632890b0d61ca55913.gif')
+            .setDescription(
+                `*“El agua está perfecta hoy...”* 🎣✨\n\n` +
+                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n` +
+                `🫧 **Lugar:** \`${zona}\`\n` +
+                `🚀 **Multiplicador:** \`x${boost}\` activo\n` +
+                `🌸 **Venta:** **${gananciaFinal.toLocaleString()} flores**\n` +
+                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
+                `╰┈➤ *¡Atrapaste un pez muy brillante!*`
+            )
+            .setFooter({ text: `Pescadora: ${member.displayName} ♡`, iconURL: user.displayAvatarURL() })
+            .setTimestamp();
+
+        return input.reply({ embeds: [fishEmbed] });
     }
 };

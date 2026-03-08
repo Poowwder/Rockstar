@@ -1,29 +1,36 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 module.exports = {
-    name: 'ping', // Nombre para prefijo
+    name: 'ping',
     category: 'información',
     data: new SlashCommandBuilder()
-        .setName('ping') // Nombre para Slash (OBLIGATORIO)
-        .setDescription('Mira la latencia del bot y la API'),
+        .setName('ping')
+        .setDescription('🎀 Revisa mi latencia de una forma cute'),
 
     async execute(input) {
-        // Detectar si es Interaction o Message
-        const isSlash = !!input.user;
-        const apiLatency = input.client.ws.ping;
+        // Obtenemos el miembro para sacar el apodo (displayName)
+        const member = input.member;
+        const apiPing = input.client.ws.ping;
         
-        const embed = new EmbedBuilder()
-            .setTitle('📡 Estado de Conexión')
-            .setColor('#FFB6C1')
-            .addFields(
-                { name: '🌐 API Latency', value: `\`${apiLatency}ms\``, inline: true }
+        // Creamos el Embed Aesthetic
+        const pingEmbed = new EmbedBuilder()
+            .setTitle('🌸 ¡Holi! Mi señal está así:')
+            .setColor('#FFB6C1') // Rosa pastel
+            .setThumbnail('https://i.pinimg.com/originals/8a/6c/4a/8a6c4a93883a908a8e32918f0f09a18d.gif')
+            .setDescription(
+                `╰┈➤ **Latencia API:** \`${apiPing}ms\`\n` +
+                `╰┈➤ **Estado:** \`Estable y lista para ti\` ✨`
             )
-            .setFooter({ text: 'Rockstar Bot Performance' });
+            .addFields(
+                { name: '☁️ Servidor', value: '`Conectado vía Render`', inline: true },
+                { name: '✨ Energía', value: '`100% Rockstar`', inline: true }
+            )
+            .setTimestamp() // Timestamp solicitado
+            .setFooter({ 
+                text: `Solicitado por: ${member.displayName}`, // Aquí usamos el apodo del servidor
+                iconURL: (input.user ? input.user.displayAvatarURL() : input.author.displayAvatarURL()) 
+            });
 
-        if (isSlash) {
-            await input.reply({ embeds: [embed] });
-        } else {
-            await input.reply({ embeds: [embed] });
-        }
+        return input.reply({ embeds: [pingEmbed] });
     }
 };

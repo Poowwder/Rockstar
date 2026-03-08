@@ -2,80 +2,69 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
 
 module.exports = {
+    name: 'rob',
+    aliases: ['robar', 'steal'],
+    category: 'economía',
     data: new SlashCommandBuilder()
         .setName('rob')
-        .setDescription('Intenta robarle algunas flores a otro usuario 😈')
-        .addUserOption(opt => opt.setName('usuario').setDescription('¿A quién quieres robar?').setRequired(true)),
+        .setDescription('🕵️ Intenta robarle flores a otro usuario (¡con riesgo!)')
+        .addUserOption(option => option.setName('usuario').setDescription('Tu víctima').setRequired(true)),
 
-    async execute(interaction) {
-        const target = interaction.options.getUser('usuario');
-        const userId = interaction.user.id;
+    async execute(input) {
+        const isSlash = !!input.user;
+        const author = isSlash ? input.user : input.author;
+        const member = input.member;
+        const target = isSlash ? input.options.getUser('usuario') : input.mentions.users.first();
+        const targetMember = isSlash ? input.options.getMember('usuario') : input.mentions.members.first();
 
-        if (target.id === userId) return interaction.reply({ content: "❌ No puedes robarte a ti mismo... eso sería muy raro.", ephemeral: true });
-        if (target.bot) return interaction.reply({ content: "❌ Los bots no cargan carteras, solo circuitos.", ephemeral: true });
+        if (!target || target.id === author.id) return input.reply("╰┈➤ ❌ No puedes robarte a ti misma...");
+        if (target.bot) return input.reply("╰┈➤ 🤖 Los bots no guardan flores en sus bolsillos.");
 
-        const userData = await getUserData(userId);
-        const targetData = await getUserData(target.id);
+        let userData = await getUserData(author.id);
+        let targetData = await getUserData(target.id);
 
-        // Cooldown de 2 horas para no spamear robos
-        const now = Date.now();
-        const cooldown = 7200000; 
-        if (now - (userData.lastRob || 0) < cooldown) {
-            const restante = Math.ceil((cooldown - (now - userData.lastRob)) / 60000);
-            return interaction.reply({ content: `⏳ ¡La policía te busca! Espera **${restante} minutos** antes de otro atraco.`, ephemeral: true });
-        }
+        if (targetData.wallet < 500) return input.reply(`╰┈➤ **${targetMember.displayName}** es muy pobre, no vale la pena el riesgo.`);
+        if (userData.wallet < 200) return input.reply("╰┈➤ ❌ Necesitas al menos `200 🌸` en mano por si te atrapan y debes pagar la multa.");
 
-        if (targetData.wallet < 500) {
-            return interaction.reply({ content: `❌ **${target.username}** es demasiado pobre para robarle... Ten un poco de piedad.`, ephemeral: true });
-        }
-
-        const memberEmisor = interaction.guild.members.cache.get(userId);
-        const memberReceptor = interaction.guild.members.cache.get(target.id);
-        const apodoEmisor = memberEmisor?.nickname || interaction.user.username;
-        const apodoReceptor = memberReceptor?.nickname || target.username;
-
-        // Probabilidad del 40% de éxito
-        const exito = Math.random() < 0.4;
-        userData.lastRob = now;
-
-        const embed = new EmbedBuilder()
-            .setAuthor({ 
-                name: `🕶️ Intento de atraco: ${apodoEmisor}`, 
-                iconURL: interaction.user.displayAvatarURL({ dynamic: true }) 
-            })
-            .setFooter({ 
-                text: `${interaction.guild.name} • Rockstar Underworld 🖤`, 
-                iconURL: interaction.guild.iconURL({ dynamic: true }) 
-            })
-            .setTimestamp();
+        const exito = Math.random() > 0.5; // 50% de probabilidad
+        const robEmbed = new EmbedBuilder().setTimestamp();
 
         if (exito) {
-            // Roba entre el 10% y el 30% de la cartera de la víctima
-            const porcentaje = Math.random() * (0.3 - 0.1) + 0.1;
-            const robado = Math.floor(targetData.wallet * porcentaje);
-
+            const robado = Math.floor(Math.random() * (targetData.wallet * 0.4)) + 100; // Roba hasta el 40%
             userData.wallet += robado;
             targetData.wallet -= robado;
-
-            embed.setTitle('💰 ¡Robo Exitoso!')
-                .setColor('#2ECC71')
-                .setThumbnail("https://i.pinimg.com/originals/0a/16/64/0a16646bc37ba395f8502699173d9e87.gif") // GIF Gatito Ladrón
-                .setDescription(`୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n**${apodoEmisor}** se escabulló y le robó **${robado} 🌸** a **${apodoReceptor}**.\n\n*¡Corre antes de que te atrapen!*\n\n**Tu nuevo saldo:** \`${userData.wallet} 🌸\`\n\n୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`);
+            
+            robEmbed.setTitle('🧤 ¡Robo Exitoso!')
+                .setColor('#B5EAD7') // Verde pastel
+                .setThumbnail('https://i.pinimg.com/originals/94/23/e8/9423e85744249a5b6d573d8753232811.gif')
+                .setDescription(
+                    `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
+                    `**${member.displayName}**, fuiste muy sigilosa...\n\n` +
+                    `╰┈➤ Le robaste a **${targetMember.displayName}**\n` +
+                    `╰┈➤ Ganancia: **${robado.toLocaleString()} 🌸**\n\n` +
+                    `*¡Corre antes de que se den cuenta!* 💨\n\n` +
+                    `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`
+                );
         } else {
-            // Multa: Pierde una cantidad fija por ser atrapado y se la da a la víctima
-            const multa = 1000;
+            const multa = 500;
             userData.wallet = Math.max(0, userData.wallet - multa);
-            targetData.wallet += multa;
-
-            embed.setTitle('🚨 ¡Atrapado/a!')
-                .setColor('#E74C3C')
-                .setThumbnail("https://i.pinimg.com/originals/72/3d/8c/723d8c199580459c049d5d51d45903b4.gif") // GIF Anime Arresto
-                .setDescription(`୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n**${apodoEmisor}** intentó robar a **${apodoReceptor}**, ¡pero tropezó con una maceta!\n\nLa policía le obligó a pagar **${multa} 🌸** a la víctima como compensación.\n\n**Tu nuevo saldo:** \`${userData.wallet} 🌸\`\n\n୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`);
+            
+            robEmbed.setTitle('🚫 ¡Te atraparon!')
+                .setColor('#FF9AA2') // Rojo/Rosa pastel
+                .setThumbnail('https://i.pinimg.com/originals/f3/f5/63/f3f56363a0336215707a276856037e81.gif')
+                .setDescription(
+                    `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
+                    `**${member.displayName}**, fuiste muy ruidosa...\n\n` +
+                    `╰┈➤ **${targetMember.displayName}** te vio y llamó a la policía.\n` +
+                    `╰┈➤ Pagaste una multa de: **${multa} 🌸**\n\n` +
+                    `*¡Qué vergüenza! Mejor suerte la próxima vez.* 😭\n\n` +
+                    `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`
+                );
         }
 
-        await updateUserData(userId, userData);
+        await updateUserData(author.id, userData);
         await updateUserData(target.id, targetData);
 
-        return interaction.reply({ embeds: [embed] });
+        return input.reply({ embeds: [robEmbed] });
     }
 };

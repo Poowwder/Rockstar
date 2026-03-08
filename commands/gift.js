@@ -1,42 +1,34 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
 
 module.exports = {
+    name: 'gift',
     data: new SlashCommandBuilder()
         .setName('gift')
-        .setDescription('Regala flores o items')
-        .addUserOption(o => o.setName('usuario').setDescription('A quién regalar').setRequired(true))
-        .addIntegerOption(o => o.setName('flores').setDescription('Cantidad de flores'))
-        .addStringOption(o => o.setName('item').setDescription('ID del item (ej: dye)')),
+        .setDescription('🎁 Regala un objeto de tu inventario')
+        .addUserOption(o => o.setName('usuario').setDescription('¿Para quién es?').setRequired(true))
+        .addStringOption(o => o.setName('item').setDescription('Nombre del objeto').setRequired(true)),
 
-    async execute(interaction) {
-        const target = interaction.options.getUser('usuario');
-        const flores = interaction.options.getInteger('flores');
-        const itemId = interaction.options.getString('item');
+    async execute(input) {
+        const isSlash = !!input.user;
+        const author = isSlash ? input.user : input.author;
+        const target = isSlash ? input.options.getUser('usuario') : input.mentions.users.first();
+        const itemName = isSlash ? input.options.getString('item').toLowerCase() : input.content.split(/ +/).slice(2).join(' ');
+
+        let senderData = await getUserData(author.id);
+        const itemIndex = senderData.inventory?.findIndex(i => i.toLowerCase() === itemName);
+
+        if (itemIndex === -1 || itemIndex === undefined) return input.reply("❌ No tienes ese objeto en tu inventario.");
         
-        if (target.id === interaction.user.id) return interaction.reply("❌ No puedes regalarte a ti mismo.");
+        let targetData = await getUserData(target.id);
+        if (!targetData.inventory) targetData.inventory = [];
 
-        let data = await getUserData(interaction.user.id);
-        let tData = await getUserData(target.id);
+        const itemRealName = senderData.inventory.splice(itemIndex, 1)[0];
+        targetData.inventory.push(itemRealName);
 
-        if (flores) {
-            if (data.wallet < flores) return interaction.reply("❌ No tienes suficientes flores.");
-            data.wallet -= flores;
-            tData.wallet += flores;
-            await updateUserData(interaction.user.id, data);
-            await updateUserData(target.id, tData);
-            return interaction.reply(`🎁 ¡Has enviado **${flores} 🌸** a **${target.username}**!`);
-        }
+        await updateUserData(author.id, senderData);
+        await updateUserData(target.id, targetData);
 
-        if (itemId) {
-            if (!data.inventory[itemId] || data.inventory[itemId] <= 0) return interaction.reply("❌ No tienes ese item.");
-            data.inventory[itemId] -= 1;
-            tData.inventory[itemId] = (tData.inventory[itemId] || 0) + 1;
-            await updateUserData(interaction.user.id, data);
-            await updateUserData(target.id, tData);
-            return interaction.reply(`🎁 ¡Has regalado un **${itemId}** a **${target.username}**!`);
-        }
-
-        return interaction.reply("❓ Debes especificar flores o un item para regalar.");
+        return input.reply(`🎁 **${input.member.displayName}** le regaló un **${itemRealName}** a **${input.guild.members.cache.get(target.id).displayName}**! ✨`);
     }
 };

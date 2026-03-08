@@ -1,49 +1,48 @@
-const { EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
-
-const mineZones = {
-    "túnel": {
-        name: "🕳️ Túnel de Tierra",
-        items: ["🪨 Piedra", "🫘 Carbón", "🔩 Hierro"],
-        min: 30, max: 100, premium: false,
-        boss: { name: "Rata de Cueva", chance: 8, reward: 600 }
-    },
-    "cristal": {
-        name: "💎 Cueva de Cristal (VIP)",
-        items: ["💎 Diamante", "💜 Amatista", "✨ Prisma"],
-        min: 800, max: 3000, premium: true,
-        boss: { name: "Gólem de Cuarzo", chance: 12, reward: 8000 }
-    }
-};
 
 module.exports = {
     name: 'mine',
-    category: 'economía',
-    aliases: ['minar', 'm'],
-    async execute(message, args) {
-        let data = await getUserData(message.author.id);
-        const zoneKey = args[0]?.toLowerCase();
+    data: new SlashCommandBuilder().setName('mine').setDescription('⛏️ Minería con Zonas VIP'),
 
-        if (!zoneKey || !mineZones[zoneKey]) {
-            return message.reply("⛏️ Elige una zona: `!!mine túnel` o `!!mine cristal` (VIP)");
-        }
+    async execute(input) {
+        const user = input.user || input.author;
+        const member = input.member;
+        let data = await getUserData(user.id);
 
-        const zone = mineZones[zoneKey];
-        if (zone.premium && data.premiumType === 'none') return message.reply("🔒 Esta zona requiere **Premium**.");
+        const tienePico = data.inventory?.some(i => i.toLowerCase().includes('pico'));
+        if (!tienePico) return input.reply("╰┈➤ 🌸 **¡Ups!** Necesitas un **Pico** para minar, linda. Búscalo en `!!shop` ✨");
 
-        // Lógica de Jefe
-        if (Math.random() * 100 <= zone.boss.chance) {
-            data.wallet += zone.boss.reward;
-            await updateUserData(message.author.id, data);
-            return message.reply(`⚔️ ¡Apareció un **${zone.boss.name}**! Lo derrotaste y obtuviste **${zone.boss.reward}** flores.`);
-        }
+        let boost = 1;
+        let zona = "☁️ Mina de Algodón";
+        let decor = "🌸";
 
-        const item = zone.items[Math.floor(Math.random() * zone.items.length)];
-        const ganancia = Math.floor(Math.random() * (zone.max - zone.min)) + zone.min;
-        
-        data.wallet += ganancia;
-        await updateUserData(message.author.id, data);
+        if (data.premiumType === 'mensual') { boost = 5; zona = "✨ Cueva de Cuarzo Rosa"; decor = "🎀"; }
+        if (data.premiumType === 'bimestral') { boost = 8; zona = "💎 Palacio de Cristal"; decor = "👑"; }
 
-        message.reply(`⛏️ Picaste **${item}** en el ${zone.name} y ganaste **${ganancia}** flores.`);
+        let gananciaBase = (boost > 1) ? 3000 : 600;
+        let gananciaFinal = Math.floor((Math.random() * 500) + gananciaBase) * boost;
+
+        data.wallet += gananciaFinal;
+        await updateUserData(user.id, data);
+
+        const mineEmbed = new EmbedBuilder()
+            .setTitle(`${decor} ‧₊˚ Minería Rockstar ˚₊‧ ${decor}`)
+            .setColor('#FFB6C1')
+            .setThumbnail('https://i.pinimg.com/originals/30/44/8e/30448e64f8992c696e578c7739506691.gif')
+            .setDescription(
+                `*“Picando piedritas con mucho estilo...”* ⛏️✨\n\n` +
+                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n` +
+                `☁️ **Zona:** \`${zona}\`\n` +
+                `🎀 **Rango:** \`${data.premiumType || 'Usuario Normal'}\`\n` +
+                `🚀 **Boost:** \`x${boost}\` activado\n` +
+                `🌸 **Paga:** **${gananciaFinal.toLocaleString()} flores**\n` +
+                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
+                `╰┈➤ *¡Tus ahorros brillan como diamantes!*`
+            )
+            .setFooter({ text: `Minera: ${member.displayName} ♡`, iconURL: user.displayAvatarURL() })
+            .setTimestamp();
+
+        return input.reply({ embeds: [mineEmbed] });
     }
 };

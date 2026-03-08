@@ -1,44 +1,53 @@
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { getUserData, updateUserData } = require('../economyManager.js');
+const { EmbedBuilder, SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { updateUserData } = require('../economyManager.js');
 
 module.exports = {
     name: 'reset',
-    description: 'Reinicia la economía de un usuario (Admin)',
-    async execute(message, args) {
-        // 1. Verificar si el usuario tiene permisos de Administrador
-        if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return message.reply("🌸 Lo siento, linda, pero necesitas permisos de administrador para usar esto.");
+    data: new SlashCommandBuilder()
+        .setName('reset')
+        .setDescription('🧹 Reinicia los datos de un usuario (Admin Only)')
+        .addUserOption(opt => opt.setName('usuario').setDescription('Usuario a reiniciar').setRequired(true))
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+    async execute(input) {
+        // Solo para administradores
+        if (!input.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return input.reply("╰┈➤ ❌ **¡Nop!** Solo las administradoras pueden usar esta magia. ✨");
         }
 
-        // 2. Obtener al usuario mencionado
-        const target = message.mentions.users.first();
-        if (!target) {
-            return message.reply("✨ Menciona a alguien para reiniciar su perfil. Ejemplo: `!!reset @usuario`.");
-        }
+        const isSlash = !!input.user;
+        const target = isSlash ? input.options.getUser('usuario') : input.mentions.users.first();
 
-        // 3. Obtener los datos actuales
-        let data = await getUserData(target.id);
-        if (!data) return message.reply("❌ No encontré datos para ese usuario.");
+        if (!target) return input.reply("╰┈➤ 🌸 **¡Holi!** Menciona a alguien para reiniciar.");
 
-        // 4. REINICIAR VALORES
-        data.wallet = 0;
-        data.bank = 0;
-        data.xp = 0;
-        data.level = 1;
-        data.inventory = new Map(); // Limpia el inventario
+        // Datos iniciales
+        const newData = {
+            userId: target.id,
+            wallet: 0,
+            bank: 0,
+            level: 1,
+            xp: 0,
+            inventory: [],
+            premiumType: 'normal'
+        };
 
-        // 5. Guardar en MongoDB
-        await updateUserData(target.id, data);
+        await updateUserData(target.id, newData);
 
-        // 6. Confirmación Aesthetic
-        const embed = new EmbedBuilder()
-            .setTitle('♻️ Perfil Reiniciado')
-            .setDescription(`Se ha reseteado toda la economía y progreso de **${target.username}**.`)
-            .setColor('#FF0000') // Rojo para indicar acción importante
-            .setThumbnail('https://i.pinimg.com/originals/82/01/9a/82019adb656911f93e9a18017e810a9c.gif')
-            .setFooter({ text: 'Acción realizada por un administrador ✨' })
-            .setTimestamp();
+        const resetEmbed = new EmbedBuilder()
+            .setTitle(`🧹 ‧₊˚ Limpieza Mágica ˚₊‧ 🧹`)
+            .setColor('#FF9AA2') // Rojo pastel/salmón
+            .setThumbnail('https://i.pinimg.com/originals/a0/6c/4a/a06c4a93883a908a8e32918f0f09a18d.gif')
+            .setDescription(
+                `*“Borrón y cuenta nueva con polvos de hadas...”* ✨\n\n` +
+                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n` +
+                `👤 **Usuario:** \`${target.username}\`\n` +
+                `✨ **Acción:** \`Reinicio de cuenta completo\`\n` +
+                `✅ **Estado:** \`Éxito total\`\n` +
+                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
+                `╰┈➤ *¡Los datos han sido purificados!*`
+            )
+            .setFooter({ text: `Admin: ${input.member.displayName} ♡` });
 
-        message.reply({ embeds: [embed] });
+        return input.reply({ embeds: [resetEmbed] });
     }
 };

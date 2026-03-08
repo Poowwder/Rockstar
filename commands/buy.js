@@ -1,59 +1,65 @@
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
-const shopItems = require('../data/shop.json');
 
 module.exports = {
     name: 'buy',
     aliases: ['comprar'],
-    async execute(message, args) {
-        const userId = message.author.id;
+    category: 'economía',
+    data: new SlashCommandBuilder()
+        .setName('buy')
+        .setDescription('🛒 Compra un artículo de la tienda')
+        .addStringOption(option => 
+            option.setName('item')
+                .setDescription('Nombre del objeto')
+                .setRequired(true)),
+
+    async execute(input) {
+        const isSlash = !!input.user;
+        const user = isSlash ? input.user : input.author;
+        const member = input.member;
+        const args = !isSlash ? input.content.split(/ +/).slice(1) : null;
+        const itemName = isSlash ? input.options.getString('item').toLowerCase() : args[0]?.toLowerCase();
+
+        if (!itemName) return input.reply("╰┈➤ 🌸 Escribe qué quieres comprar. Ejemplo: `!!buy anillo`.");
+
+        let data = await getUserData(user.id);
         
-        // 1. Verificar si el usuario escribió qué quiere comprar
-        if (!args.length) {
-            return message.reply("✨ ¿Qué deseas comprar? Usa `!!buy [nombre]` (ej: `!!buy cafe`) o mira la `!!shop`.");
-        }
+        // Definición de precios y lógica
+        const store = {
+            "anillo": { name: "Anillo de Compromiso", price: 10000 },
+            "escudo": { name: "Escudo de Flores", price: 5000 },
+            "vip": { name: "Pase VIP Rockstar", price: 50000 }
+        };
 
-        // Buscamos el item en el JSON (ignorando mayúsculas/minúsculas)
-        const itemNameInput = args.join(" ").toLowerCase();
-        const itemKey = Object.keys(shopItems).find(key => 
-            shopItems[key].name.toLowerCase() === itemNameInput || key.toLowerCase() === itemNameInput
-        );
+        const item = store[itemName];
+        if (!item) return input.reply("╰┈➤ ❌ Ese objeto no está en la boutique, linda.");
 
-        const item = shopItems[itemKey];
-
-        if (!item) {
-            return message.reply("❌ Ese objeto no parece estar en nuestra tienda. ¡Revisa bien el nombre! 🌸");
-        }
-
-        // 2. Obtener datos del usuario desde MongoDB
-        let data = await getUserData(userId);
-        if (!data) return message.reply("❌ Error al conectar con la base de datos.");
-
-        // 3. Verificar si tiene dinero suficiente
         if (data.wallet < item.price) {
-            const faltante = item.price - data.wallet;
-            return message.reply(`😢 ¡Oh no! Te faltan **${faltante}** flores para comprar **${item.name}**. ¡Sigue trabajando! ✨`);
+            return input.reply(`╰┈➤ ❌ **${member.displayName}**, no tienes suficientes flores en mano. Te faltan \`${(item.price - data.wallet).toLocaleString()} 🌸\`.`);
         }
 
-        // 4. PROCESAR LA COMPRA
-        // Restar dinero
+        // Lógica de inventario (asumiendo que tienes data.inventory como array)
+        if (!data.inventory) data.inventory = [];
+        
         data.wallet -= item.price;
+        data.inventory.push(item.name);
+        await updateUserData(user.id, data);
 
-        // Añadir al inventario (Map de MongoDB)
-        const cantidadActual = data.inventory.get(item.name) || 0;
-        data.inventory.set(item.name, cantidadActual + 1);
+        const buyEmbed = new EmbedBuilder()
+            .setTitle('🛍️ ¡Compra Realizada!')
+            .setColor('#B5EAD7') // Verde pastel
+            .setThumbnail('https://i.pinimg.com/originals/ec/7b/03/ec7b036573c734b41a542031336c1c87.gif') // Bolsa de compras cute
+            .setDescription(
+                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
+                `**${member.displayName}**, ¡qué buen gusto tienes!\n\n` +
+                `╰┈➤ Compraste: **${item.name}**\n` +
+                `╰┈➤ Pagaste: \`${item.price.toLocaleString()} 🌸\`\n\n` +
+                `*¡Disfruta tu nueva adquisición!* ✨\n\n` +
+                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`
+            )
+            .setTimestamp()
+            .setFooter({ text: `Cliente: ${member.displayName}`, iconURL: user.displayAvatarURL() });
 
-        // 5. Guardar cambios en MongoDB
-        await updateUserData(userId, data);
-
-        // 6. Confirmación Aesthetic
-        message.reply({
-            embeds: [{
-                title: "🛍️ ¡Compra Exitosa!",
-                description: `Has comprado un **${item.name}** por **${item.price}** flores. \n\n✨ *¡Disfruta tu nueva adquisición!*`,
-                color: 0xFFB6C1,
-                thumbnail: { url: 'https://i.pinimg.com/originals/c2/93/90/c29390232491a92a54318c5750346857.gif' }, // GIF de compra/felicidad
-                footer: { text: `Balance actual: ${data.wallet} flores` }
-            }]
-        });
+        return input.reply({ embeds: [buyEmbed] });
     }
 };

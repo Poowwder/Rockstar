@@ -1,54 +1,45 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
 
 module.exports = {
+    name: 'repair',
     data: new SlashCommandBuilder()
         .setName('repair')
-        .setDescription('Repara tu herramienta equipada usando flores'),
+        .setDescription('🛠️ Repara tus herramientas desgastadas'),
 
-    async execute(interaction) {
-        const userId = interaction.user.id;
-        const data = await getUserData(userId);
+    async execute(input) {
+        const user = input.user || input.author;
+        let data = await getUserData(user.id);
 
-        // 1. Verificar si tiene un pico equipado
-        if (!data.equippedPickaxe || !data.equippedPickaxe.name) {
-            return interaction.reply("❌ No tienes ningún pico equipado para reparar.");
+        // Costo base de reparación
+        let costo = 5000;
+        
+        // Beneficio Premium: Descuento en reparaciones
+        if (data.premiumType === 'mensual') costo = 2500;
+        if (data.premiumType === 'bimestral') costo = 1000;
+
+        if (data.wallet < costo) {
+            return input.reply(`╰┈➤ ❌ **Lo siento, linda.** Necesitas \`${costo} flores\` para reparar esto. 🌸`);
         }
 
-        const pick = data.equippedPickaxe;
+        data.wallet -= costo;
+        await updateUserData(user.id, data);
 
-        // 2. Verificar si ya está al máximo de durabilidad
-        if (pick.durability >= pick.maxDurability) {
-            return interaction.reply(`🛠️ Tu **${pick.name}** ya está en perfectas condiciones (${pick.durability}/${pick.maxDurability}).`);
-        }
-
-        // 3. Calcular el costo de reparación
-        // Ejemplo: 2 flores por cada punto de durabilidad perdido
-        const pointsToRepair = pick.maxDurability - pick.durability;
-        const costPerPoint = 2; 
-        const totalCost = pointsToRepair * costPerPoint;
-
-        // 4. Verificar si tiene suficiente dinero
-        if (data.wallet < totalCost) {
-            return interaction.reply(`❌ No tienes suficientes flores. Reparar tu pico cuesta **${totalCost} 🌸** y solo tienes **${data.wallet} 🌸**.`);
-        }
-
-        // 5. Aplicar reparación y cobrar
-        data.wallet -= totalCost;
-        data.equippedPickaxe.durability = pick.maxDurability;
-
-        await updateUserData(userId, data);
-
-        const embed = new EmbedBuilder()
-            .setTitle('🛠️ Herramienta Reparada')
-            .setDescription(`Has reparado tu **${pick.name}** satisfactoriamente.`)
-            .addFields(
-                { name: '💰 Costo', value: `${totalCost} 🌸`, inline: true },
-                { name: '🔧 Estado Final', value: `${pick.maxDurability}/${pick.maxDurability}`, inline: true }
+        const repairEmbed = new EmbedBuilder()
+            .setTitle(`🛠️ ‧₊˚ Taller de Reparación ˚₊‧ 🛠️`)
+            .setColor('#B2E2F2') // Celeste pastel
+            .setThumbnail('https://i.pinimg.com/originals/6d/6d/0a/6d6d0a7a37936a2818619623c21a147a.gif')
+            .setDescription(
+                `*“¡Como nuevo y listo para brillar!”* ✨\n\n` +
+                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n` +
+                `🌸 **Costo:** \`${costo.toLocaleString()} flores\`\n` +
+                `🔧 **Estado:** \`Reparado al 100%\`\n` +
+                `🎀 **Rango:** \`${data.premiumType || 'Normal'}\`\n` +
+                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
+                `╰┈➤ *¡Tus herramientas vuelven a brillar!*`
             )
-            .setColor('#3498db')
-            .setFooter({ text: `Saldo restante: ${data.wallet} 🌸` });
+            .setFooter({ text: `Cliente: ${user.username} ♡` });
 
-        return interaction.reply({ embeds: [embed] });
+        return input.reply({ embeds: [repairEmbed] });
     }
 };

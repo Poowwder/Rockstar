@@ -3,35 +3,43 @@ const { User } = require('../economyManager.js');
 
 module.exports = {
     name: 'top',
-    aliases: ['leaderboard', 'mejores'],
+    aliases: ['leaderboard', 'lb', 'activos'],
     async execute(message) {
-        // 1. Obtener los 10 usuarios con más flores de MongoDB
-        const topUsers = await User.find().sort({ wallet: -1 }).limit(10);
+        // Ordenamos por nivel y luego por experiencia
+        const topUsers = await User.find().sort({ level: -1, xp: -1 }).limit(10);
 
-        let description = "";
+        let description = "*“Las estrellitas que más brillan en nuestro cielo...”* ✨\n\n";
+        description += "୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n";
         
-        for (let i = 0; i < topUsers.length; i++) {
-            const userData = topUsers[i];
-            // Buscamos al miembro en el servidor para obtener su APODO
-            const member = message.guild.members.cache.get(userData.userId);
-            const name = member ? member.displayName : "Usuario Desconocido";
-            
-            const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "✨";
-            description += `${medal} **${name}** — 🌸 \`${userData.wallet.toLocaleString()}\` flores\n`;
+        if (topUsers.length === 0) {
+            description += "╰┈➤ ☁️ *¡Aún no hay estrellas hoy!*";
+        } else {
+            for (let i = 0; i < topUsers.length; i++) {
+                const userData = topUsers[i];
+                const member = message.guild.members.cache.get(userData.userId);
+                const name = member ? member.displayName : "Estrella Fugaz";
+                
+                // Iconos Coquette para el Top
+                const icon = i === 0 ? "👑" : i === 1 ? "⭐" : i === 2 ? "✨" : "🎀";
+                
+                description += `${icon} **${name}**\n╰┈➤ \`Nivel ${userData.level || 1}\` ‧ \`${(userData.xp || 0).toLocaleString()} XP\` 🌸\n\n`;
+            }
         }
 
-        const embed = new EmbedBuilder()
+        description += "୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧";
+
+        const topEmbed = new EmbedBuilder()
             .setAuthor({ 
-                name: `🏆 Top Flores: ${message.guild.name}`, 
+                name: `🏆 Hall de la Fama: ${message.guild.name}`, 
                 iconURL: message.guild.iconURL({ dynamic: true }) 
             })
-            .setDescription(description || "¡Aún no hay nadie en el ranking! ☁️")
-            .setColor('#FFB6C1')
-            // GIF Aesthetic de un gatito celebrando con flores/confeti
-            .setThumbnail('https://i.pinimg.com/originals/c1/9a/31/c19a311894a87a6d80c3546738491763.gif')
-            .setFooter({ text: '¿Podrás llegar al primer lugar? 🎀' })
+            .setColor('#CDB4DB') // Lila Pastel
+            .setThumbnail('https://i.pinimg.com/originals/11/be/f3/11bef32f170ef563391786c5f782c58a.gif')
+            .setDescription(description)
+            .setImage('https://i.pinimg.com/originals/82/30/9b/82309b858e723525565349f481c0f065.gif')
+            .setFooter({ text: '¡Gracias por llenar de vida el servidor! ♡', iconURL: message.author.displayAvatarURL() })
             .setTimestamp();
 
-        message.reply({ embeds: [embed] });
+        return message.reply({ embeds: [topEmbed] });
     }
 };

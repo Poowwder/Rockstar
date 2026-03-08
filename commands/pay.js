@@ -2,60 +2,39 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
 
 module.exports = {
+    name: 'pay',
     data: new SlashCommandBuilder()
         .setName('pay')
-        .setDescription('Envía flores de tu cartera a otro usuario')
-        .addUserOption(opt => opt.setName('usuario').setDescription('¿A quién quieres enviarle flores?').setRequired(true))
-        .addIntegerOption(opt => opt.setName('cantidad').setDescription('Cantidad de flores a enviar').setRequired(true).setMinValue(1)),
+        .setDescription('💸 Envía flores a otro usuario')
+        .addUserOption(o => o.setName('usuario').setDescription('¿A quién le das flores?').setRequired(true))
+        .addIntegerOption(o => o.setName('cantidad').setDescription('Monto a enviar').setRequired(true)),
 
-    async execute(interaction) {
-        const target = interaction.options.getUser('usuario');
-        const cantidad = interaction.options.getInteger('cantidad');
-        const userId = interaction.user.id;
+    async execute(input) {
+        const isSlash = !!input.user;
+        const author = isSlash ? input.user : input.author;
+        const target = isSlash ? input.options.getUser('usuario') : input.mentions.users.first();
+        const amount = isSlash ? input.options.getInteger('cantidad') : parseInt(input.content.split(/ +/)[2]);
 
-        // Evitar enviarse a uno mismo
-        if (target.id === userId) return interaction.reply({ content: "❌ No puedes enviarte flores a ti mismo/a.", ephemeral: true });
-        if (target.bot) return interaction.reply({ content: "❌ Los bots no aceptan flores... ¡aunque son lindas!", ephemeral: true });
+        if (!target || target.id === author.id || target.bot) return input.reply("╰┈➤ ❌ Acción inválida, linda.");
+        if (!amount || amount <= 0) return input.reply("╰┈➤ ❌ Indica una cantidad válida.");
 
-        const userData = await getUserData(userId);
-        const targetData = await getUserData(target.id);
+        let senderData = await getUserData(author.id);
+        if (senderData.wallet < amount) return input.reply("╰┈➤ ❌ No tienes suficientes flores en tu cartera.");
 
-        // Verificar saldo
-        if (userData.wallet < cantidad) {
-            return interaction.reply({ content: `❌ No tienes suficientes flores. Te faltan **${cantidad - userData.wallet} 🌸**.`, ephemeral: true });
-        }
+        let targetData = await getUserData(target.id);
+        senderData.wallet -= amount;
+        targetData.wallet += amount;
 
-        // --- LÓGICA DE APODOS Y ESTÉTICA ---
-        const memberEmisor = interaction.guild.members.cache.get(userId);
-        const memberReceptor = interaction.guild.members.cache.get(target.id);
-        const apodoEmisor = memberEmisor?.nickname || interaction.user.username;
-        const apodoReceptor = memberReceptor?.nickname || target.username;
-
-        // GIF Aesthetic de transferencia o sobre con flores
-        const payAesthetic = "https://i.pinimg.com/originals/7b/0b/4b/7b0b4b8b8b8b8b8b8b8b8b8b8b8b8b8b.gif"; // Sobrecito Cute
-
-        // Transacción
-        userData.wallet -= cantidad;
-        targetData.wallet += cantidad;
-
-        await updateUserData(userId, userData);
+        await updateUserData(author.id, senderData);
         await updateUserData(target.id, targetData);
 
         const embed = new EmbedBuilder()
-            .setAuthor({ 
-                name: `💸 Transferencia de ${apodoEmisor}`, 
-                iconURL: interaction.user.displayAvatarURL({ dynamic: true }) 
-            })
-            .setTitle('✨ ¡Flores Enviadas!')
-            .setThumbnail(payAesthetic)
-            .setColor(userData.profileColor || '#FFB6C1')
-            .setDescription(`୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n**${apodoEmisor}** ha enviado **${cantidad} 🌸** a **${apodoReceptor}**.\n\n*¡Qué generoso/a! El jardín sigue creciendo.* ✨\n\n**Tu nuevo saldo:** \`${userData.wallet} 🌸\`\n\n୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`)
-            .setFooter({ 
-                text: `${interaction.guild.name} • Rockstar Economy 🎀`, 
-                iconURL: interaction.guild.iconURL({ dynamic: true }) 
-            })
+            .setTitle('💸 Transferencia Exitosa')
+            .setColor('#FFB6C1')
+            .setThumbnail('https://i.pinimg.com/originals/4d/30/1e/4d301e523315f013346e9198305c5678.gif')
+            .setDescription(`**${input.member.displayName}** le envió \`${amount} 🌸\` a **${input.guild.members.cache.get(target.id).displayName}**.\n\n*¡Qué generosa!* ✨`)
             .setTimestamp();
 
-        return interaction.reply({ embeds: [embed] });
+        return input.reply({ embeds: [embed] });
     }
 };

@@ -1,37 +1,38 @@
 const { EmbedBuilder } = require('discord.js');
-const { User } = require('../economyManager.js'); // Importamos el Modelo directamente
+const { getUserData } = require('../economyManager.js');
 
 module.exports = {
     name: 'rank',
-    aliases: ['top', 'leaderboard'],
+    aliases: ['lvl', 'nivel'],
     async execute(message) {
-        // Buscar los 10 mejores en la base de datos
-        const topUsers = await User.find().sort({ wallet: -1 }).limit(10);
+        const target = message.mentions.users.first() || message.author;
+        const member = message.guild.members.cache.get(target.id);
+        const data = await getUserData(target.id);
 
-        let description = "";
-        
-        for (let i = 0; i < topUsers.length; i++) {
-            const userData = topUsers[i];
-            const member = message.guild.members.cache.get(userData.userId);
-            // Si el usuario está en el servidor usa su apodo, si no, "Usuario Desconocido"
-            const name = member ? member.displayName : "Usuario Desconocido";
-            
-            const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "✨";
-            description += `${medal} **${name}** — 🌸 \`${userData.wallet.toLocaleString()}\` flores\n`;
-        }
+        const currentLevel = data.level || 1;
+        const currentXP = data.xp || 0;
+        const nextLevelXP = currentLevel * 500;
+        const percent = Math.min(Math.floor((currentXP / nextLevelXP) * 100), 100);
 
-        const embed = new EmbedBuilder()
-            .setAuthor({ 
-                name: `🏆 Top Flores de ${message.guild.name}`, 
-                iconURL: message.guild.iconURL() 
-            })
-            .setDescription(description || "¡Aún no hay nadie en el ranking! ☁️")
-            .setColor('#FFB6C1')
-            // Thumbnail de un gatito celebrando con confeti
-            .setThumbnail('https://i.pinimg.com/originals/11/be/f3/11bef32f170ef563391786c5f782c58a.gif')
-            .setFooter({ text: '¿Podrás llegar al primer lugar? 🎀' })
-            .setTimestamp();
+        // 🌸 BARRA DE PROGRESO CUTE
+        const progress = "🌸".repeat(Math.floor(percent / 10)) + "🤍".repeat(10 - Math.floor(percent / 10));
 
-        message.reply({ embeds: [embed] });
+        const rankEmbed = new EmbedBuilder()
+            .setTitle(`‧₊˚ ✨ Tu Nivel Rockstar ✨ ˚₊‧`)
+            .setColor('#FFB6C1') // Rosa Pastel
+            .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 512 }))
+            .setDescription(
+                `*“Cada mensaje es un destello de tu magia...”* 🎀\n\n` +
+                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n` +
+                `⭐ **Nivel:** \`${currentLevel}\`\n` +
+                `✨ **XP:** \`${currentXP.toLocaleString()} / ${nextLevelXP.toLocaleString()}\`\n` +
+                `📊 **Progreso:** \`${percent}%\` \n` +
+                `╰┈➤ ${progress}\n` +
+                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
+                `╰┈➤ *¡Sigue brillando, ${member.displayName}!* 🚀`
+            )
+            .setFooter({ text: `Estrella: ${member.displayName} ♡`, iconURL: 'https://i.pinimg.com/originals/de/13/8d/de138d68962534575975d4f7c975a5c5.gif' });
+
+        return message.reply({ embeds: [rankEmbed] });
     }
 };

@@ -1,53 +1,30 @@
-const { EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
 
 module.exports = {
     name: 'flip',
-    aliases: ['bet', 'apostar', 'coinflip'],
-    async execute(message, args) {
-        const userId = message.author.id;
-        let data = await getUserData(userId);
+    data: new SlashCommandBuilder()
+        .setName('flip')
+        .setDescription('🪙 Apuesta tus flores a cara o cruz')
+        .addIntegerOption(o => o.setName('cantidad').setDescription('Monto a apostar').setRequired(true)),
 
-        // 1. Validar la cantidad apostada
-        const apuesta = parseInt(args[0]);
+    async execute(input) {
+        const user = input.user || input.author;
+        const amount = input.options?.getInteger('cantidad') || parseInt(input.content.split(/ +/)[1]);
 
-        if (!apuesta || isNaN(apuesta) || apuesta <= 0) {
-            return message.reply("🌸 ¡Linda! Dime cuántas flores quieres apostar. Ejemplo: `!!flip 100`.");
-        }
+        let data = await getUserData(user.id);
+        if (amount > data.wallet || amount <= 0) return input.reply("❌ No tienes esa cantidad en mano.");
 
-        if (data.wallet < apuesta) {
-            return message.reply(`😢 No tienes suficientes flores. Tu cartera tiene **${data.wallet}** 🌸.`);
-        }
+        const win = Math.random() > 0.5;
+        if (win) data.wallet += amount; else data.wallet -= amount;
+        await updateUserData(user.id, data);
 
-        // 2. Lógica del juego (50/50)
-        const victoria = Math.random() > 0.5;
-        const resultado = victoria ? "Ganaste" : "Perdiste";
-        
-        // 3. Actualizar MongoDB
-        if (victoria) {
-            data.wallet += apuesta;
-        } else {
-            data.wallet -= apuesta;
-        }
-
-        await updateUserData(userId, data);
-
-        // 4. Crear el Embed con diseño Cute
         const embed = new EmbedBuilder()
-            .setTitle(victoria ? '✨ ¡Felicidades, ganaste! ✨' : '☁️ Oh no... perdiste ☁️')
-            .setDescription(victoria 
-                ? `¡La moneda cayó a tu favor! Has ganado **${apuesta}** flores 🌸.` 
-                : `La suerte no estuvo de tu lado esta vez. Perdiste **${apuesta}** flores...`)
-            .setColor(victoria ? '#FFB6C1' : '#D3D3D3') // Rosa si gana, gris si pierde
-            .setThumbnail(victoria 
-                ? 'https://i.pinimg.com/originals/30/80/7e/30807e324373467f3c4c95d8d0959089.gif' // Gatito feliz
-                : 'https://i.pinimg.com/originals/82/01/9a/82019adb656911f93e9a18017e810a9c.gif') // Personaje triste/lluvia
-            .addFields(
-                { name: '👛 Tu Cartera Ahora', value: `\`${data.wallet}\` flores`, inline: true }
-            )
-            .setFooter({ text: '¿Quieres probar tu suerte otra vez? ✨' })
-            .setTimestamp();
+            .setTitle(win ? '✨ ¡Ganaste!' : '😭 ¡Perdiste!')
+            .setColor(win ? '#B5EAD7' : '#FF9AA2')
+            .setThumbnail(win ? 'https://i.pinimg.com/originals/82/30/9b/82309b858e723525565349f481c0f065.gif' : 'https://i.pinimg.com/originals/f3/f5/63/f3f56363a0336215707a276856037e81.gif')
+            .setDescription(`Apostaste \`${amount} 🌸\` y el resultado fue **${win ? 'doble o nada' : 'nada'}**.\n\n╰┈➤ Cartera: \`${data.wallet} 🌸\``);
 
-        message.reply({ embeds: [embed] });
+        return input.reply({ embeds: [embed] });
     }
 };
