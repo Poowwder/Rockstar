@@ -1,7 +1,9 @@
+require('dotenv').config(); // 👈 IMPORTANTE: Para leer tu .env
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const express = require('express'); // 👈 Parche para Discloud
 
 const client = new Client({
     intents: [
@@ -12,6 +14,11 @@ const client = new Client({
     ],
 });
 
+// --- MINI SERVIDOR PARA DISCLOUD ---
+const app = express();
+app.get('/', (req, res) => res.send('🌸 Bot Rockstar Online ✨'));
+app.listen(process.env.PORT || 8080); 
+
 client.commands = new Collection();
 
 // CONEXIÓN MONGO
@@ -21,6 +28,8 @@ mongoose.connect(process.env.MONGO_URI)
 
 // CARGA DE COMANDOS
 const commandsPath = path.join(__dirname, 'commands');
+if (!fs.existsSync(commandsPath)) fs.mkdirSync(commandsPath); // Crea la carpeta si no existe
+
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
 for (const file of commandFiles) {
