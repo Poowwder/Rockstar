@@ -2,30 +2,29 @@ const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('disco
 const fs = require('fs');
 const path = require('path');
 
-const configPath = path.join(__dirname, '../data/config.json');
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setlogs')
         .setDescription('Configura el canal para los logs del servidor')
         .addChannelOption(opt => 
             opt.setName('canal')
-                .setDescription('Canal donde se enviarán los logs')
+                .setDescription('Canal de texto para auditoría')
                 .addChannelTypes(ChannelType.GuildText)
                 .setRequired(true))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
         const channel = interaction.options.getChannel('canal');
-        let config = {};
+        const configPath = path.join(__dirname, '../data/config.json');
 
-        if (fs.existsSync(configPath)) {
-            config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        // Crear carpeta si no existe
+        if (!fs.existsSync(path.dirname(configPath))) {
+            fs.mkdirSync(path.dirname(configPath), { recursive: true });
         }
 
-        config.logChannelId = channel.id;
+        const config = { logChannelId: channel.id };
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
-        return interaction.reply(`✅ Canal de logs configurado en <#${channel.id}>.`);
+        return interaction.reply(`✅ Sistema de logs activado en <#${channel.id}>.`);
     }
 };
