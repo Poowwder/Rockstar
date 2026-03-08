@@ -1,74 +1,87 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 const { getUserData } = require('../economyManager.js');
-const { getRequiredXP } = require('../levelManager.js');
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('profile')
-        .setDescription('Visualiza tu perfil estético')
-        .addUserOption(opt => opt.setName('usuario').setDescription('El usuario a consultar')),
-
-    async execute(interaction) {
-        const target = interaction.options.getUser('usuario') || interaction.user;
-        const member = interaction.guild.members.cache.get(target.id);
+    name: 'profile',
+    aliases: ['perfil', 'p'],
+    async execute(message, args) {
+        // 1. Determinar de quién es el perfil (mención o el autor)
+        const target = message.mentions.users.first() || message.author;
+        
+        // 2. Obtener los datos de MongoDB
         const data = await getUserData(target.id);
 
-        // 1. --- DATOS DE NIVEL ---
-        const nivel = data.level || 1;
-        const xpActual = data.xp || 0;
-        const xpNecesaria = getRequiredXP(nivel);
-        const progreso = Math.min(Math.floor((xpActual / xpNecesaria) * 10), 10);
-        const barraSakura = "🌸".repeat(progreso) + "🤍".repeat(10 - progreso);
-
-        // 2. --- PERSONALIZACIÓN VISUAL ---
-        const embedColor = data.profileColor || '#FFB6C1'; 
-        const apodo = member?.nickname || target.username;
-        
-        // Imagen Cute Aesthetic (puedes cambiar este link por cualquier GIF/Imagen que te guste)
-        const aestheticGift = "https://i.pinimg.com/originals/3d/82/20/3d822003f56360c4a457a627876a4794.gif";
-
-        // 3. --- INFO MATRIMONIO ---
-        let infoMatrimonio = "💔 *Soltero/a*";
-        if (data.marryId) {
-            const pareja = interaction.guild.members.cache.get(data.marryId);
-            infoMatrimonio = `💖 **Casado/a con:** \`${pareja ? pareja.user.username : "Alguien especial"}\``;
+        if (!data) {
+            return message.reply("❌ No se pudieron cargar los datos del perfil.");
         }
 
-        // 4. --- CONSTRUCCIÓN DEL EMBED ---
+        // --- LÓGICA DE VISUALIZACIÓN DE MASCOTAS ---
+        let pets = [];
+
+        // Mascota 1: Mapache (100 Reacciones)
+        if (data.inventory && data.inventory.has("Mapache Curioso 🦝")) {
+            pets.push("🦝");
+        } else {
+            pets.push("🔒"); // Candado si no la tiene
+        }
+
+        // Mascota 2: Zorro (Nivel 10)
+        if (data.inventory && data.inventory.has("Zorro Maestro 🦊")) {
+            pets.push("🦊");
+        } else {
+            pets.push("🔒");
+        }
+
+        // Mascota 3: Búho (5,000 Mensajes)
+        if (data.inventory && data.inventory.has("Búho Erudito 🦉")) {
+            pets.push("🦉");
+        } else {
+            pets.push("🔒");
+        }
+
+        // Mascota 4: Hada/Unicornio (Premium Mensual o Bimestral)
+        if (data.premiumType === 'mensual' || data.premiumType === 'bimestral') {
+            pets.push("🦄");
+        } else {
+            pets.push("❌"); // Indica que requiere suscripción
+        }
+
+        // Mascota 5: Dragón (Solo Premium Bimestral)
+        if (data.premiumType === 'bimestral') {
+            pets.push("🐲");
+        } else {
+            pets.push("❌");
+        }
+
+        const petDisplay = pets.join("  ");
+
+        // --- CREACIÓN DEL EMBED ---
         const embed = new EmbedBuilder()
-            .setAuthor({ 
-                name: `🌸 Perfil de ${apodo}`, 
-                iconURL: target.displayAvatarURL({ dynamic: true }) 
-            })
-            .setColor(embedColor)
-            .setThumbnail(aestheticGift) // Imagen cute a la derecha
-            .setDescription(`୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n${infoMatrimonio}\n୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`)
+            .setTitle(`✨ Rockstar Profile: ${target.username}`)
+            .setColor('#FFB6C1') 
+            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
             .addFields(
                 { 
-                    name: '⭐ Nivel Actual', 
-                    value: `\`Level ${nivel}\``, 
+                    name: '⭐ Progreso de Nivel', 
+                    value: `📈 **Nivel:** \`${data.level}\` \n✨ **XP:** \`${data.xp.toLocaleString()}\``, 
                     inline: true 
                 },
                 { 
-                    name: '✨ Experiencia', 
-                    value: `\`${xpActual} / ${xpNecesaria} XP\``, 
+                    name: '📊 Actividad Global', 
+                    value: `💬 **Mensajes:** \`${data.messageCount.toLocaleString()}\` \n🎭 **Reacciones:** \`${data.reactionCount.toLocaleString()}\``, 
                     inline: true 
                 },
                 { 
-                    name: '🌸 Progreso hacia el siguiente nivel', 
-                    value: `${barraSakura}`, 
+                    name: '🐾 Colección de Mascotas (Logros)', 
+                    value: `> ${petDisplay}`, 
                     inline: false 
                 }
             )
             .setFooter({ 
-                text: `${interaction.guild.name} • Rockstar Anniversary`, 
-                iconURL: interaction.guild.iconURL({ dynamic: true }) 
+                text: `Estatus: ${data.premiumType === 'none' ? 'Usuario Estándar' : data.premiumType.toUpperCase()}`
             })
             .setTimestamp();
 
-        // Si quieres que la foto del usuario también aparezca, puedes ponerla como Image
-        // embed.setImage(target.displayAvatarURL({ dynamic: true, size: 512 }));
-
-        return interaction.reply({ embeds: [embed] });
+        message.reply({ embeds: [embed] });
     }
 };

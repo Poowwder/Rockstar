@@ -1,24 +1,25 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 const { getUserData } = require('../economyManager.js');
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('bal')
-        .setDescription('Consulta tu saldo actual')
-        .addUserOption(opt => opt.setName('usuario').setDescription('Ver el saldo de otro usuario')),
-
-    async execute(interaction) {
-        const target = interaction.options.getUser('usuario') || interaction.user;
+    name: 'bal',
+    aliases: ['balance', 'money', 'flores'],
+    async execute(message, args) {
+        // Si mencionan a alguien, vemos su balance. Si no, el propio.
+        const target = message.mentions.users.first() || message.author;
         const data = await getUserData(target.id);
 
         const embed = new EmbedBuilder()
-            .setAuthor({ name: `Saldo de ${target.username}`, iconURL: target.displayAvatarURL() })
+            .setTitle(`🌸 Balance de ${target.username}`)
+            .setColor('#FFB6C1')
+            .setThumbnail(target.displayAvatarURL())
             .addFields(
-                { name: '👛 Cartera', value: `\`${data.wallet || 0} 🌸\``, inline: true },
-                { name: '🏦 Banco', value: `\`${data.bank || 0} 🌸\``, inline: true }
+                { name: '👛 Cartera', value: `\`${data.wallet.toLocaleString()}\` flores`, inline: true },
+                { name: '🏦 Banco', value: `\`${data.bank.toLocaleString()}\` flores`, inline: true },
+                { name: '✨ Total', value: `\`${(data.wallet + data.bank).toLocaleString()}\` flores` }
             )
-            .setColor('#FFB6C1');
+            .setFooter({ text: 'Rockstar Bot Economy' });
 
-        return interaction.reply({ embeds: [embed] });
+        message.reply({ embeds: [embed] });
     }
 };
