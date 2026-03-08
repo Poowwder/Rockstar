@@ -1,23 +1,27 @@
-const { Client, GatewayIntentBits, Partials, Collection } = require('discord.js');
-const mongoose = require('mongoose');
+require('dotenv').config();
+const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
+const http = require('http');
 
-const { getUserData, updateUserData } = require('./economyManager.js');
+// 1. Crear el Servidor para Render (Evita el Port Scan Timeout)
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.write('Rockstar Bot está online! 🌸');
+  res.end();
+}).listen(process.env.PORT || 10000);
 
-// 1. Configuración del Cliente con Partials para las Reacciones
+// 2. Configurar el Cliente de Discord
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMessageReactions
-    ],
-    partials: [Partials.Message, Partials.Channel, Partials.Reaction],
+        GatewayIntentBits.GuildMembers
+    ]
 });
 
-// 2. Carga de Comandos
+// 3. Cargar Comandos
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
@@ -25,49 +29,32 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const command = require(filePath);
-    client.commands.set(command.name, command);
+    if ('name' in command && 'execute' in command) {
+        client.commands.set(command.name, command);
+    }
 }
 
-// 3. Conexión a MongoDB Atlas
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('🍃 Conectado a MongoDB Atlas con éxito'))
-    .catch(err => console.error('❌ Error al conectar a MongoDB:', err));
-
-// 4. Evento: Bot Listo
-client.once('ready', () => {
-    console.log(`✅ ${client.user.tag} está online y vigilando Rockstar Bot!`);
+// 4. Evento de Inicio (Corregido para v14/v15)
+client.once('ready', (c) => {
+    console.log(`✅ ${c.user.tag} está online y vigilando Rockstar Bot!`);
+    
+    // Estado aesthetic
+    client.user.setPresence({
+        activities: [{ name: '!!help | 🌸 Rockstar Bot', type: 0 }],
+        status: 'online',
+    });
 });
 
-// 5. Evento: Manejo de Mensajes (Contador y Comandos)
+// 5. Manejador de Mensajes
 client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild) return;
+    const prefix = "!!"; // Tu prefijo personalizado
 
-    // --- SISTEMA DE ESTADÍSTICAS Y MASCOTAS ---
-    let data = await getUserData(message.author.id);
-    if (data) {
-        data.messageCount += 1;
-
-        // Logro Mascota 3: 5,000 Mensajes
-        if (data.messageCount === 5000) {
-            data.inventory.set("Búho Erudito 🦉", 1);
-            message.author.send("✨ ¡Increíble! Has escrito 5,000 mensajes y desbloqueaste al **Búho Erudito** en tu perfil.").catch(() => {});
-        }
-
-        // Logro Mascota 2: Nivel 10
-        if (data.level >= 10 && !data.inventory.has("Zorro Maestro 🦊")) {
-            data.inventory.set("Zorro Maestro 🦊", 1);
-        }
-
-        await updateUserData(message.author.id, data);
-    }
-
-    // --- MANEJO DE COMANDOS ---
-    const prefix = "!!";
-    if (!message.content.startsWith(prefix)) return;
+    if (!message.content.startsWith(prefix) || message.author.bot) return;
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
 
+    // Buscar comando por nombre o alias
     const command = client.commands.get(commandName) || 
                     client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
 
@@ -77,48 +64,14 @@ client.on('messageCreate', async (message) => {
         await command.execute(message, args);
     } catch (error) {
         console.error(error);
-        message.reply('❌ Hubo un error al ejecutar ese comando.');
+        const errorEmbed = new EmbedBuilder()
+            .setColor('#FF0000')
+            .setTitle('❌ Ups, algo salió mal')
+            .setDescription('Hubo un error al ejecutar ese comando. ¡Inténtalo de nuevo más tarde! ✨');
+        
+        message.reply({ embeds: [errorEmbed] });
     }
 });
 
-// 6. Evento: Manejo de Reacciones (Mascota 1)
-client.on('messageReactionAdd', async (reaction, user) => {
-    // Si la reacción está en un mensaje no guardado en caché, la descargamos
-    if (reaction.partial) {
-        try {
-            await reaction.fetch();
-        } catch (error) {
-            console.error('Error al descargar el mensaje de la reacción:', error);
-            return;
-        }
-    }
-
-    if (user.bot) return;
-
-    let data = await getUserData(user.id);
-    if (data) {
-        data.reactionCount += 1;
-
-        // Logro Mascota 1: 100 Reacciones
-        if (data.reactionCount === 100) {
-            data.inventory.set("Mapache Curioso 🦝", 1);
-            user.send("✨ ¡Felicidades! Por reaccionar 100 veces has desbloqueado al **Mapache Curioso** en tu perfil.").catch(() => {});
-        }
-
-        await updateUserData(user.id, data);
-    }
-});
-
-// 7. Login del Bot
+// 6. Login
 client.login(process.env.TOKEN);
-
-const http = require('http');
-
-// Crear un servidor básico para que Render no se apague
-http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.write('Rockstar Bot está online y saludable! 🌸');
-  res.end();
-}).listen(process.env.PORT || 10000); 
-
-console.log("🌐 Servidor de mantenimiento activado para Render.");
