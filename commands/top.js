@@ -1,32 +1,37 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getAllData } = require('../economyManager.js');
+const { EmbedBuilder } = require('discord.js');
+const { User } = require('../economyManager.js'); 
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('top')
-        .setDescription('Muestra el ranking de los niveles más altos'),
-
-    async execute(interaction) {
-        const allUsers = await getAllData();
-
-        // Ordenar por nivel (descendente) y luego por XP
-        const sorted = allUsers.sort((a, b) => {
-            if (b.level !== a.level) return (b.level || 1) - (a.level || 1);
-            return (b.xp || 0) - (a.xp || 0);
-        }).slice(0, 10); // Top 10
+    name: 'top',
+    aliases: ['leaderboard', 'mejores'],
+    async execute(message) {
+        // 1. Obtener los 10 usuarios con más flores de MongoDB
+        const topUsers = await User.find().sort({ wallet: -1 }).limit(10);
 
         let description = "";
-        sorted.forEach((user, index) => {
-            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '👤';
-            description += `${medal} **#${index + 1}** <@${user.userId}>\n╰ Nivel: \`${user.level || 1}\` | XP: \`${user.xp || 0}\`\n\n`;
-        });
+        
+        for (let i = 0; i < topUsers.length; i++) {
+            const userData = topUsers[i];
+            // Buscamos al miembro en el servidor para obtener su APODO
+            const member = message.guild.members.cache.get(userData.userId);
+            const name = member ? member.displayName : "Usuario Desconocido";
+            
+            const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "✨";
+            description += `${medal} **${name}** — 🌸 \`${userData.wallet.toLocaleString()}\` flores\n`;
+        }
 
         const embed = new EmbedBuilder()
-            .setTitle('🏆 Ranking de Niveles - Top 10')
-            .setDescription(description || "Aún no hay datos de usuarios.")
-            .setColor('#f1c40f')
+            .setAuthor({ 
+                name: `🏆 Top Flores: ${message.guild.name}`, 
+                iconURL: message.guild.iconURL({ dynamic: true }) 
+            })
+            .setDescription(description || "¡Aún no hay nadie en el ranking! ☁️")
+            .setColor('#FFB6C1')
+            // GIF Aesthetic de un gatito celebrando con flores/confeti
+            .setThumbnail('https://i.pinimg.com/originals/c1/9a/31/c19a311894a87a6d80c3546738491763.gif')
+            .setFooter({ text: '¿Podrás llegar al primer lugar? 🎀' })
             .setTimestamp();
 
-        return interaction.reply({ embeds: [embed] });
+        message.reply({ embeds: [embed] });
     }
 };

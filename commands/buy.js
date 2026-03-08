@@ -1,77 +1,59 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
-const fs = require('fs');
-const path = require('path');
+const shopItems = require('../data/shop.json');
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('buy')
-        .setDescription('Compra un artículo de la Tienda Rockstar ✨')
-        .addStringOption(opt => 
-            opt.setName('item')
-                .setDescription('Nombre o ID del artículo que quieres comprar')
-                .setRequired(true)),
+    name: 'buy',
+    aliases: ['comprar'],
+    async execute(message, args) {
+        const userId = message.author.id;
+        
+        // 1. Verificar si el usuario escribió qué quiere comprar
+        if (!args.length) {
+            return message.reply("✨ ¿Qué deseas comprar? Usa `!!buy [nombre]` (ej: `!!buy cafe`) o mira la `!!shop`.");
+        }
 
-    async execute(interaction) {
-        const userId = interaction.user.id;
-        const itemNameInput = interaction.options.getString('item').toLowerCase();
-        const member = interaction.guild.members.cache.get(userId);
-        const apodo = member?.nickname || interaction.user.username;
-
-        // 1. CARGAR TIENDA
-        const shopPath = path.join(__dirname, '../data/shop.json');
-        if (!fs.existsSync(shopPath)) return interaction.reply("❌ La tienda no está configurada correctamente.");
-        const shopData = JSON.parse(fs.readFileSync(shopPath, 'utf8'));
-
-        // 2. BUSCAR ITEM (Por ID o por nombre)
-        const itemKey = Object.keys(shopData).find(key => 
-            key.toLowerCase() === itemNameInput || 
-            shopData[key].name.toLowerCase() === itemNameInput
+        // Buscamos el item en el JSON (ignorando mayúsculas/minúsculas)
+        const itemNameInput = args.join(" ").toLowerCase();
+        const itemKey = Object.keys(shopItems).find(key => 
+            shopItems[key].name.toLowerCase() === itemNameInput || key.toLowerCase() === itemNameInput
         );
 
-        const item = shopData[itemKey];
+        const item = shopItems[itemKey];
 
         if (!item) {
-            return interaction.reply({ 
-                content: `❌ No encontré el artículo **"${itemNameInput}"**. Revisa la \`!!shop\` para ver los nombres exactos.`, 
-                ephemeral: true 
-            });
+            return message.reply("❌ Ese objeto no parece estar en nuestra tienda. ¡Revisa bien el nombre! 🌸");
         }
 
-        // 3. VALIDAR SALDO
-        const data = await getUserData(userId);
+        // 2. Obtener datos del usuario desde MongoDB
+        let data = await getUserData(userId);
+        if (!data) return message.reply("❌ Error al conectar con la base de datos.");
+
+        // 3. Verificar si tiene dinero suficiente
         if (data.wallet < item.price) {
-            return interaction.reply({ 
-                content: `❌ No tienes suficientes flores. Necesitas **${item.price} 🌸** y solo tienes **${data.wallet} 🌸**.`, 
-                ephemeral: true 
-            });
+            const faltante = item.price - data.wallet;
+            return message.reply(`😢 ¡Oh no! Te faltan **${faltante}** flores para comprar **${item.name}**. ¡Sigue trabajando! ✨`);
         }
 
-        // 4. PROCESAR COMPRA
+        // 4. PROCESAR LA COMPRA
+        // Restar dinero
         data.wallet -= item.price;
-        if (!data.inventory) data.inventory = {};
-        data.inventory[itemKey] = (data.inventory[itemKey] || 0) + 1;
 
+        // Añadir al inventario (Map de MongoDB)
+        const cantidadActual = data.inventory.get(item.name) || 0;
+        data.inventory.set(item.name, cantidadActual + 1);
+
+        // 5. Guardar cambios en MongoDB
         await updateUserData(userId, data);
 
-        // GIF Aesthetic de agradecimiento o cajita cute
-        const buyGif = "https://i.pinimg.com/originals/a1/3e/2e/a13e2e09657685600643763261647416.gif";
-
-        const embed = new EmbedBuilder()
-            .setAuthor({ 
-                name: `🛍️ Compra Exitosa: ${apodo}`, 
-                iconURL: interaction.user.displayAvatarURL({ dynamic: true }) 
-            })
-            .setTitle('✨ ¡Gracias por tu compra!')
-            .setColor('#B9F2FF') // Color celeste pastel muy aesthetic
-            .setThumbnail(buyGif)
-            .setDescription(`**${apodo}**, has adquirido un nuevo objeto para tu mochila.\n\n**Artículo:** ${item.icon} \`${item.name}\`\n**Precio pagado:** \`${item.price} 🌸\`\n\n**Saldo restante:** \`${data.wallet} 🌸\`\n\n*Usa \`!!inventory\` para ver tus pertenencias.*`)
-            .setFooter({ 
-                text: `${interaction.guild.name} • Rockstar Market 🎀`, 
-                iconURL: interaction.guild.iconURL({ dynamic: true }) 
-            })
-            .setTimestamp();
-
-        return interaction.reply({ embeds: [embed] });
+        // 6. Confirmación Aesthetic
+        message.reply({
+            embeds: [{
+                title: "🛍️ ¡Compra Exitosa!",
+                description: `Has comprado un **${item.name}** por **${item.price}** flores. \n\n✨ *¡Disfruta tu nueva adquisición!*`,
+                color: 0xFFB6C1,
+                thumbnail: { url: 'https://i.pinimg.com/originals/c2/93/90/c29390232491a92a54318c5750346857.gif' }, // GIF de compra/felicidad
+                footer: { text: `Balance actual: ${data.wallet} flores` }
+            }]
+        });
     }
 };
