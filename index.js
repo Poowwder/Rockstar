@@ -111,3 +111,14 @@ client.on('messageReactionAdd', async (reaction, user) => {
 
 // 7. Login del Bot
 client.login(process.env.TOKEN);
+
+const http = require('http');
+
+// Crear un servidor básico para que Render no se apague
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.write('Rockstar Bot está online y saludable! 🌸');
+  res.end();
+}).listen(process.env.PORT || 10000); 
+
+console.log("🌐 Servidor de mantenimiento activado para Render.");
