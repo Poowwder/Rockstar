@@ -1,14 +1,29 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 module.exports = {
-    name: 'ping',
+    name: 'ping', // Nombre para prefijo
     category: 'información',
     data: new SlashCommandBuilder()
-        .setName('ping')
-        .setDescription('Mira la latencia del bot'),
+        .setName('ping') // Nombre para Slash (OBLIGATORIO)
+        .setDescription('Mira la latencia del bot y la API'),
+
     async execute(input) {
-        const msg = `📡 Pong! Latencia: **${input.client.ws.ping}ms**`;
-        if (input.reply && input.user) return input.reply({ content: msg, ephemeral: true });
-        return input.reply(msg);
+        // Detectar si es Interaction o Message
+        const isSlash = !!input.user;
+        const apiLatency = input.client.ws.ping;
+        
+        const embed = new EmbedBuilder()
+            .setTitle('📡 Estado de Conexión')
+            .setColor('#FFB6C1')
+            .addFields(
+                { name: '🌐 API Latency', value: `\`${apiLatency}ms\``, inline: true }
+            )
+            .setFooter({ text: 'Rockstar Bot Performance' });
+
+        if (isSlash) {
+            await input.reply({ embeds: [embed] });
+        } else {
+            await input.reply({ embeds: [embed] });
+        }
     }
 };
