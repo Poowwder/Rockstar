@@ -4,51 +4,57 @@ const { getUserData, updateUserData } = require('../economyManager.js');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('pay')
-        .setDescription('Envía flores a otro usuario (Solo Premium)')
-        .addUserOption(opt => opt.setName('usuario').setDescription('A quién quieres pagar').setRequired(true))
-        .addIntegerOption(opt => opt.setName('cantidad').setDescription('Cantidad de flores').setRequired(true)),
+        .setDescription('Envía flores de tu cartera a otro usuario')
+        .addUserOption(opt => opt.setName('usuario').setDescription('¿A quién quieres enviarle flores?').setRequired(true))
+        .addIntegerOption(opt => opt.setName('cantidad').setDescription('Cantidad de flores a enviar').setRequired(true).setMinValue(1)),
 
     async execute(interaction) {
-        const senderId = interaction.user.id;
-        const targetUser = interaction.options.getUser('usuario');
-        const amount = interaction.options.getInteger('cantidad');
+        const target = interaction.options.getUser('usuario');
+        const cantidad = interaction.options.getInteger('cantidad');
+        const userId = interaction.user.id;
 
-        // 1. Validaciones básicas
-        if (targetUser.id === senderId) return interaction.reply("❌ No puedes enviarte dinero a ti mismo.");
-        if (targetUser.bot) return interaction.reply("❌ No puedes enviarle dinero a un bot.");
-        if (amount <= 0) return interaction.reply("❌ La cantidad debe ser mayor a 0.");
+        // Evitar enviarse a uno mismo
+        if (target.id === userId) return interaction.reply({ content: "❌ No puedes enviarte flores a ti mismo/a.", ephemeral: true });
+        if (target.bot) return interaction.reply({ content: "❌ Los bots no aceptan flores... ¡aunque son lindas!", ephemeral: true });
 
-        const senderData = await getUserData(senderId);
+        const userData = await getUserData(userId);
+        const targetData = await getUserData(target.id);
 
-        // 2. Validación de Rango Premium (Opcional, según tu pedido)
-        if (!senderData.premiumType || senderData.premiumType === 'normal') {
-            return interaction.reply("🌟 Esta función es exclusiva para usuarios **Mensuales** o **Bimestrales**.");
+        // Verificar saldo
+        if (userData.wallet < cantidad) {
+            return interaction.reply({ content: `❌ No tienes suficientes flores. Te faltan **${cantidad - userData.wallet} 🌸**.`, ephemeral: true });
         }
 
-        // 3. Validación de saldo
-        if (senderData.wallet < amount) {
-            return interaction.reply(`❌ No tienes suficientes flores. Tu saldo actual es de **${senderData.wallet} 🌸**.`);
-        }
+        // --- LÓGICA DE APODOS Y ESTÉTICA ---
+        const memberEmisor = interaction.guild.members.cache.get(userId);
+        const memberReceptor = interaction.guild.members.cache.get(target.id);
+        const apodoEmisor = memberEmisor?.nickname || interaction.user.username;
+        const apodoReceptor = memberReceptor?.nickname || target.username;
 
-        // 4. Proceso de transferencia
-        const targetData = await getUserData(targetUser.id);
+        // GIF Aesthetic de transferencia o sobre con flores
+        const payAesthetic = "https://i.pinimg.com/originals/7b/0b/4b/7b0b4b8b8b8b8b8b8b8b8b8b8b8b8b8b.gif"; // Sobrecito Cute
 
-        senderData.wallet -= amount;
-        targetData.wallet = (targetData.wallet || 0) + amount;
+        // Transacción
+        userData.wallet -= cantidad;
+        targetData.wallet += cantidad;
 
-        await updateUserData(senderId, senderData);
-        await updateUserData(targetUser.id, targetData);
+        await updateUserData(userId, userData);
+        await updateUserData(target.id, targetData);
 
         const embed = new EmbedBuilder()
-            .setTitle('💸 Transferencia Exitosa')
-            .setDescription(`Has enviado **${amount} 🌸** a <@${targetUser.id}>.`)
-            .addFields(
-                { name: 'Enviado por', value: `${interaction.user.username}`, inline: true },
-                { name: 'Recibido por', value: `${targetUser.username}`, inline: true }
-            )
-            .setColor('#f1c40f')
-            .setTimestamp()
-            .setFooter({ text: `Tu nuevo saldo: ${senderData.wallet} 🌸` });
+            .setAuthor({ 
+                name: `💸 Transferencia de ${apodoEmisor}`, 
+                iconURL: interaction.user.displayAvatarURL({ dynamic: true }) 
+            })
+            .setTitle('✨ ¡Flores Enviadas!')
+            .setThumbnail(payAesthetic)
+            .setColor(userData.profileColor || '#FFB6C1')
+            .setDescription(`୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n**${apodoEmisor}** ha enviado **${cantidad} 🌸** a **${apodoReceptor}**.\n\n*¡Qué generoso/a! El jardín sigue creciendo.* ✨\n\n**Tu nuevo saldo:** \`${userData.wallet} 🌸\`\n\n୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`)
+            .setFooter({ 
+                text: `${interaction.guild.name} • Rockstar Economy 🎀`, 
+                iconURL: interaction.guild.iconURL({ dynamic: true }) 
+            })
+            .setTimestamp();
 
         return interaction.reply({ embeds: [embed] });
     }
