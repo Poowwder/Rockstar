@@ -1,47 +1,53 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData } = require('../economyManager.js');
-const shopData = require('../data/shop.json');
+const fs = require('fs');
+const path = require('path');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('shop')
-        .setDescription('Mira los artículos disponibles en la tienda'),
+        .setDescription('Mira los artículos disponibles en la tienda ✨'),
 
     async execute(interaction) {
+        // 1. OBTENER DATOS DEL USUARIO Y APODO
         const userId = interaction.user.id;
         const data = await getUserData(userId);
         const member = interaction.guild.members.cache.get(userId);
-        
         const apodo = member?.nickname || interaction.user.username;
-        const embedColor = data.profileColor || '#FFB6C1';
-        
-        // Imagen Aesthetic de una tienda Cute / Pixel Art
-        const shopAesthetic = "https://i.pinimg.com/originals/94/f9/0b/94f90b9b3f3a8b4b7b2b8d0a4f5f5f5f.gif";
 
-        // Construir la lista de productos
-        let listaProductos = "";
-        for (const id in shopData) {
-            const item = shopData[id];
-            // Solo mostramos items que tengan un precio mayor a 0 (para ocultar cajas diarias gratis si quieres)
-            if (item.price > 0) {
-                listaProductos += `${item.icon} **${item.name}** — \`${item.price} 🌸\`\n*${item.description}*\n\n`;
-            }
+        // 2. CARGAR DATOS DE LA TIENDA DESDE EL JSON
+        const shopPath = path.join(__dirname, '../data/shop.json');
+        let shopData = {};
+        if (fs.existsSync(shopPath)) {
+            shopData = JSON.parse(fs.readFileSync(shopPath, 'utf8'));
         }
 
+        // 3. IMAGEN CUTE PARA LA TIENDA (GIF Pixel Art Shop)
+        const shopGif = "https://i.pinimg.com/originals/3d/82/20/3d822003f56360c4a457a627876a4794.gif";
+
+        // 4. CONSTRUIR LISTA DE PRODUCTOS
+        let listaProductos = "";
+        const items = Object.keys(shopData);
+
+        if (items.length === 0) {
+            listaProductos = "*Parece que la tienda está cerrada por mantenimiento...* 🎀";
+        } else {
+            items.forEach(id => {
+                const item = shopData[id];
+                listaProductos += `${item.icon || '📦'} **${item.name}** — \`${item.price} 🌸\`\n> *${item.description}*\n\n`;
+            });
+        }
+
+        // 5. EMBED AESTHETIC
         const embed = new EmbedBuilder()
             .setAuthor({ 
                 name: `🛍️ Cliente: ${apodo}`, 
                 iconURL: interaction.user.displayAvatarURL({ dynamic: true }) 
             })
-            .setTitle('✨ Tienda Rockstar') // Título mantenido con emoji nuevo
-            .setThumbnail(shopAesthetic)
-            .setColor(embedColor)
-            .setDescription(`୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n${listaProductos}୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`)
-            .addFields({ 
-                name: '💰 Tu Saldo', 
-                value: `\`${data.wallet || 0} 🌸\` en cartera`, 
-                inline: false 
-            })
+            .setTitle('✨ Tienda Rockstar')
+            .setColor(data.profileColor || '#FFB6C1')
+            .setThumbnail(shopGif)
+            .setDescription(`**¡Bienvenido/a al mercado sakura, ${apodo}!**\n\n**Saldo actual:** \`${data.wallet || 0} 🌸\`\n\n୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n${listaProductos}୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`)
             .setFooter({ 
                 text: `${interaction.guild.name} • Rockstar Shopping 🎀`, 
                 iconURL: interaction.guild.iconURL({ dynamic: true }) 

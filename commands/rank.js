@@ -5,31 +5,40 @@ const { getRequiredXP } = require('../levelManager.js');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('rank')
-        .setDescription('Mira tu nivel y progreso de XP')
-        .addUserOption(o => o.setName('usuario').setDescription('Ver rango de otro')),
+        .setDescription('Muestra tu nivel y progreso actual ✨')
+        .addUserOption(opt => opt.setName('usuario').setDescription('El rango de otro usuario')),
 
     async execute(interaction) {
         const target = interaction.options.getUser('usuario') || interaction.user;
+        const member = interaction.guild.members.cache.get(target.id);
         const data = await getUserData(target.id);
-        
+
         const nivel = data.level || 1;
         const xpActual = data.xp || 0;
         const xpNecesaria = getRequiredXP(nivel);
-        const tier = (data.premiumType || 'normal').toUpperCase();
+        const apodo = member?.nickname || target.username;
 
-        // Barra de progreso (10 bloques)
-        const porcentaje = Math.min(Math.floor((xpActual / xpNecesaria) * 10), 10);
-        const barra = "🟦".repeat(porcentaje) + "⬛".repeat(10 - porcentaje);
+        // --- CÁLCULO DE BARRA DE PROGRESO ---
+        const porcentaje = Math.floor((xpActual / xpNecesaria) * 10);
+        const barra = "🌸".repeat(porcentaje) + "🤍".repeat(10 - porcentaje);
+        const porcTexto = Math.floor((xpActual / xpNecesaria) * 100);
+
+        // GIF Pequeño y Cute para el Rank
+        const rankAesthetic = "https://i.pinimg.com/originals/24/0e/43/240e439446d3765f0e9f16182285a73e.gif"; // Estrellitas/Sakura pixel
 
         const embed = new EmbedBuilder()
-            .setTitle(`⭐ Rango de ${target.username}`)
-            .setColor('#3498db')
-            .addFields(
-                { name: 'Nivel', value: `\`${nivel}\``, inline: true },
-                { name: 'Rango', value: `\`${tier}\``, inline: true },
-                { name: 'Progreso', value: `${barra} \`${xpActual} / ${xpNecesaria} XP\``, inline: false }
-            )
-            .setThumbnail(target.displayAvatarURL());
+            .setAuthor({ 
+                name: `⭐ Rango de ${apodo}`, 
+                iconURL: target.displayAvatarURL({ dynamic: true }) 
+            })
+            .setColor(data.profileColor || '#FFB6C1')
+            .setThumbnail(rankAesthetic)
+            .setDescription(`**Nivel:** \`${nivel}\`\n**XP:** \`${xpActual} / ${xpNecesaria}\` (\`${porcTexto}%\`)\n\n${barra}`)
+            .setFooter({ 
+                text: `${interaction.guild.name} • Rockstar Ranking`, 
+                iconURL: interaction.guild.iconURL({ dynamic: true }) 
+            })
+            .setTimestamp();
 
         return interaction.reply({ embeds: [embed] });
     }

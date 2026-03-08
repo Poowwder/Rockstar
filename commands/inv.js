@@ -1,12 +1,13 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData } = require('../economyManager.js');
-const shopData = require('../data/shop.json');
+const fs = require('fs');
+const path = require('path');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('inventory')
-        .setDescription('Mira los tesoros que guardas en tu mochila')
-        .addUserOption(opt => opt.setName('usuario').setDescription('El inventario de alguien más')),
+        .setName('inv')
+        .setDescription('Visualiza los tesoros de tu mochila ✨')
+        .addUserOption(opt => opt.setName('usuario').setDescription('Ver la mochila de otra persona')),
 
     async execute(interaction) {
         const target = interaction.options.getUser('usuario') || interaction.user;
@@ -16,15 +17,22 @@ module.exports = {
         const apodo = member?.nickname || target.username;
         const inventario = data.inventory || {};
         
-        // Imagen Aesthetic para la mochila (Un bolso cute o algo estilo anime)
-        const bagAesthetic = "https://i.pinimg.com/originals/a1/3e/2e/a13e2e09657685600643763261647416.gif";
+        // Cargar datos de la tienda para obtener Nombres y Emojis de los items
+        const shopPath = path.join(__dirname, '../data/shop.json');
+        let shopData = {};
+        if (fs.existsSync(shopPath)) {
+            shopData = JSON.parse(fs.readFileSync(shopPath, 'utf8'));
+        }
 
-        // Filtrar y formatear items
+        // GIF Aesthetic de una mochila/bolso cute (Pixel Art)
+        const invGif = "https://i.pinimg.com/originals/a1/3e/2e/a13e2e09657685600643763261647416.gif";
+
+        // Filtrar y formatear items que el usuario realmente tiene (cantidad > 0)
         let itemsList = "";
         const itemKeys = Object.keys(inventario).filter(key => inventario[key] > 0);
 
         if (itemKeys.length === 0) {
-            itemsList = "*Tu mochila está vacía por ahora... ✨*";
+            itemsList = "✨ *La mochila está vacía... por ahora.*";
         } else {
             itemKeys.forEach(key => {
                 const itemInfo = shopData[key];
@@ -36,17 +44,17 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setAuthor({ 
-                name: `🎒 Mochila de ${apodo}`, 
+                name: `🎒 Inventario de ${apodo}`, 
                 iconURL: target.displayAvatarURL({ dynamic: true }) 
             })
             .setColor(data.profileColor || '#FFB6C1')
-            .setThumbnail(bagAesthetic)
-            .setDescription(`୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n${itemsList}\n\n୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`)
+            .setThumbnail(invGif)
+            .setDescription(`**Dueño/a:** ${apodo}\n\n**Contenido:**\n୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n${itemsList}\n\n୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`)
             .setFooter({ 
                 text: `${interaction.guild.name} • Rockstar Inventory 🌸`, 
                 iconURL: interaction.guild.iconURL({ dynamic: true }) 
             })
-            .setTimestamp(); // <--- Timestamp añadido
+            .setTimestamp();
 
         return interaction.reply({ embeds: [embed] });
     }
