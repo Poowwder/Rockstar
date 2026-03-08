@@ -1,8 +1,9 @@
-const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 
-// 1. INICIALIZACIÓN (Esto arregla el ReferenceError) ✨
+// 1. INICIALIZACIÓN DEL CLIENT ✨
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -14,7 +15,13 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// 2. CARGA DE COMANDOS 📂
+// 2. CONEXIÓN A MONGODB 🍃
+// Esto soluciona el error de IP en Render si ya pusiste 0.0.0.0/0 en Atlas
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('🌸 ¡Conexión exitosa a MongoDB Atlas! ✨'))
+    .catch(err => console.error('❌ Error crítico en MongoDB:', err));
+
+// 3. CARGA DE COMANDOS 📂
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
@@ -23,11 +30,11 @@ for (const file of commandFiles) {
     const command = require(filePath);
     if ('name' in command) {
         client.commands.set(command.name, command);
-        console.log(`✨ Cargado: ${command.name}`);
+        console.log(`✨ Comando detectado: ${command.name}`);
     }
 }
 
-// 3. MANEJADOR DE INTERACCIONES (SLASH COMMANDS) 🚀
+// 4. MANEJADOR DE INTERACCIONES (SLASH COMMANDS) 🚀
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     
@@ -35,17 +42,20 @@ client.on('interactionCreate', async (interaction) => {
     if (!cmd) return;
 
     try {
-        // Pasamos interaction y options para compatibilidad
+        // Pasamos la interacción para que comandos como profile.js la procesen
         await cmd.execute(interaction, interaction.options); 
     } catch (error) {
         console.error(`❌ Error en Slash ${interaction.commandName}:`, error);
         if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: '╰┈➤ 🌸 ¡Ups! Hubo un error interno, linda.', ephemeral: true });
+            await interaction.reply({ 
+                content: '╰┈➤ 🌸 ¡Ups! Hubo un error interno, linda. Inténtalo de nuevo. ✨', 
+                ephemeral: true 
+            });
         }
     }
 });
 
-// 4. MANEJADOR DE MENSAJES (PREFIX COMMANDS) 🎀
+// 5. MANEJADOR DE MENSAJES (PREFIX COMMANDS !!) 🎀
 client.on('messageCreate', async (message) => {
     const prefix = "!!";
     if (!message.content.startsWith(prefix) || message.author.bot) return;
@@ -57,20 +67,20 @@ client.on('messageCreate', async (message) => {
     
     if (cmd) {
         try {
+            // Ejecutamos pasando el mensaje y los argumentos
             await cmd.execute(message, args);
         } catch (error) {
             console.error(`❌ Error en Prefix ${cmdName}:`, error);
-            message.reply("╰┈➤ 🌸 Ocurrió un error al procesar este comando.");
+            message.reply("╰┈➤ 🌸 Ocurrió un error al procesar este comando... ¡Lo siento, reina! ✨");
         }
     }
 });
 
-// 5. EVENTO READY ✨
+// 6. EVENTO READY 🦢
 client.once('ready', () => {
-    console.log(`🌸 ¡Bot encendido! Logueado como ${client.user.tag}`);
-    client.user.setActivity('!!help | Harem Mode 💍', { type: 3 });
+    console.log(`🌸 ¡Bot en línea! Sesión iniciada como ${client.user.tag}`);
+    client.user.setActivity('!!help | Coleccionando Harems 💍', { type: 3 }); // Watching
 });
 
-// 6. LOGIN (Final del archivo) 🔐
-// Render leerá el TOKEN de tus variables de entorno (Environment Variables)
+// 7. LOGIN SEGURO 🔐
 client.login(process.env.TOKEN);
