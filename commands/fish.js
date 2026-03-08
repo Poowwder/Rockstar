@@ -1,6 +1,33 @@
 const { EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
-const zones = require('../data/fish_zones.json');
+
+// --- DATOS INTEGRADOS (Para evitar errores de lectura de archivos) ---
+const zones = {
+  "charco": {
+    "name": "⛲ Fuente del Deseo",
+    "fish": ["🐟 Pez Pequeño", "🌱 Alga Marina", "👟 Bota Vieja"],
+    "min_reward": 10, "max_reward": 50, "emoji": "⛲", "premium": false,
+    "boss": { "name": "🐸 Rey Rana", "chance": 10, "reward": 500 }
+  },
+  "lago": {
+    "name": "🌸 Lago de Cristal",
+    "fish": ["🐠 Pez Tropical", "🐡 Pez Globo Cute", "🦐 Camaroncito"],
+    "min_reward": 60, "max_reward": 150, "emoji": "🌸", "premium": false,
+    "boss": { "name": "🦢 Cisne de Jade", "chance": 10, "reward": 1500 }
+  },
+  "oceano": {
+    "name": "⚓ Océano Profundo",
+    "fish": ["🦈 Tiburón Bebé", "🐙 Pulpito Rosa", "🐳 Ballena Mini"],
+    "min_reward": 350, "max_reward": 700, "emoji": "⚓", "premium": false,
+    "boss": { "name": "🦑 Kraken Bebé", "chance": 12, "reward": 4000 }
+  },
+  "secreta": {
+    "name": "🌌 Dimensión Galaxia (VIP)",
+    "fish": ["⭐ Pez Estelar", "🛸 Disco Volador", "🌙 Fragmento de Luna", "👑 Tesoro Cósmico"],
+    "min_reward": 2000, "max_reward": 4500, "emoji": "🌌", "premium": true,
+    "boss": { "name": "🔱 Leviatán Astral", "chance": 15, "reward": 15000 }
+  }
+};
 
 module.exports = {
     name: 'fish',
@@ -9,76 +36,60 @@ module.exports = {
         const userId = message.author.id;
         let data = await getUserData(userId);
 
-        if (!data) return message.reply("❌ Error al conectar con tu perfil de Rockstar.");
+        if (!data) return message.reply("❌ Error al conectar con tu perfil.");
 
         const chosenZoneKey = args[0]?.toLowerCase();
         
-        // 1. Mostrar Menú si no hay argumentos o la zona no existe
+        // 1. Mostrar Menú
         if (!chosenZoneKey || !zones[chosenZoneKey]) {
             let menu = "";
             for (const key in zones) {
-                const z = zones[key];
-                const status = z.premium ? " [⭐ VIP]" : "";
-                menu += `**${z.emoji} ${key.toUpperCase()}** - ${z.name}${status}\n`;
+                menu += `**${zones[key].emoji} ${key.toUpperCase()}** - ${zones[key].name}${zones[key].premium ? " [⭐ VIP]" : ""}\n`;
             }
             
-            const menuEmbed = new EmbedBuilder()
-                .setTitle("🎣 ¿Dónde quieres lanzar la caña?")
-                .setDescription(`Usa \`!!fish [zona]\` para comenzar.\n\n${menu}`)
-                .setColor("#FFB6C1")
-                .setThumbnail('https://i.pinimg.com/originals/a1/39/33/a139333918f0f00f0732e92c3008889b.gif')
-                .setFooter({ text: "¡Las zonas VIP tienen jefes legendarios!" });
-
-            return message.reply({ embeds: [menuEmbed] });
+            return message.reply({
+                embeds: [new EmbedBuilder()
+                    .setTitle("🎣 ¿Dónde quieres pescar?")
+                    .setDescription(`Usa \`!!fish [zona]\` para comenzar.\n\n${menu}`)
+                    .setColor("#FFB6C1")
+                    .setThumbnail('https://i.pinimg.com/originals/a1/39/33/a139333918f0f00f0732e92c3008889b.gif')]
+            });
         }
 
         const zone = zones[chosenZoneKey];
 
-        // 2. Verificación Premium para zonas VIP
+        // 2. Verificación Premium
         if (zone.premium && data.premiumType === 'none') {
-            return message.reply({
-                embeds: [new EmbedBuilder()
-                    .setTitle("🔒 Zona Restringida")
-                    .setDescription("¡Lo siento, linda! Esta zona mágica es solo para **Miembros Premium**. ✨")
-                    .setColor("#FF0000")
-                    .setThumbnail('https://i.pinimg.com/originals/82/01/9a/82019adb656911f93e9a18017e810a9c.gif')]
-            });
+            return message.reply("🔒 ¡Esta zona es solo para **Miembros Premium**! ✨");
         }
 
-        // 3. Lógica de JEFE (Boss)
+        // 3. Lógica de Jefe
         const bossRoll = Math.random() * 100;
         if (bossRoll <= zone.boss.chance) {
             data.wallet += zone.boss.reward;
             await updateUserData(userId, data);
-
             return message.reply({
                 embeds: [new EmbedBuilder()
-                    .setTitle(`🔱 ¡HA APARECIDO UN JEFE: ${zone.boss.name.toUpperCase()}!`)
-                    .setDescription(`¡Increíble! Has logrado domar a la criatura y has encontrado un tesoro oculto de **${zone.boss.reward.toLocaleString()}** flores. 🌸`)
-                    .setThumbnail('https://i.pinimg.com/originals/0f/b1/70/0fb17019192ba8cf37119da45046059c.gif') // GIF de jefe/marino
-                    .setColor("#00fbff")
-                    .setFooter({ text: `Nueva Cartera: ${data.wallet.toLocaleString()} flores` })]
+                    .setTitle(`🔱 ¡JEFE APARECIDO: ${zone.boss.name.toUpperCase()}!`)
+                    .setDescription(`¡Lo derrotaste y encontraste **${zone.boss.reward.toLocaleString()}** flores! 🌸`)
+                    .setThumbnail('https://i.pinimg.com/originals/0f/b1/70/0fb17019192ba8cf37119da45046059c.gif')
+                    .setColor("#00fbff")]
             });
         }
 
-        // 4. Lógica de Pesca Normal
+        // 4. Pesca Normal
         const pez = zone.fish[Math.floor(Math.random() * zone.fish.length)];
         const ganancia = Math.floor(Math.random() * (zone.max_reward - zone.min_reward + 1)) + zone.min_reward;
 
         data.wallet += ganancia;
         await updateUserData(userId, data);
 
-        const successEmbed = new EmbedBuilder()
-            .setAuthor({ 
-                name: `🎣 Pesca en ${zone.name}`, 
-                iconURL: message.author.displayAvatarURL({ dynamic: true }) 
-            })
-            .setDescription(`¡Has atrapado un **${pez}**!\n\n✨ Lo vendiste en el mercado por **${ganancia.toLocaleString()}** flores.`)
-            .setColor(zone.premium ? "#E1ADFF" : "#FFB6C1")
-            .setThumbnail('https://i.pinimg.com/originals/11/be/f3/11bef32f170ef563391786c5f782c58a.gif')
-            .setFooter({ text: `Cartera: ${data.wallet.toLocaleString()} flores` })
-            .setTimestamp();
-
-        message.reply({ embeds: [successEmbed] });
+        message.reply({
+            embeds: [new EmbedBuilder()
+                .setAuthor({ name: `🎣 Pesca en ${zone.name}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                .setDescription(`¡Atrapaste un **${pez}**!\n✨ Ganaste **${ganancia.toLocaleString()}** flores.`)
+                .setColor(zone.premium ? "#E1ADFF" : "#FFB6C1")
+                .setFooter({ text: `Cartera: ${data.wallet.toLocaleString()} flores` })]
+        });
     }
 };

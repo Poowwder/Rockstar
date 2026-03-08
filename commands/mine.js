@@ -1,6 +1,27 @@
 const { EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../economyManager.js');
-const zones = require('../data/mine_zones.json');
+
+// Datos integrados para evitar errores de carga
+const mineZones = {
+  "tunel": {
+    "name": "🕳️ Túnel de Tierra",
+    "items": ["🪨 Piedra", "🫘 Carbón", "🔩 Hierro"],
+    "min_reward": 20, "max_reward": 80, "emoji": "🕳️", "premium": false,
+    "boss": { "name": "🐀 Topo Gigante", "chance": 10, "reward": 800 }
+  },
+  "cristal": {
+    "name": "💎 Cueva de Cristales",
+    "items": ["💎 Cuarzo", "💜 Amatista", "💙 Zafiro"],
+    "min_reward": 150, "max_reward": 400, "emoji": "💎", "premium": false,
+    "boss": { "name": "💎 Gólem de Cristal", "chance": 12, "reward": 2500 }
+  },
+  "prismas": {
+    "name": "🌈 Cueva de Prismas (VIP)",
+    "items": ["✨ Diamante Puro", "🎇 Fragmento Estelar", "🔱 Reliquia Antigua"],
+    "min_reward": 2500, "max_reward": 5000, "emoji": "🌈", "premium": true,
+    "boss": { "name": "🐲 Dragón de Diamante", "chance": 15, "reward": 20000 }
+  }
+};
 
 module.exports = {
     name: 'mine',
@@ -10,24 +31,29 @@ module.exports = {
         let data = await getUserData(userId);
         const chosenKey = args[0]?.toLowerCase();
 
-        if (!chosenKey || !zones[chosenKey]) {
-            let menu = Object.keys(zones).map(k => `**${zones[k].emoji} ${k.toUpperCase()}** - ${zones[k].name}${zones[k].premium ? " [⭐ VIP]" : ""}`).join("\n");
-            return message.reply({ embeds: [new EmbedBuilder().setTitle("⛏️ ¿A dónde irás a minar?").setDescription(menu).setColor("#FFB6C1")] });
+        if (!chosenKey || !mineZones[chosenKey]) {
+            let menu = Object.keys(mineZones).map(k => `**${mineZones[k].emoji} ${k.toUpperCase()}** - ${mineZones[k].name}${mineZones[k].premium ? " [⭐ VIP]" : ""}`).join("\n");
+            return message.reply({ 
+                embeds: [new EmbedBuilder()
+                    .setTitle("⛏️ ¿A dónde irás a minar?")
+                    .setDescription(`Escribe \`!!mine [zona]\` para empezar.\n\n${menu}`)
+                    .setColor("#FFB6C1")
+                    .setThumbnail('https://i.pinimg.com/originals/47/34/00/47340078869c9780074215f769493f0b.gif')] 
+            });
         }
 
-        const zone = zones[chosenKey];
-        if (zone.premium && data.premiumType === 'none') return message.reply("🔒 ¡Esta cueva es solo para **Usuarios Premium**! ✨");
+        const zone = mineZones[chosenKey];
+        if (zone.premium && data.premiumType === 'none') return message.reply("🔒 ¡Esta cueva es solo para **Miembros Premium**! ✨");
 
         // Lógica de JEFE
-        const bossChance = Math.random() * 100;
-        if (bossChance <= zone.boss.chance) {
+        if ((Math.random() * 100) <= zone.boss.chance) {
             data.wallet += zone.boss.reward;
             await updateUserData(userId, data);
             return message.reply({
                 embeds: [new EmbedBuilder()
-                    .setTitle(`⚔️ ¡APARECIÓ UN JEFE: ${zone.boss.name}!`)
-                    .setDescription(`¡${message.member.displayName}, lograste derrotarlo y saqueaste **${zone.boss.reward.toLocaleString()}** flores! 🌸`)
-                    .setThumbnail('https://i.pinimg.com/originals/91/91/36/91913612d35272a0833215f9392e22f2.gif') // GIF de batalla cute
+                    .setTitle(`⚔️ ¡JEFE APARECIDO: ${zone.boss.name}!`)
+                    .setDescription(`¡Lo derrotaste y saqueaste **${zone.boss.reward.toLocaleString()}** flores! 🌸`)
+                    .setThumbnail('https://i.pinimg.com/originals/91/91/36/91913612d35272a0833215f9392e22f2.gif')
                     .setColor("#FF0000")]
             });
         }
@@ -43,7 +69,8 @@ module.exports = {
                 .setAuthor({ name: `⛏️ Minando en ${zone.name}`, iconURL: message.author.displayAvatarURL() })
                 .setDescription(`¡Picaste un **${item}** y ganaste **${ganancia.toLocaleString()}** flores! ✨`)
                 .setThumbnail('https://i.pinimg.com/originals/47/34/00/47340078869c9780074215f769493f0b.gif')
-                .setColor("#FFB6C1")]
+                .setColor(zone.premium ? "#E1ADFF" : "#FFB6C1")
+                .setFooter({ text: `Cartera: ${data.wallet.toLocaleString()} flores` })]
         });
     }
 };
