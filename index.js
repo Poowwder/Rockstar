@@ -4,14 +4,12 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 
-// 1. SERVIDOR PARA RENDER (Evita el "Port Scan Timeout")
+// 1. Servidor para Render
 http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.write('Rockstar Bot está vivo! 🌸');
-    res.end();
+    res.writeHead(200);
+    res.end('Rockstar Bot Online 🌸');
 }).listen(process.env.PORT || 10000);
 
-// 2. CONFIGURACIÓN DEL CLIENTE
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -24,83 +22,69 @@ const client = new Client({
 client.commands = new Collection();
 const slashCommands = [];
 
-// 3. CARGA DINÁMICA DE COMANDOS
+// 2. Carga de comandos con detección de errores por archivo
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
 for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const command = require(filePath);
+    try {
+        const filePath = path.join(commandsPath, file);
+        const command = require(filePath);
 
-    // Registramos por nombre (para prefijo)
-    const cmdName = command.name || (command.data ? command.data.name : null);
-    if (cmdName) {
+        // Determinamos el nombre del comando
+        let cmdName = command.name || (command.data ? command.data.name : null);
+
+        if (!cmdName) {
+            console.error(`❌ Error en ${file}: No tiene un nombre definido.`);
+            continue;
+        }
+
         client.commands.set(cmdName, command);
-        console.log(`✨ Comando cargado: ${cmdName}`);
-    }
 
-    // Registramos para Slash Commands (si tiene la propiedad data)
-    if (command.data) {
-        slashCommands.push(command.data.toJSON());
+        // Solo intentamos convertir a JSON si tiene 'data' y un nombre válido en 'data'
+        if (command.data && command.data.name) {
+            slashCommands.push(command.data.toJSON());
+        }
+        
+        console.log(`✅ Comando cargado: ${cmdName}`);
+    } catch (error) {
+        console.error(`⚠️ Error crítico cargando el archivo ${file}:`, error.message);
     }
 }
 
-// 4. REGISTRO DE SLASH COMMANDS EN DISCORD
+// 3. Registro de Slash Commands
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
 (async () => {
     try {
-        console.log('🚀 Registrando Slash Commands en la API...');
-        await rest.put(
-            Routes.applicationCommands(process.env.CLIENT_ID), // Asegúrate de tener CLIENT_ID en tu .env
-            { body: slashCommands }
-        );
-        console.log('✅ Slash Commands registrados con éxito.');
+        if (slashCommands.length > 0) {
+            console.log('🚀 Actualizando Slash Commands...');
+            await rest.put(
+                Routes.applicationCommands(process.env.CLIENT_ID),
+                { body: slashCommands }
+            );
+            console.log('✅ Slash Commands sincronizados.');
+        }
     } catch (error) {
-        console.error('❌ Error al registrar Slash Commands:', error);
+        console.error('❌ Falló el registro de Slash Commands. Revisa que todos tengan .setName()');
     }
 })();
 
-// 5. EVENTO READY
-client.once('ready', () => {
-    console.log(`💖 Logueada como ${client.user.tag}`);
-});
-
-// 6. MANEJADOR DE SLASH COMMANDS (Interacciones)
-client.on('interactionCreate', async (interaction) => {
+// 4. Manejadores de eventos (Slash y Prefijo)
+client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
-
     const command = client.commands.get(interaction.commandName);
-    if (!command) return;
-
-    try {
-        await command.execute(interaction);
-    } catch (error) {
-        console.error(error);
-        await interaction.reply({ content: '❌ Error al ejecutar el Slash Command.', ephemeral: true });
-    }
+    if (command) command.execute(interaction).catch(err => console.error(err));
 });
 
-// 7. MANEJADOR DE PREFIJO (!!)
-client.on('messageCreate', async (message) => {
+client.on('messageCreate', async message => {
     const prefix = "!!";
     if (!message.content.startsWith(prefix) || message.author.bot) return;
-
     const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
-
-    const command = client.commands.get(commandName) || 
-                    client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
-
-    if (!command) return;
-
-    try {
-        // Ejecutamos pasando el "message" como si fuera la "interaction"
-        await command.execute(message, args);
-    } catch (error) {
-        console.error(error);
-        message.reply("❌ Error al ejecutar el comando de prefijo.");
-    }
+    const cmdName = args.shift().toLowerCase();
+    const command = client.commands.get(cmdName) || client.commands.find(c => c.aliases?.includes(cmdName));
+    if (command) command.execute(message, args).catch(err => console.error(err));
 });
 
+client.once('ready', () => console.log(`💖 ${client.user.tag} lista!`));
 client.login(process.env.TOKEN);
