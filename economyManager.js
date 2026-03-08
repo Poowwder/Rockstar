@@ -1,37 +1,43 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const db = new sqlite3.Database(path.join(__dirname, './data/economy.db'));
+const mongoose = require('mongoose');
 
-// Crear tabla si no existe
-db.run(`CREATE TABLE IF NOT EXISTS economy (
-    userId TEXT PRIMARY KEY,
-    data TEXT
-)`);
+// Esquema de Usuario (La estructura de los datos)
+const userSchema = new mongoose.Schema({
+    userId: { type: String, required: true, unique: true },
+    guildId: { type: String },
+    wallet: { type: Number, default: 0 },
+    bank: { type: Number, default: 0 },
+    xp: { type: Number, default: 0 },
+    level: { type: Number, default: 1 },
+    inventory: { type: Map, of: Number, default: {} },
+    lastDaily: { type: Date },
+    lastRob: { type: Date },
+    lastChatXP: { type: Date },
+    profileColor: { type: String, default: '#FFB6C1' },
+    marryId: { type: String, default: null }
+});
 
-const getUserData = (userId) => {
-    return new Promise((resolve) => {
-        db.get("SELECT data FROM economy WHERE userId = ?", [userId], (err, row) => {
-            if (row) resolve(JSON.parse(row.data));
-            else resolve({ wallet: 0, bank: 0, inventory: {}, level: 1, xp: 0, job: null });
-        });
-    });
-};
+const User = mongoose.model('User', userSchema);
 
-const updateUserData = (userId, data) => {
-    return new Promise((resolve) => {
-        db.run("INSERT OR REPLACE INTO economy (userId, data) VALUES (?, ?)", [userId, JSON.stringify(data)], () => {
-            resolve();
-        });
-    });
-};
+// Conectar a MongoDB
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('🍃 Conectado a MongoDB Atlas'))
+    .catch(err => console.error('❌ Error MongoDB:', err));
 
-const getAllData = () => {
-    return new Promise((resolve) => {
-        db.all("SELECT userId, data FROM economy", [], (err, rows) => {
-            if (err) resolve([]);
-            resolve(rows.map(r => ({ userId: r.userId, ...JSON.parse(r.data) })));
-        });
-    });
-};
+async function getUserData(userId) {
+    let user = await User.findOne({ userId });
+    if (!user) {
+        user = new User({ userId });
+        await user.save();
+    }
+    return user;
+}
 
-module.exports = { getUserData, updateUserData, getAllData };
+async function updateUserData(userId, newData) {
+    // MongoDB maneja los cambios automáticamente si pasas el objeto del modelo
+    if (newData.save) {
+        return await newData.save();
+    }
+    return await User.findOneAndUpdate({ userId }, newData, { upsert: true, new: true });
+}
+
+module.exports = { getUserData, updateUserData };
