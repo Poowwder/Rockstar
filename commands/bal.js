@@ -3,22 +3,19 @@ const { getUserData } = require('../economyManager.js');
 
 module.exports = {
     name: 'bal',
-    aliases: ['balance', 'money', 'flores'],
-    async execute(message, args) {
-        // Si mencionan a alguien, vemos su balance. Si no, el propio.
+    category: 'economía',
+    aliases: ['money', 'coins'],
+    async execute(message) {
         const target = message.mentions.users.first() || message.author;
         const data = await getUserData(target.id);
 
         const embed = new EmbedBuilder()
-            .setTitle(`🌸 Balance de ${target.username}`)
-            .setColor('#FFB6C1')
-            .setThumbnail(target.displayAvatarURL())
+            .setAuthor({ name: `Flores de ${target.username}`, iconURL: target.displayAvatarURL() })
             .addFields(
                 { name: '👛 Cartera', value: `\`${data.wallet.toLocaleString()}\` flores`, inline: true },
-                { name: '🏦 Banco', value: `\`${data.bank.toLocaleString()}\` flores`, inline: true },
-                { name: '✨ Total', value: `\`${(data.wallet + data.bank).toLocaleString()}\` flores` }
+                { name: '🏦 Banco', value: `\`${data.bank.toLocaleString()}\` flores`, inline: true }
             )
-            .setFooter({ text: 'Rockstar Bot Economy' });
+            .setColor('#FFB6C1');
 
         message.reply({ embeds: [embed] });
     }

@@ -2,25 +2,36 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBui
 const { getUserData, updateUserData } = require('../economyManager.js');
 
 module.exports = {
+    // Añadimos estas dos líneas para que tu sistema de ayuda lo reconozca
+    name: 'work',
+    category: 'economía',
+    
     data: new SlashCommandBuilder()
         .setName('work')
         .setDescription('Elige un empleo para ganar flores'),
 
     async execute(interaction) {
-        const userId = interaction.user.id;
+        // --- AQUÍ EMPIEZA TU CÓDIGO TAL CUAL LO MANDASTE ---
+        const userId = interaction.user ? interaction.user.id : interaction.author.id; 
+        // (Pequeño ajuste arriba para que interaction.user no de error si usas prefijo)
+
         const data = await getUserData(userId);
         const now = Date.now();
         const cooldown = 3600000; // 1 hora de cooldown
 
         if (now - (data.lastWork || 0) < cooldown) {
             const restante = Math.ceil((cooldown - (now - data.lastWork)) / 60000);
-            return interaction.reply({ 
-                content: `⏳ Estás cansado/a. Vuelve en **${restante} minutos** para trabajar de nuevo.`, 
-                ephemeral: true 
-            });
+            
+            // Ajuste para responder a mensaje o a interacción
+            const content = `⏳ Estás cansado/a. Vuelve en **${restante} minutos** para trabajar de nuevo.`;
+            if (interaction.reply && interaction.user) {
+                return interaction.reply({ content: content, ephemeral: true });
+            } else {
+                return interaction.reply(content);
+            }
         }
 
-        // --- MENÚ DE SELECCIÓN DE TRABAJOS ---
+        // --- TU MENÚ DE SELECCIÓN DE TRABAJOS ---
         const menu = new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('select_work')
@@ -49,7 +60,8 @@ module.exports = {
 
         const response = await interaction.reply({
             content: '✨ **Centro de Empleo Rockstar**\n¿En qué te gustaría trabajar hoy?',
-            components: [menu]
+            components: [menu],
+            fetchReply: true // Necesario para que el colector funcione en Slash
         });
 
         // Colector para la selección
@@ -59,7 +71,8 @@ module.exports = {
         });
 
         collector.on('collect', async i => {
-            if (i.user.id !== interaction.user.id) return i.reply({ content: "❌ Esta no es tu oferta de trabajo.", ephemeral: true });
+            const requesterId = interaction.user ? interaction.user.id : interaction.author.id;
+            if (i.user.id !== requesterId) return i.reply({ content: "❌ Esta no es tu oferta de trabajo.", ephemeral: true });
 
             let ganancia = 0;
             let mensaje = "";
@@ -98,7 +111,12 @@ module.exports = {
 
         collector.on('end', collected => {
             if (collected.size === 0) {
-                interaction.editReply({ content: '❌ La oferta de trabajo expiró por inactividad.', components: [] });
+                const expireMsg = '❌ La oferta de trabajo expiró por inactividad.';
+                if (interaction.editReply && interaction.user) {
+                    interaction.editReply({ content: expireMsg, components: [] });
+                } else {
+                    response.edit({ content: expireMsg, components: [] }).catch(() => null);
+                }
             }
         });
     }

@@ -1,17 +1,17 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
 
-// 1. Crear el Servidor para Render (Evita el Port Scan Timeout)
+// 1. SERVIDOR PARA RENDER (Evita el "Port Scan Timeout")
 http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.write('Rockstar Bot está online! 🌸');
-  res.end();
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.write('Rockstar Bot está vivo! 🌸');
+    res.end();
 }).listen(process.env.PORT || 10000);
 
-// 2. Configurar el Cliente de Discord
+// 2. CONFIGURACIÓN DEL CLIENTE
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -21,57 +21,86 @@ const client = new Client({
     ]
 });
 
-// 3. Cargar Comandos
 client.commands = new Collection();
+const slashCommands = [];
+
+// 3. CARGA DINÁMICA DE COMANDOS
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const command = require(filePath);
-    if ('name' in command && 'execute' in command) {
-        client.commands.set(command.name, command);
+
+    // Registramos por nombre (para prefijo)
+    const cmdName = command.name || (command.data ? command.data.name : null);
+    if (cmdName) {
+        client.commands.set(cmdName, command);
+        console.log(`✨ Comando cargado: ${cmdName}`);
+    }
+
+    // Registramos para Slash Commands (si tiene la propiedad data)
+    if (command.data) {
+        slashCommands.push(command.data.toJSON());
     }
 }
 
-// 4. Evento de Inicio (Corregido para v14/v15)
-client.once('ready', (c) => {
-    console.log(`✅ ${c.user.tag} está online y vigilando Rockstar Bot!`);
-    
-    // Estado aesthetic
-    client.user.setPresence({
-        activities: [{ name: '!!help | 🌸 Rockstar Bot', type: 0 }],
-        status: 'online',
-    });
+// 4. REGISTRO DE SLASH COMMANDS EN DISCORD
+const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+(async () => {
+    try {
+        console.log('🚀 Registrando Slash Commands en la API...');
+        await rest.put(
+            Routes.applicationCommands(process.env.CLIENT_ID), // Asegúrate de tener CLIENT_ID en tu .env
+            { body: slashCommands }
+        );
+        console.log('✅ Slash Commands registrados con éxito.');
+    } catch (error) {
+        console.error('❌ Error al registrar Slash Commands:', error);
+    }
+})();
+
+// 5. EVENTO READY
+client.once('ready', () => {
+    console.log(`💖 Logueada como ${client.user.tag}`);
 });
 
-// 5. Manejador de Mensajes
-client.on('messageCreate', async (message) => {
-    const prefix = "!!"; // Tu prefijo personalizado
+// 6. MANEJADOR DE SLASH COMMANDS (Interacciones)
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
 
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
+
+    try {
+        await command.execute(interaction);
+    } catch (error) {
+        console.error(error);
+        await interaction.reply({ content: '❌ Error al ejecutar el Slash Command.', ephemeral: true });
+    }
+});
+
+// 7. MANEJADOR DE PREFIJO (!!)
+client.on('messageCreate', async (message) => {
+    const prefix = "!!";
     if (!message.content.startsWith(prefix) || message.author.bot) return;
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
 
-    // Buscar comando por nombre o alias
     const command = client.commands.get(commandName) || 
                     client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
 
     if (!command) return;
 
     try {
+        // Ejecutamos pasando el "message" como si fuera la "interaction"
         await command.execute(message, args);
     } catch (error) {
         console.error(error);
-        const errorEmbed = new EmbedBuilder()
-            .setColor('#FF0000')
-            .setTitle('❌ Ups, algo salió mal')
-            .setDescription('Hubo un error al ejecutar ese comando. ¡Inténtalo de nuevo más tarde! ✨');
-        
-        message.reply({ embeds: [errorEmbed] });
+        message.reply("❌ Error al ejecutar el comando de prefijo.");
     }
 });
 
-// 6. Login
 client.login(process.env.TOKEN);
