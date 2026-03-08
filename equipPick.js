@@ -1,42 +1,34 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData, checkAndSetCooldown, calculateLevel } = require('../../economyManager.js'); // Ajusta la ruta si es necesario
-const fs = require('fs');
-const { MessageFlags } = require('discord.js');
-const path = require('path');
-const { addMiningPickToInventory } = require('../../economyManager.js');
-const ICONS = {
-    work: '💼',
-    money: '🌸',
-    error: '❌',
-};
-
-const COLORS = {
-    primary: '#FFB6C1',
-    error: '#FF6961',
-    success: '#A7D7C5'
-};
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { getUserData, updateUserData } = require('../economyManager.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('equip_pick')
-        .setDescription('Equipa un pico de mineria'),
-    category: 'currency',
+        .setDescription('Equipa un pico de tu inventario')
+        .addStringOption(option => 
+            option.setName('tipo')
+                .setDescription('El tipo de pico a equipar')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Pico de Madera', value: 'Pico de Madera' },
+                    { name: 'Pico de Hierro', value: 'Pico de Hierro' },
+                    { name: 'Pico de Oro', value: 'Pico de Oro' }
+                )),
+
     async execute(interaction) {
-        const user = interaction.user;
-        const userId = user.id;
+        const userId = interaction.user.id;
+        const tipo = interaction.options.getString('tipo');
+        const data = await getUserData(userId);
 
-     
-      
-        const embed = new EmbedBuilder()
-            .setTitle('Pico equipado')
-            .setDescription('')
-            .setColor(COLORS.primary);
+        // Actualizamos el objeto equippedPickaxe en la DB
+        data.equippedPickaxe = {
+            name: tipo,
+            level: data.equippedPickaxe?.level || 1,
+            durability: 100,
+            maxDurability: 100
+        };
 
-        await interaction.reply({ embeds: [embed] });
+        await updateUserData(userId, data);
+        return interaction.reply({ content: `✅ Has equipado: **${tipo}**`, flags: MessageFlags.Ephemeral });
     }
 };
-
-
-
-
-//const { calculateLevel } = require('../../economyManager.js');

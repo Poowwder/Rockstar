@@ -1,83 +1,29 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData, checkAndSetCooldown } = require('../economyManager.js'); // Ajusta la ruta si es necesario
-const fs = require('fs');
-const path = require('path');
-
-const ICONS = {
-    work: '💼',
-    money: '🌸',
-    error: '❌',
-};
-
-const COLORS = {
-    primary: '#FFB6C1',
-    error: '#FF6961',
-};
-
-const getJobs = () => {
-    const p = path.join(__dirname, '../../data/jobs.json'); // Ajusta la ruta si es necesario
-    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
-};
+const { SlashCommandBuilder } = require('discord.js');
+const { getUserData, updateUserData } = require('../economyManager.js');
+const { addXP } = require('../levelManager.js');
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('work')
-        .setDescription('Trabaja y gana R☆coins.'),
-    category: 'currency',
+    data: new SlashCommandBuilder().setName('work').setDescription('Trabaja para ganar flores'),
     async execute(interaction) {
-        const user = interaction.user;
-        const userId = user.id;
+        const userId = interaction.user.id;
+        const data = await getUserData(userId);
+        const tier = data.premiumType || 'normal';
 
-        const cooldown = checkAndSetCooldown(userId, 'work', 3600); // 1 hora
-        if (cooldown > 0) {
-            return interaction.reply(`Debes esperar ${cooldown} segundos para volver a trabajar.`);
+        const now = Date.now();
+        const baseCD = 60 * 60 * 1000; // 1 hora
+        let cd = tier === 'bimestral' ? 0 : (tier === 'mensual' ? baseCD / 2 : baseCD);
+
+        if (cd > 0 && now - (data.lastWork || 0) < cd) {
+            return interaction.reply(`⏳ Vuelve en **${Math.ceil((cd - (now - data.lastWork)) / 60000)}m**.`);
         }
 
-        const data = getUserData(userId);
-        const jobs = getJobs();
+        const paga = Math.floor(Math.random() * 200) + 150;
+        data.wallet += paga;
+        data.lastWork = now;
 
-        if (!data.job || data.job === 'unemployed') {
-            return interaction.reply('No tienes un trabajo. Usa `!!jobs` para ver los trabajos disponibles.');
-        }
+        await updateUserData(userId, data);
+        await addXP(userId, 20, interaction, { getUserData, updateUserData }); // 20 base * mult
 
-        const job = jobs[data.job];
-        if (!job) {
-            data.job = 'unemployed';
-            updateUserData(userId, data);
-            return interaction.reply('Tu trabajo actual no es válido. Busca un nuevo trabajo.');
-        }
-
-        let salary = job.baseSalary;
-        let eventText = '';
-
-        // Eventos aleatorios
-        if (job.events && job.events.length > 0) {
-            const rand = Math.random() * 100;
-            let cumulative = 0;
-
-            for (const event of job.events) {
-                cumulative += event.chance;
-                if (rand < cumulative) {
-                    if (event.type === 'positive') {
-                        salary += event.bonus || 0;
-                        eventText = `\n\n${ICONS.work} ${event.text} (+${event.bonus} R☆coins)`;
-                    } else if (event.type === 'negative') {
-                        salary -= event.penalty || 0;
-                        eventText = `\n\n${ICONS.error} ${event.text} (-${event.penalty} R☆coins)`;
-                    }
-                    break;
-                }
-            }
-        }
-
-        data.wallet += salary;
-        updateUserData(userId, data);
-
-        const embed = new EmbedBuilder()
-            .setTitle(`${ICONS.work} Trabajando como ${job.name}`)
-            .setDescription(`Has trabajado y ganado ${salary} R☆coins.${eventText}`)
-            .setColor(COLORS.primary);
-
-        await interaction.reply({ embeds: [embed] });
-    },
+        return interaction.reply(`💼 Trabajaste y ganaste **${paga} 🌸**.`);
+    }
 };

@@ -1,169 +1,190 @@
 require('dotenv').config();
-const { Client, Collection, GatewayIntentBits, Events, EmbedBuilder, MessageFlags } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
+const { Client, GatewayIntentBits, Collection, REST, Routes, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const fs = require('node:fs');
+const path = require('node:path');
 
-// --- Keep-Alive para Render ---
-const http = require('http');
-const port = process.env.PORT || 3000;
-http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot está vivo!');
-}).listen(port, () => console.log(`Servidor Keep-Alive corriendo en el puerto ${port}`));
-// ------------------------------
+// Importaciones de gestores
+const { getUserData, updateUserData, getAllData } = require('./economyManager.js');
+const { addXP } = require('./levelManager.js');
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers] });
-client.prefix = '!!';
-client.commands = new Collection();
-
-// --- Command Loader ---
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
-for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const commandOrCommands = require(filePath);
-
-    if (Array.isArray(commandOrCommands)) {
-        // Handle files exporting an array of commands
-        for (const command of commandOrCommands) {
-
-            if (command.data && command.data.name) {
-                client.commands.set(command.data.name, command);
-                console.log(`Comando cargado: ${command.data.name}`);
-            }
-        }
-    } else if (commandOrCommands.data && commandOrCommands.data.name) {
-        // Handle files exporting a single command object
-        client.commands.set(commandOrCommands.data.name, commandOrCommands);
-        console.log(`Comando cargado: ${commandOrCommands.data.name}`);
-    }
-}
-
-
-// --- Event Loader ---
-const eventsPath = path.join(__dirname, 'events');
-const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
-
-for (const file of eventFiles) {
-    const filePath = path.join(eventsPath, file);
-    const event = require(filePath);
-    if (event.once) {
-        client.once(event.name, (...args) => event.execute(...args, client));
-    } else {
-        client.on(event.name, (...args) => event.execute(...args, client));
-    }
-}
-
-// --- Client Ready ---
-client.once(Events.ClientReady, async () => {
-    try {
-        const slashCommands = client.commands.map(cmd => cmd.data.toJSON());
-        console.log(`Registrando ${slashCommands.length} comandos slash...`);
-        await client.application.commands.set(slashCommands);
-        console.log(`Bot listo como ${client.user.tag}`);
-    } catch (error) {
-        console.error('Error al registrar comandos slash:', error);
-    }
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.MessageContent, 
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildModeration
+    ]
 });
 
-// --- MessageCreate (Prefix Commands) ---
-client.on(Events.MessageCreate, async message => {
-    if (!message.content.startsWith(client.prefix) || message.author.bot) return;
+client.commands = new Collection();
+const commandsJSON = [];
+const PREFIX = '!';
+const configPath = path.join(__dirname, './data/config.json');
 
-    // Blocked user check
-    const blockedUsersPath = path.join(__dirname, 'data', 'blockedUsers.json');
-    if (fs.existsSync(blockedUsersPath)) {
-        const blockedUsers = JSON.parse(fs.readFileSync(blockedUsersPath, 'utf8'));
-        if (blockedUsers[message.guild.id]?.includes(message.author.id)) return;
+// --- 1. CARGA DE COMANDOS (CON VALIDACIÓN ANTI-ERRORES) ---
+const commandsPath = path.join(__dirname, 'commands');
+if (fs.existsSync(commandsPath)) {
+    const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
+    
+    for (const file of commandFiles) {
+        try {
+            const filePath = path.join(commandsPath, file);
+            const cmd = require(filePath);
+
+            // Verificamos que el comando tenga la estructura mínima requerida
+            if (cmd && cmd.data && cmd.data.name && typeof cmd.execute === 'function') {
+                client.commands.set(cmd.data.name, cmd);
+                commandsJSON.push(cmd.data.toJSON());
+                console.log(`✅ Comando cargado: ${file}`);
+            } else {
+                console.warn(`⚠️ El archivo ${file} no tiene la estructura de comando correcta (falta data, name o execute).`);
+            }
+        } catch (error) {
+            console.error(`❌ Error al cargar el archivo ${file}:`, error);
+        }
+    }
+}
+
+// --- 2. FUNCIÓN PARA ENVIAR LOGS ---
+async function sendLog(guild, embed) {
+    if (!fs.existsSync(configPath)) return;
+    try {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const logChannel = guild.channels.cache.get(config.logChannelId);
+        if (logChannel) logChannel.send({ embeds: [embed] });
+    } catch (e) { console.log("Error al leer config de logs"); }
+}
+
+// --- 3. ANTI-SPAM MEMORY ---
+const spamMap = new Map();
+
+// --- 4. EVENTO READY ---
+client.once('ready', async () => {
+    console.log(`🚀 Rockstar Bot conectado como ${client.user.tag}`);
+    
+    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+    try {
+        console.log('⏳ Registrando Slash Commands...');
+        await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commandsJSON });
+        console.log('✅ Comandos registrados globalmente.');
+    } catch (e) { console.error('❌ Error al registrar Slash Commands:', e); }
+});
+
+// --- 5. EVENTO MESSAGE (ANTI-SPAM, XP, PREFIJO) ---
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.guild) return;
+
+    const userId = message.author.id;
+
+    // A. Lógica Anti-Spam
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+        const now = Date.now();
+        const userData = spamMap.get(userId) || { count: 0, lastMessage: now };
+        
+        if (now - userData.lastMessage < 2000) userData.count++;
+        else userData.count = 1;
+
+        userData.lastMessage = now;
+        spamMap.set(userId, userData);
+
+        if (userData.count > 5) {
+            try {
+                await message.member.timeout(60000, "Spam detectado");
+                message.channel.send(`⚠️ ${message.author}, silenciado 1 min por spam.`);
+                spamMap.delete(userId);
+                return;
+            } catch (e) { console.log("Fallo al mutear (Jerarquía)"); }
+        }
     }
 
-    const args = message.content.slice(client.prefix.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
+    // B. Chat XP
+    let data = await getUserData(userId);
+    const now = Date.now();
+    if (now - (data.lastChatXP || 0) > 60000) {
+        data.lastChatXP = now;
+        await updateUserData(userId, data);
+        // Enviamos 2 XP base (levelManager aplica x5, x10 o x15)
+        await addXP(userId, 2, { channel: message.channel, guild: message.guild, user: message.author }, { getUserData, updateUserData });
+    }
 
-    const command = client.commands.get(commandName) || client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+    // C. Comandos con Prefijo (!)
+    if (!message.content.startsWith(PREFIX)) return;
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    const commandName = args.shift().toLowerCase();
+    const command = client.commands.get(commandName);
     if (!command) return;
 
-    try {
-        await command.execute(message, args);
-    } catch (error) {
-        console.error(error);
-        message.reply('Hubo un error al ejecutar el comando.');
-    }
+    // Adaptador para comandos Slash usados con prefijo
+    const interactionLike = {
+        isChatInputCommand: () => true,
+        user: message.author,
+        guild: message.guild,
+        channel: message.channel,
+        member: message.member,
+        options: {
+            getString: (n) => args[0] || null,
+            getUser: () => message.mentions.users.first() || null,
+            getInteger: () => parseInt(args[0]) || null,
+            getNumber: () => parseFloat(args[0]) || null
+        },
+        reply: (c) => message.reply(c),
+        followUp: (c) => message.channel.send(c)
+    };
+
+    try { await command.execute(interactionLike); } catch (e) { console.error(e); }
 });
 
-const { categoriasTexto } = require('./constants.js');
+// --- 6. EVENTO INTERACTION (Slash Commands) ---
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
+    try { await command.execute(interaction); } catch (e) { console.error(e); }
+});
 
-// --- InteractionCreate (Slash Commands & Components) ---
-client.on(Events.InteractionCreate, async interaction => {
-    try {
-        // Blocked user check
-        const blockedUsersPath = path.join(__dirname, 'data', 'blockedUsers.json');
-        if (interaction.guild && fs.existsSync(blockedUsersPath)) {
-            const blockedUsers = JSON.parse(fs.readFileSync(blockedUsersPath, 'utf8'));
-            if (blockedUsers[interaction.guild.id]?.includes(interaction.user.id)) return;
-        }
+// --- 7. EVENTOS DE AUDITORÍA (LOGS) ---
+client.on('messageUpdate', (oldM, newM) => {
+    if (oldM.author?.bot || oldM.content === newM.content) return;
+    const embed = new EmbedBuilder().setTitle('📝 Mensaje Editado').setColor('#FFA500').setTimestamp()
+        .addFields({ name: 'Autor', value: `${oldM.author}`, inline: true }, { name: 'Antes', value: oldM.content || "Vacío" }, { name: 'Después', value: newM.content || "Vacío" });
+    sendLog(oldM.guild, embed);
+});
 
-        // Slash Command Handling
-        if (interaction.isChatInputCommand()) {
-            const command = client.commands.get(interaction.commandName);
-            if (!command) {
-                console.error(`No se encontró el comando ${interaction.commandName}.`);
-                return;
-            }
-             // Asegurarse de que `executeSlash` exista
-            if (command.executeSlash) {
-                await command.executeSlash(interaction);
+client.on('messageDelete', (m) => {
+    if (m.author?.bot) return;
+    const embed = new EmbedBuilder().setTitle('🗑️ Mensaje Borrado').setColor('#FF0000').setTimestamp()
+        .addFields({ name: 'Autor', value: `${m.author}`, inline: true }, { name: 'Contenido', value: m.content || "Imagen/Embed" });
+    sendLog(m.guild, embed);
+});
+
+client.on('guildMemberAdd', m => {
+    sendLog(m.guild, new EmbedBuilder().setTitle('🌸 Bienvenida').setDescription(`${m} se unió.`).setColor('#00FF00').setThumbnail(m.user.displayAvatarURL()));
+});
+
+client.on('guildMemberRemove', m => {
+    sendLog(m.guild, new EmbedBuilder().setTitle('💔 Despedida').setDescription(`${m.user.tag} salió.`).setColor('#808080'));
+});
+
+// --- 8. BUCLE DE SUBASTAS AUTOMÁTICAS ---
+setInterval(async () => {
+    const allUsers = await getAllData();
+    const now = Date.now();
+    for (const user of allUsers) {
+        if (user.activeAuction && now > user.activeAuction.endsAt) {
+            let seller = await getUserData(user.userId);
+            if (user.activeAuction.highestBidder) {
+                let buyer = await getUserData(user.activeAuction.highestBidder);
+                buyer.inventory[user.activeAuction.item] = (buyer.inventory[user.activeAuction.item] || 0) + 1;
+                seller.wallet += user.activeAuction.currentBid;
+                await updateUserData(user.activeAuction.highestBidder, buyer);
             } else {
- // Fallback o error si el comando no está preparado para slash
- console.log("There was an error");
-                await interaction.reply({ content: 'Este comando no está disponible como comando de barra.', ephemeral: true });
+                seller.inventory[user.activeAuction.item] = (seller.inventory[user.activeAuction.item] || 0) + 1;
             }
-            return;
-        }
-
-        // --- Component Handling ---
-
-        // Help Menu
-        if (interaction.isStringSelectMenu() && interaction.customId === 'help-menu') {
-            const categoria = interaction.values[0];
-            const allCategoryCommands = client.commands.filter(cmd => cmd.category === categoria);
-
-            let description = allCategoryCommands.map(cmd => {
-                const desc = cmd.description || cmd.data?.description || 'Sin descripción disponible.';
-                return `\`/${cmd.data.name}\` - ${desc}`;
-            }).join('\n');
-
-            if (!description) {
-                description = 'No hay comandos en esta categoría o está en construcción.';
-            }
-
-            const catInfo = categoriasTexto.find(c => c.key === categoria);
-            const embed = new EmbedBuilder()
-                .setTitle(`Categoría: ${catInfo ? catInfo.label : categoria}`)
-                .setColor(Math.floor(Math.random() * 0xFFFFFF))
-                .setDescription(description)
-                .setFooter({ text: `Total: ${allCategoryCommands.size} comandos.` });
-
-            await interaction.update({ embeds: [embed], components: interaction.message.components });
-            return;
-        }
-
-        // Help Close Button
-        if (interaction.isButton() && interaction.customId === 'help-close') {
-            await interaction.message.delete();
-            return;
-        }
-
-    } catch (error) {
-        console.error('Error en el manejador de interacciones:', error);
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({ content: 'Hubo un error al procesar esta interacción.', flags: MessageFlags.Ephemeral }).catch(() => {});
-        } else {
-            await interaction.reply({ content: 'Hubo un error al procesar esta interacción.', flags: MessageFlags.Ephemeral }).catch(() => {});
+            delete seller.activeAuction;
+            await updateUserData(user.userId, seller);
         }
     }
-});
-
+}, 60000);
 
 client.login(process.env.TOKEN);

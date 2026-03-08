@@ -1,9 +1,17 @@
 {
-    "pickaxe": {
-        "result": { "id": "pickaxe", "quantity": 1 },
-        "materials": {
-            "wood": 2,
-            "stone": 3
-        }
+    "pickaxe_stone": {
+        "name": "Pico de Piedra",
+        "materials": { "wood": 2, "stone": 3 },
+        "description": "Un pico más resistente hecho de piedra."
+    },
+    "pickaxe_iron": {
+        "name": "Pico de Hierro",
+        "materials": { "wood": 2, "iron_ore": 3 },
+        "description": "Pico profesional para minar diamantes."
+    },
+    "fishing_rod": {
+        "name": "Caña de Pescar",
+        "materials": { "wood": 3, "iron_ore": 1 },
+        "description": "Una caña reforzada para pescar mejores peces."
     }
 }

@@ -1,83 +1,58 @@
-const { 
-    SlashCommandBuilder, 
-    EmbedBuilder, 
-    ActionRowBuilder, 
-    ButtonBuilder, 
-    ButtonStyle, 
-    ComponentType 
-} = require('discord.js');
-const { getUserData, updateUserData, decreaseResource } = require('../economyManager.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { getUserData } = require('../economyManager.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('inventory')
-        .setDescription('Muestra tu perfil, materiales y gestiona tus herramientas'),
+        .setDescription('Mira tu dinero, materiales y herramientas')
+        .addUserOption(option => option.setName('usuario').setDescription('El usuario para ver su inventario')),
 
     async execute(interaction) {
-        const userId = interaction.user.id;
-        const data = await getUserData(userId);
-        const isPremium = data.subscription?.active || false;
+        // Soporte para ver el inventario de otros (Híbrido)
+        const target = interaction.options?.getUser('usuario') || interaction.user;
+        const data = await getUserData(target.id);
 
-        const createEmbed = () => {
-            const rod = data.equippedFishingRod || {};
-            const pick = data.equippedPickaxe || {};
+        // Seguridad: Asegurarnos de que inventory existe
+        const inv = data.inventory || {};
 
-            const embed = new EmbedBuilder()
-                .setTitle(`🎒 Mochila de ${interaction.user.username}`)
-                .setColor(isPremium ? '#f1c40f' : '#5865F2')
-                .addFields(
-                    { name: '💰 Billetera', value: `${data.wallet.toLocaleString()} 🌸`, inline: true },
-                    { name: '✨ Rango', value: isPremium ? `Premium (${data.subscription.tier.toUpperCase()})` : 'Estándar', inline: true },
-                    { name: '\u200B', value: '\u200B', inline: true },
-                    { name: '⛏️ Pico Equipado', value: `**${pick.name || 'Ninguno'}**\nNivel: ${pick.level || 0}\nDurabilidad: ${pick.durability || 0}/${pick.maxDurability || 100}`, inline: true },
-                    { name: '🎣 Caña Equipada', value: `**${rod.name || 'Ninguna'}**\nNivel: ${rod.level || 0}\nDurabilidad: ${rod.durability || 0}/${rod.maxDurability || 100}`, inline: true },
-                    { name: '📦 Materiales', value: `🪵 Madera: ${data.inventory.madera || 0}\n⛓️ Hierro: ${data.inventory.hierro || 0}\n📀 Oro: ${data.inventory.oro || 0}\n💎 Diamante: ${data.inventory.diamante || 0}`, inline: false }
-                );
-            return embed;
+        // Función para la barra de durabilidad
+        const drawBar = (current, max) => {
+            const size = 10;
+            const filled = Math.round((current / max) * size);
+            const empty = size - filled;
+            // Evitar valores negativos si el pico se rompe mucho
+            return "🟩".repeat(Math.max(0, filled)) + "⬜".repeat(Math.max(0, empty));
         };
 
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('repair_menu').setLabel('Reparar').setEmoji('🔧').setStyle(ButtonStyle.Success),
-            new ButtonBuilder().setCustomId('open_shop').setLabel('Tienda').setEmoji('🛒').setStyle(ButtonStyle.Secondary)
-        );
-
-        const response = await interaction.reply({ embeds: [createEmbed()], components: [row] });
-
-        const collector = response.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
-
-        collector.on('collect', async i => {
-            if (i.user.id !== userId) return i.reply({ content: 'No puedes usar este menú.', ephemeral: true });
-
-            if (i.customId === 'open_shop') {
-                if (!isPremium) {
-                    return i.reply({ content: '✨ La tienda rápida es solo para usuarios **Premium**. Usa el comando `/shop` normal.', ephemeral: true });
+        const embed = new EmbedBuilder()
+            .setTitle(`🎒 Inventario de ${target.username}`)
+            .setColor('#2b2d31')
+            .setThumbnail(target.displayAvatarURL())
+            .addFields(
+                { 
+                    name: '💰 Economía', 
+                    value: `**Cartera:** ${data.wallet || 0} 🌸\n**Banco:** ${data.bank || 0} 🌸`, 
+                    inline: false 
+                },
+                { 
+                    name: '⛏️ Herramienta Equipada', 
+                    value: data.equippedPickaxe?.name 
+                        ? `**${data.equippedPickaxe.name}**\n${drawBar(data.equippedPickaxe.durability, data.equippedPickaxe.maxDurability)}\n\`${data.equippedPickaxe.durability}/${data.equippedPickaxe.maxDurability}\``
+                        : 'Ninguna', 
+                    inline: true 
+                },
+                { 
+                    name: '📦 Materiales', 
+                    value: `🪵 Madera: \`${inv.madera || 0}\`
+⛓️ Hierro: \`${inv.hierro || 0}\`
+🟡 Oro: \`${inv.oro || 0}\`
+💎 Diamante: \`${inv.diamante || 0}\`
+🛡️ Amuleto: \`${inv.amuleto_proteccion || 0}\``, 
+                    inline: true 
                 }
-                return i.reply({ content: '🛒 Abriendo tienda rápida...', ephemeral: true });
-            }
+            )
+            .setFooter({ text: 'Usa /mine o !mine para conseguir materiales' });
 
-            if (i.customId === 'repair_menu') {
-                const cost = isPremium ? 4 : 10;
-                const repairRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('rep_pick').setLabel('Pico').setStyle(ButtonStyle.Primary),
-                    new ButtonBuilder().setCustomId('rep_rod').setLabel('Caña').setStyle(ButtonStyle.Primary)
-                );
-                await i.reply({ content: `🔧 ¿Qué deseas reparar? Costo: **${cost} Madera**`, components: [repairRow], ephemeral: true });
-            }
-
-            // Lógica interna de reparación (solo para botones dentro del ephemeral)
-            if (i.customId.startsWith('rep_')) {
-                const toolKey = i.customId === 'rep_pick' ? 'equippedPickaxe' : 'equippedFishingRod';
-                const cost = isPremium ? 4 : 10;
-
-                if ((data.inventory.madera || 0) >= cost) {
-                    data.inventory.madera -= cost;
-                    data[toolKey].durability = data[toolKey].maxDurability;
-                    await updateUserData(userId, data);
-                    await i.update({ content: `✅ ¡${data[toolKey].name} reparado!`, components: [] });
-                } else {
-                    await i.update({ content: `❌ No tienes suficiente madera (${cost} necesaria).`, components: [] });
-                }
-            }
-        });
+        return interaction.reply({ embeds: [embed] });
     }
 };

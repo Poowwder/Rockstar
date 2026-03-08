@@ -1,123 +1,74 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle, MessageFlags, ComponentType } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-const { categoriasTexto } = require('../constants.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('help')
-        .setDescription('Muestra el menú de ayuda o información sobre un comando específico.')
-        .addStringOption(option =>
-            option.setName('comando')
-                .setDescription('El comando sobre el que quieres obtener información.')
-                .setRequired(false)
-        ),
-    category: 'config',
-    description: 'Muestra el menú de ayuda o información sobre un comando específico.',
-    async execute(message, args) {
-        const { commands } = message.client;
+        .setDescription('Muestra la lista de comandos disponibles'),
 
-        if (args.length > 0) {
-            const commandName = args[0].toLowerCase();
-            const command = commands.get(commandName) || commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+    async execute(interaction) {
+        const { client } = interaction;
+        
+        // Categorías basadas en tus archivos
+        const categories = {
+            economy: { name: '🌸 Economía & Minería', commands: ['mine', 'fish', 'daily', 'inventory', 'balance', 'work', 'weekly', 'auction'] },
+            interact: { name: '🎭 Interacciones (Action/Reaction)', commands: ['action', 'reaction', 'marriage'] },
+            fun: { name: '🎮 Diversión', commands: ['8ball', 'ship', 'roll', 'banana', 'lucky', 'trivia', 'tictactoe', 'hangman'] },
+            mod: { name: '🛡️ Moderación', commands: ['ban', 'kick', 'timeout', 'warn', 'purge', 'slowmode'] },
+            config: { name: '⚙️ Configuración', commands: ['language-set', 'log-set', 'nick-set', 'role-add', 'premium_status'] }
+        };
 
-            if (!command) {
-                return message.reply('No se encontró ese comando.');
-            }
+        const embed = new EmbedBuilder()
+            .setTitle('📚 Panel de Ayuda de Rockstar')
+            .setColor('#5865F2')
+            .setDescription('Selecciona una categoría para ver los detalles de los comandos.')
+            .setThumbnail(client.user.displayAvatarURL());
 
-            const embed = new EmbedBuilder()
-                .setTitle(`Ayuda para: \`${command.data.name}\``)
-                .setColor(Math.floor(Math.random() * 0xFFFFFF))
-                .setDescription(command.description || 'Sin descripción.');
+        // Crear el menú de selección
+        const menu = new StringSelectMenuBuilder()
+            .setCustomId('help_menu')
+            .setPlaceholder('Selecciona una categoría...')
+            .addOptions(
+                Object.keys(categories).map(key => ({
+                    label: categories[key].name,
+                    value: key,
+                    description: `Comandos de ${categories[key].name}`
+                }))
+            );
 
-            if (command.usage) {
-                embed.addFields({ name: 'Uso', value: `\`${command.usage}\`` });
-            }
+        const row = new ActionRowBuilder().addComponents(menu);
 
-            await message.reply({ embeds: [embed] });
-        } else {
-            await sendHelp(message);
-        }
-    },
-    async executeSlash(interaction) {
-        const { client, options } = interaction;
-        const commandName = options.getString('comando');
+        const response = await interaction.reply({ embeds: [embed], components: [row] });
 
-        if (commandName) {
-            const command = client.commands.get(commandName.toLowerCase());
+        // Colector para manejar el menú
+        const collector = response.createMessageComponentCollector({ time: 60000 });
 
-            if (!command) {
-                return interaction.reply({ content: 'No se encontró ese comando.', flags: MessageFlags.Ephemeral });
-            }
+        collector.on('collect', async i => {
+            if (i.user.id !== interaction.user.id) return i.reply({ content: 'Esta no es tu ayuda.', ephemeral: true });
 
-            const embed = new EmbedBuilder()
-                .setTitle(`Ayuda para: \`${command.data.name}\``)
-                .setColor(Math.floor(Math.random() * 0xFFFFFF))
-                .setDescription(command.description || 'Sin descripción.');
+            const category = categories[i.values[0]];
+            const categoryEmbed = new EmbedBuilder()
+                .setTitle(category.name)
+                .setColor('#3498db');
 
-            if (command.usage) {
-                embed.addFields({ name: 'Uso', value: `\`${command.usage}\`` });
-            }
+            let commandList = "";
 
-            await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-        } else {
-            await sendHelp(interaction, true); // Activar modo efímero para el menú
-        }
+            category.commands.forEach(cmdName => {
+                const cmd = client.commands.get(cmdName);
+                if (cmd) {
+                    // Verificamos si tiene subcomandos
+                    const subcommands = cmd.data.options.filter(opt => opt.toJSON().type === 1);
+                    
+                    if (subcommands.length > 0) {
+                        const subs = subcommands.map(s => `\`${s.name}\``).join(', ');
+                        commandList += `**/${cmdName}** [${subs}]\n*${cmd.data.description}*\n\n`;
+                    } else {
+                        commandList += `**/${cmdName}**\n*${cmd.data.description}*\n\n`;
+                    }
+                }
+            });
+
+            categoryEmbed.setDescription(commandList || "Próximamente...");
+            await i.update({ embeds: [categoryEmbed] });
+        });
     }
 };
-
-async function sendHelp(ctx, ephemeral = false) {
-    const commands = ctx.client.commands;
-
-    // Texto de categorías para el embed
-    const categoriasEmbed = categoriasTexto.map(cat =>
-        `!!help ${cat.key} ∷ ${cat.label}`
-    ).join('\n');
-
-    // Embed principal
-    const embed = new EmbedBuilder()
-        .setTitle('Comandos de R☆ckstar')
-        .addFields(
-            {
-                name: '» Menú Help',
-                value: `Tenemos ${categoriasTexto.length} categorías y ${commands.size} comandos para explorar.\nExisten 5 comandos secretos.\n\nLista de comandos: !!help <categoria>\nComando en detalle: !!help <comando>`
-            },
-            {
-                name: '» Categorías',
-                value: categoriasEmbed
-            }
-        )
-        .setFooter({ text: ctx.guild ? ctx.guild.name : 'R☆ckstar' })
-        .setTimestamp()
-        .setColor(Math.floor(Math.random() * 0xFFFFFF));
-
-    // Componentes: Menú de Selección y Botón de Cerrar
-    const components = [];
-
-    // 1. Menú de Selección
-    const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('help-menu')
-        .setPlaceholder('Selecciona una categoría para ver los comandos');
-
-    categoriasTexto.forEach(cat => {
-        selectMenu.addOptions(
-            new StringSelectMenuOptionBuilder()
-                .setLabel(cat.label)
-                .setValue(cat.key)
-                .setDescription(`Muestra los comandos de la categoría ${cat.label}`)
-                .setEmoji(cat.emoji)
-        );
-    });
-
-    const menuRow = new ActionRowBuilder().addComponents(selectMenu);
-    components.push(menuRow);
-
-    // 2. Botón de Cerrar (opcional, pero útil)
-    const buttonRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('help-close').setLabel('Cerrar Menú').setStyle(ButtonStyle.Danger)
-    );
-    components.push(buttonRow);
-
-    if ('reply' in ctx) return ctx.reply({ embeds: [embed], components: components, flags: ephemeral ? MessageFlags.Ephemeral : undefined });
-    else return ctx.channel.send({ embeds: [embed], components: components });
-}
