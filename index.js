@@ -10,10 +10,11 @@ const path = require('path');
 const express = require('express');
 
 // --- 🛠️ IMPORTACIONES PROPIAS ---
+// Asegúrate de que el archivo en GitHub se llame exactamente emojiHelper.js (con la e minúscula)
 const emojis = require('./utils/emojiHelper.js'); 
 const { getUserData, updateUserData, grantNeko, addXP } = require('./userManager.js');
 
-const OWNER_ID = '1134261491745493032'; // 👑 Tu ID de creadora
+const OWNER_ID = '1134261491745493032'; 
 
 // --- 📂 AUTO-CREADOR DE ARCHIVOS DATA ---
 const dataDir = path.join(__dirname, 'data');
@@ -34,10 +35,11 @@ const client = new Client({
     ],
 });
 
-// --- 🌸 SERVIDOR WEB (Para Render) ---
+// --- 🌸 SERVIDOR WEB (Obligatorio para que Render no dé error de puerto) ---
 const app = express();
-app.get('/', (req, res) => res.send('🌸 Rockstar Online ✨'));
-app.listen(process.env.PORT || 8080);
+const PORT = process.env.PORT || 8080;
+app.get('/', (req, res) => res.send('🌸 Rockstar Bot está Online ✨'));
+app.listen(PORT, () => console.log(`🚀 Servidor web activo en puerto ${PORT}`));
 
 client.commands = new Collection();
 
@@ -45,8 +47,8 @@ client.commands = new Collection();
 if (process.env.MONGO_USER && process.env.MONGO_PASS) {
     const uri = `mongodb+srv://${process.env.MONGO_USER}:${encodeURIComponent(process.env.MONGO_PASS)}@${process.env.MONGO_CLUSTER || 'cluster0.hahdjvx.mongodb.net'}/${process.env.MONGO_DB || 'Rockstar'}?retryWrites=true&w=majority`;
     mongoose.connect(uri, { family: 4 })
-        .then(() => console.log('🍃 MongoDB Conectado ✨'))
-        .catch(e => console.error('❌ Mongo:', e.message));
+        .then(() => console.log('🍃 MongoDB Conectado con éxito ✨'))
+        .catch(e => console.error('❌ Error en MongoDB:', e.message));
 }
 
 // --- 🎀 CARGA DE COMANDOS ---
@@ -59,27 +61,25 @@ if (fs.existsSync(commandsPath)) {
             const cmdName = command.data ? command.data.name : command.name;
             if (cmdName) client.commands.set(cmdName, command);
         } catch (e) { 
-            console.error(`⚠️ Error en [${file}]:`, e.message); 
+            console.error(`⚠️ Error cargando comando [${file}]:`, e.message); 
         }
     }
 }
 
-// --- ✨ EVENTO: INTERACCIONES (Slash & Botones) ---
+// --- ✨ EVENTO: INTERACCIONES ---
 client.on(Events.InteractionCreate, async (i) => {
-    const configPath = path.join(__dirname, './data/config.json');
+    const configPath = path.join(__dirname, 'data', 'config.json');
 
-    // 1. Slash Commands
     if (i.isChatInputCommand()) {
         const cmd = client.commands.get(i.commandName);
         if (cmd) {
             try {
                 if (cmd.executeSlash) await cmd.executeSlash(i);
                 else if (cmd.execute) await cmd.execute(i, i.options);
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("Error en Slash Command:", e); }
         }
     }
 
-    // 2. Botones
     if (i.isButton()) {
         if (i.customId === 'admin_settings') {
             if (i.user.id !== OWNER_ID) return i.reply({ content: '🌸 Solo mi creadora puede usar esto.', ephemeral: true });
@@ -93,7 +93,10 @@ client.on(Events.InteractionCreate, async (i) => {
         }
 
         if (i.customId === 'view_info') {
-            const config = JSON.parse(fs.readFileSync(configPath, 'utf8') || '{}');
+            let config = {};
+            if (fs.existsSync(configPath)) {
+                config = JSON.parse(fs.readFileSync(configPath, 'utf8') || '{}');
+            }
             const embed = new EmbedBuilder()
                 .setTitle('🎀 Información del Sistema')
                 .setDescription(config.infoMessage || "🌸 No hay información configurada aún.")
@@ -103,11 +106,13 @@ client.on(Events.InteractionCreate, async (i) => {
         }
     }
 
-    // 3. Modales
     if (i.isModalSubmit() && i.customId === 'modal_config') {
         const text = i.fields.getTextInputValue('in_text');
         const color = i.fields.getTextInputValue('in_col');
-        let config = JSON.parse(fs.readFileSync(configPath, 'utf8') || '{}');
+        let config = {};
+        if (fs.existsSync(configPath)) {
+            config = JSON.parse(fs.readFileSync(configPath, 'utf8') || '{}');
+        }
         config.infoMessage = text;
         config.mainColor = color;
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
@@ -120,15 +125,13 @@ client.on(Events.MessageCreate, async (m) => {
     if (m.author.bot || !m.guild) return;
 
     try {
-        // 1. Lógica de XP y Niveles
-        const xpRandom = Math.floor(Math.random() * 11) + 10; // 10-20 XP
+        const xpRandom = Math.floor(Math.random() * 11) + 10; 
         const levelUp = await addXP(m.author.id, xpRandom, client);
 
         if (levelUp && levelUp.leveledUp) {
             m.reply(`${emojis.pinkstars || '✨'} **¡Level Up!** Ahora eres nivel **${levelUp.level}** ${emojis.pinkbow || '🎀'}`);
         }
 
-        // 2. Lógica de Mensajes para Neko Mizuki
         const data = await getUserData(m.author.id);
         const totalMensajes = (data.messageCount || 0) + 1;
         await updateUserData(m.author.id, { messageCount: totalMensajes });
@@ -140,7 +143,6 @@ client.on(Events.MessageCreate, async (m) => {
         console.error("Error en sistema de XP/Mensajes:", e.message);
     }
 
-    // 3. Comandos con Prefijo (!!)
     if (!m.content.startsWith("!!")) return;
     const args = m.content.slice(2).trim().split(/ +/);
     const cmdName = args.shift().toLowerCase();
@@ -155,5 +157,18 @@ client.on(Events.MessageCreate, async (m) => {
     }
 });
 
-client.once(Events.ClientReady, (c) => console.log(`🌸 ${c.user.tag} ONLINE ✨`));
-client.login(process.env.TOKEN);
+// --- 🚀 CONEXIÓN FINAL ---
+client.once(Events.ClientReady, (c) => {
+    console.log(`🌸 Bot encendido con éxito: ${c.user.tag} ONLINE ✨`);
+});
+
+// Manejo de errores de login para debug en Render
+client.login(process.env.TOKEN).catch(err => {
+    console.error("❌ ERROR AL INICIAR SESIÓN EN DISCORD:");
+    console.error(err.message);
+});
+
+// Evitar que el bot se apague por errores no capturados
+process.on('unhandledRejection', error => {
+    console.error('❌ Error no manejado:', error);
+});
