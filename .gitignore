@@ -8,3 +8,7 @@ node_modules
 !package-lock.json
 !shop.json
 !recipes.json
+
+# --- CORRECCIÓN PARA EMOJIS Y DATA ---
+!data/emojis.json
+!data/*.json
