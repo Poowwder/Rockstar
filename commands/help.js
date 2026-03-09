@@ -10,21 +10,24 @@ const emojis = require('../utils/emojiHelper.js');
 module.exports = {
     name: 'help',
     aliases: ['h', 'ayuda'],
-    description: 'Muestra el menú de ayuda interactivo con auto-emojis ✨',
+    description: 'Menú de ayuda con acceso total para la creadora ✨',
     async execute(input, args) {
         const isSlash = !!input.user;
         const user = isSlash ? input.user : input.author;
         const client = input.client;
+        const OWNER_ID = '1134261491745493032'; // 👑 Tu ID real
         const rosaPastel = "#FFB7C5";
 
         // --- 🎨 SISTEMA DE AUTO-EMOJI ---
         const emojisAzar = ['🌸', '🎀', '✨', '🩰', '🍭', '🍓', '🧁', '🌷', '☁️', '🦢'];
         const getEmoji = (nombre) => {
-            // Si el emoji existe en tu archivo, úsalo. Si no, pon uno al azar.
             return emojis[nombre] || emojisAzar[Math.floor(Math.random() * emojisAzar.length)];
         };
 
-        const esPremium = false; // Cambiar a true para ver el diamante
+        // --- 👑 VERIFICACIÓN DE PODER ---
+        // Si eres tú, eres Premium automáticamente. Para otros, se puede añadir otra lógica luego.
+        const esPremium = (user.id === OWNER_ID); 
+
         const totalComandos = client.commands.size;
         const paginasTotales = esPremium ? 8 : 7;
 
@@ -43,13 +46,11 @@ module.exports = {
             { id: 'marry', title: '💍 Matrimonios', description: 'El sistema social completo para parejas, harems y familias.\n\n`marry`, `divorce`, `harem`, `propose`, `ship`, `waifu`.' },
             { id: 'acc', title: '🎭 Acción', description: 'Expresa tus sentimientos con hermosas interacciones visuales.\n\n`hug`, `kiss`, `slap`, `pat`, `bite`, `poke`, `shoot`.' },
             { id: 'config', title: '⚙️ Configuración', description: 'Ajustes técnicos y de personalización exclusivos para admins.\n\n`setup`, `setlogs`, `setbutton`, `setprefix`.' },
-            { id: 'premium', title: '💎 Comandos Premium', description: 'Funciones exclusivas diseñadas para nuestras reinas VIP.\n\n`custom-role`, `fancy-embed`, `bypass-cooldown`.' }
+            { id: 'premium', title: '💎 Comandos Premium', description: 'Funciones VIP exclusivas.\n\n`custom-role`, `fancy-embed`, `bypass-cooldown`, `special-badges`.' }
         ];
 
         const generarAyuda = (index) => {
             const data = paginas[index];
-            
-            // --- 🏷️ GUÍA DE BOTONES (Letra chiquita) ---
             const guia = `\n\n- # ${getEmoji('pinkbow')} • *Volver* ${getEmoji('whitebow')} • *Atrás* ${getEmoji('arrow')} • *Siguiente* ${getEmoji('heart')} • *Cerrar*`;
 
             const embed = new EmbedBuilder()
@@ -57,7 +58,7 @@ module.exports = {
                 .setDescription(`${data.description}${index !== 0 ? guia : ""}`)
                 .setColor(rosaPastel)
                 .setThumbnail(client.user.displayAvatarURL())
-                .setFooter({ text: `Rockstar System • Página ${index + 1} de ${paginasTotales}` });
+                .setFooter({ text: `Página ${index + 1} de ${paginasTotales}` });
 
             const filas = [];
 
@@ -83,6 +84,7 @@ module.exports = {
                     new ButtonBuilder().setCustomId('adelante').setEmoji(getEmoji('arrow')).setStyle(ButtonStyle.Secondary).setDisabled(index === paginasTotales - 1)
                 );
 
+                // El diamante solo aparece si eres tú (o premium en el futuro)
                 if (esPremium) {
                     botonesRow.addComponents(new ButtonBuilder().setCustomId('ir_premium').setEmoji('💎').setStyle(ButtonStyle.Primary));
                 }
