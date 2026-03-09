@@ -1,0 +1,13 @@
+{
+  "coin_rain": {
+    "id": "coin_rain",
+    "name": "Lluvia de Monedas",
+    "description": "¡Llueven monedas del cielo!",
+    "chance": 5,
+    "effect": {
+      "type": "money",
+      "amount": 1000
+    },
+    "icon": "🌧️"
+  }
+}

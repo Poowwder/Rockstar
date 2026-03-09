@@ -1,0 +1,20 @@
+{
+    "mine_5_iron": {
+        "id": "mine_5_iron",
+        "name": "Minería de Hierro",
+        "description": "Mina 5 menas de hierro.",
+        "goal": 5,
+        "target": "iron_ore",
+        "reward": {
+            "money": 1500,
+            "item": "xp_potion",
+            "quantity": 1
+        }
+    },
+	 "explore_a_new_area": {
+        "id": "explore_a_new_area",
+        "name": "Explore",
+        "description": "Explore a new area",
+        "goal": 1
+        }
+}

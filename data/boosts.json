@@ -1,0 +1,15 @@
+{
+  "xp_boost": {
+    "id": "xp_boost",
+    "name": "Boost de Experiencia",
+    "description": "Duplica la experiencia ganada por un tiempo limitado.",
+    "duration": 3600,
+    "effect": {
+      "type": "xp",
+      "multiplier": 2
+    },
+    "icon": "✨",
+    "price": 1000,
+    "type": "boost"
+  }
+}
