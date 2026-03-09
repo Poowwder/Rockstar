@@ -1,54 +1,58 @@
-const fs = require('fs');
-const path = require('path');
-const { EmbedBuilder } = require('discord.js');
-const { createWelcomeFarewellEmbed } = require('./embedBuilder.js');
+const { createWelcomeFarewellEmbed } = require('../embedBuilder.js');
+const { getGuildData } = require('../userManager.js');
 
 module.exports = {
     name: 'guildMemberAdd',
-    once: false,
-    async execute(member, client) {
-        const configPath = path.join(__dirname, '..', 'welcomeConfig.json');
-        if (!fs.existsSync(configPath)) return;
-        const allConfigs = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        const config = allConfigs[member.guild.id];
-        if (!config || !config.channelId) return;
+    async execute(member) {
+        const guildId = member.guild.id;
+        
+        // 1. Obtener la configuración del servidor desde la DB
+        const data = await getGuildData(guildId);
+        const config = data.welcomeConfig;
+        if (!config) return;
 
-        const channel = member.guild.channels.cache.get(config.channelId);
-        if (!channel) return;
-
-        const { embed, content } = createWelcomeFarewellEmbed(member, config);
-        await channel.send({ content: content || undefined, embeds: [embed] });
-
-        // Logs
-        if (config.logsId) {
-            const logsChannel = member.guild.channels.cache.get(config.logsId);
-            if (logsChannel) {
-                const logEmbed = new EmbedBuilder()
-                    .setTitle('Nuevo miembro')
-                    .setColor(Math.floor(Math.random() * 0xFFFFFF))
-                    .setDescription(`Entró: <@${member.id}> (${member.user.tag})\nID: ${member.id}`)
-                    .setThumbnail(member.user.displayAvatarURL())
-                    .setFooter({ text: member.guild.name, iconURL: member.guild.iconURL() })
-                    .setTimestamp();
-                await logsChannel.send({ embeds: [logEmbed] });
+        // --- 🟢 BIENVENIDA 1 (Embed Principal) ---
+        if (config.welcome_1?.channelId) {
+            const channelB1 = member.guild.channels.cache.get(config.welcome_1.channelId);
+            if (channelB1) {
+                // Usamos tu constructor del embedBuilder.js
+                const { embed, content } = createWelcomeFarewellEmbed(member, config.welcome_1);
+                
+                channelB1.send({ 
+                    content: content || null, 
+                    embeds: [embed] 
+                }).catch(err => console.log("Error enviando B1:", err));
             }
         }
 
-        // Autorole
-        try {
-            if (member.user.bot && config.botRoleId) {
-                const botRole = member.guild.roles.cache.get(config.botRoleId);
-                if (botRole) {
-                    await member.roles.add(botRole);
-                }
-            } else if (!member.user.bot && config.userRoleId) {
-                const userRole = member.guild.roles.cache.get(config.userRoleId);
-                if (userRole) {
-                    await member.roles.add(userRole);
-                }
+        // --- 🔵 BIENVENIDA 2 (Solo Texto / Chat General) ---
+        if (config.welcome_2?.channelId) {
+            const channelB2 = member.guild.channels.cache.get(config.welcome_2.channelId);
+            if (channelB2) {
+                // Para B2, procesamos un mensaje simple si existe
+                const realCount = member.guild.members.cache.filter(m => !m.user.bot).size;
+                let msgB2 = config.welcome_2.desc || `✨ ¡Bienvenida {taguser}! Pásala lindo en **{serveruser}**. Eres nuestra persona nº{membercount}. 🌸`;
+                
+                // Reemplazo rápido para mensaje simple
+                msgB2 = msgB2
+                    .replace(/{taguser}/g, `<@${member.id}>`)
+                    .replace(/{serveruser}/g, member.guild.name)
+                    .replace(/{membercount}/g, realCount.toString())
+                    .replace(/{username}/g, member.user.username);
+
+                channelB2.send(msgB2).catch(err => console.log("Error enviando B2:", err));
             }
-        } catch (error) {
-            console.error(`Error al asignar autorol en ${member.guild.name}:`, error);
+        }
+
+        // --- 🎭 AUTOROLE (Opcional) ---
+        // Si tienes guardados IDs de roles en tu config, el bot los asignará aquí
+        const userRoleId = config.userRoleId; // ID de rol para humanos
+        const botRoleId = config.botRoleId;   // ID de rol para bots
+
+        if (member.user.bot && botRoleId) {
+            member.roles.add(botRoleId).catch(() => {});
+        } else if (!member.user.bot && userRoleId) {
+            member.roles.add(userRoleId).catch(() => {});
         }
     }
 };

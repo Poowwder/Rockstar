@@ -1,62 +1,70 @@
 const { EmbedBuilder } = require('discord.js');
 
+/**
+ * Procesa las variables en un texto dado.
+ * @param {string} text - El texto con variables como {username}.
+ * @param {object} variables - El diccionario de valores.
+ * @returns {string|null} - El texto procesado o null.
+ */
 function parseVars(text, variables) {
     if (!text) return null;
     let t = text;
     for (const [key, value] of Object.entries(variables)) {
-        t = t.replace(new RegExp(key, 'g'), value);
+        // Usamos un regex global para cambiar todas las ocurrencias
+        t = t.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
     }
     return t;
 }
 
+/**
+ * Crea un embed de Bienvenida o Despedida basado en la configuración de la DB.
+ */
 function createWelcomeFarewellEmbed(member, config) {
+    // 1. Contamos solo humanos para {membercount}
+    const realMemberCount = member.guild.members.cache.filter(m => !m.user.bot).size;
+
+    // 2. Diccionario de variables (Unificado con tus peticiones anteriores)
     const variables = {
-        '{user}': `<@${member.id}>`,
         '{username}': member.user.username,
-        '{tag}': member.user.tag,
-        '{nick}': member.nickname || member.user.username,
-        '{server}': member.guild.name,
-        '{count}': member.guild.memberCount
+        '{nickname}': member.displayName || member.user.username,
+        '{taguser}': `<@${member.id}>`,
+        '{serveruser}': member.guild.name,
+        '{membercount}': realMemberCount.toString(),
+        '{serverimg}': member.guild.iconURL() || ''
     };
 
     const embed = new EmbedBuilder();
 
-    const title = parseVars(config.titulo, variables);
+    // 3. Título y Descripción
+    const title = parseVars(config.title, variables);
     if (title) embed.setTitle(title);
 
-    const description = parseVars(config.descripcion, variables);
+    const description = parseVars(config.desc, variables);
     if (description) embed.setDescription(description);
 
-    embed.setAuthor({ name: parseVars('{nick}', variables), iconURL: member.user.displayAvatarURL() });
-
-    const color = config.color ? parseInt(config.color.replace('#', ''), 16) : Math.floor(Math.random() * 0xFFFFFF);
+    // 4. Color (Aesthetic Rockstar)
+    const color = config.color ? parseInt(config.color.replace('#', ''), 16) : 0xFFB6C1;
     embed.setColor(color);
 
-    if (config.thumbnail === 'avatar') {
-        embed.setThumbnail(member.user.displayAvatarURL());
-    } else if (config.thumbnail) {
-        embed.setThumbnail(parseVars(config.thumbnail, variables));
-    }
+    // 5. Imagen y Thumbnail (Avatar automático)
+    if (config.image) embed.setImage(parseVars(config.image, variables));
+    embed.setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 }));
 
-    if (config.imagen) {
-        embed.setImage(parseVars(config.imagen, variables));
-    }
-
+    // 6. Footer con Icono de Servidor variable
     const footerText = parseVars(config.footer, variables);
     if (footerText) {
-        let footerIcon = null;
-        if (config.footerimg === 'server' && member.guild.iconURL()) {
-            footerIcon = member.guild.iconURL();
-        } else if (config.footerimg && config.footerimg !== 'server') {
-            footerIcon = parseVars(config.footerimg, variables);
-        }
-        embed.setFooter({ text: footerText, iconURL: footerIcon });
+        embed.setFooter({ 
+            text: footerText, 
+            iconURL: member.guild.iconURL() 
+        });
     }
 
-    if (config.timestamp) {
+    // 7. Lógica de Timestamp (basada en el Modal "yes/no")
+    if (config.timestamp?.toLowerCase() === 'yes') {
         embed.setTimestamp();
     }
 
+    // 8. Mensaje exterior (Fuera del embed)
     const content = config.mensaje ? parseVars(config.mensaje, variables) : undefined;
 
     return { embed, content };

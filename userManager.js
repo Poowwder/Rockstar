@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { EmbedBuilder } = require('discord.js');
 
+// --- 👤 ESQUEMA DE USUARIO (Economía, Niveles, Nekos) ---
 const UserSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     wallet: { type: Number, default: 0 },
@@ -15,15 +16,11 @@ const UserSchema = new mongoose.Schema({
     lastRob: { type: Date, default: null },
     harem: { type: Array, default: [] },
     inventory: { type: Array, default: [] },
-    marryId: { type: String, default: null }, // ❤️ Añadido para matrimonios
-    
-    // --- 📈 NIVELES Y ACTIVIDAD ---
-    xp: { type: Number, default: 0 },         // ✨ XP actual
-    level: { type: Number, default: 1 },      // 🆙 Nivel actual
+    marryId: { type: String, default: null },
+    xp: { type: Number, default: 0 },
+    level: { type: Number, default: 1 },
     interactionsCount: { type: Number, default: 0 }, 
-    messageCount: { type: Number, default: 0 },      
-    
-    // --- 🐾 NEKOS ---
+    messageCount: { type: Number, default: 0 },
     nekos: {
         solas: { type: Boolean, default: false },
         nyx: { type: Boolean, default: false },
@@ -33,41 +30,55 @@ const UserSchema = new mongoose.Schema({
     }
 });
 
-const User = mongoose.models.User || mongoose.model('User', UserSchema);
+// --- 🏠 ESQUEMA DE SERVIDOR (Configuración de Bienvenidas, Roles, etc.) ---
+const GuildSchema = new mongoose.Schema({
+    guildId: { type: String, required: true, unique: true },
+    welcomeConfig: { type: Object, default: {} } // Aquí guardaremos B1, B2 y Despedida
+});
 
-// --- 📈 FUNCIÓN DE XP Y NIVELES ---
+const User = mongoose.models.User || mongoose.model('User', UserSchema);
+const Guild = mongoose.models.Guild || mongoose.model('Guild', GuildSchema);
+
+// --- 🛠️ FUNCIONES DE SERVIDOR (NUEVAS) ---
+
+async function getGuildData(guildId) {
+    let guild = await Guild.findOne({ guildId });
+    if (!guild) guild = await Guild.create({ guildId });
+    return guild;
+}
+
+async function updateGuildData(guildId, data) {
+    try {
+        await Guild.findOneAndUpdate({ guildId }, { $set: data }, { upsert: true });
+        return true;
+    } catch (err) { return false; }
+}
+
+// --- 📈 FUNCIONES DE USUARIO ---
+
 async function addXP(userId, amount, client) {
     let user = await User.findOne({ userId });
     if (!user) user = await User.create({ userId });
 
     user.xp += amount;
-    const nextLevelXP = user.level * 500; // Cada nivel pide 500 más
+    const nextLevelXP = user.level * 500;
 
     if (user.xp >= nextLevelXP) {
         user.level += 1;
         user.xp = 0;
-        
-        // 🌑 Verificación de Neko Nyx (Nivel 10)
-        if (user.level === 10 && !user.nekos.nyx) {
-            await grantNeko(userId, 'nyx', client);
-        }
-        
+        if (user.level === 10 && !user.nekos.nyx) await grantNeko(userId, 'nyx', client);
         await user.save();
         return { leveledUp: true, level: user.level };
     }
-
     await user.save();
     return { leveledUp: false };
 }
 
-// --- 🎀 FUNCIÓN PARA DAR NEKOS CON DM ---
 async function grantNeko(userId, nekoId, client) {
     const user = await User.findOne({ userId });
     if (!user || user.nekos[nekoId]) return;
-
     user.nekos[nekoId] = true;
     await user.save();
-
     try {
         const discordUser = await client.users.fetch(userId);
         const names = { solas: 'Solas ☁️', nyx: 'Nyx 🌑', mizuki: 'Mizuki 🌸', astra: 'Astra 👑', koko: 'Koko 🍓' };
@@ -78,18 +89,11 @@ async function grantNeko(userId, nekoId, client) {
             astra: 'tu estatus de élite (Premium)',
             koko: 'tu buen gusto en la Boutique'
         };
-
         const embed = new EmbedBuilder()
             .setTitle('✨ ¡𝕽☆𝖈𝖐𝖘𝖙𝖆𝖗 𝕹𝖊𝖐𝖔 𝕬𝖑𝖊𝖗𝖙! ✨')
             .setColor('#E6E6FA')
             .setThumbnail(discordUser.displayAvatarURL())
-            .setDescription(
-                `*“Un destello de luz ha aparecido en tu perfil...”*\n\n` +
-                `Has desbloqueado a **${names[nekoId]}**.\n` +
-                `Se ha unido a ti por **${desc[nekoId]}**.\n\n` +
-                `🐾 *Ya puedes presumirlo en tu \`/profile\`*`
-            );
-
+            .setDescription(`*“Un destello de luz ha aparecido en tu perfil...”*\n\nHas desbloqueado a **${names[nekoId]}**.\nSe ha unido a ti por **${desc[nekoId]}**.\n\n🐾 *Ya puedes presumirlo en tu \`/profile\`*`);
         await discordUser.send({ embeds: [embed] });
     } catch (e) { console.log(`DM bloqueado para ${userId}`); }
 }
@@ -97,7 +101,6 @@ async function grantNeko(userId, nekoId, client) {
 async function getUserData(userId) {
     let user = await User.findOne({ userId });
     if (!user) user = await User.create({ userId });
-    
     if (user.premiumType !== 'none' && user.premiumUntil && new Date() > user.premiumUntil) {
         user.premiumType = 'none';
         user.premiumUntil = null;
@@ -118,5 +121,4 @@ async function updateUserData(userId, data) {
     } catch (err) { return false; }
 }
 
-// Exportamos todo incluyendo la nueva función addXP
-module.exports = { User, getUserData, updateUserData, grantNeko, addXP };
+module.exports = { User, Guild, getUserData, updateUserData, getGuildData, updateGuildData, grantNeko, addXP };
