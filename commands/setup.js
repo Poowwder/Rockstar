@@ -1,78 +1,75 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup')
-        .setDescription('Configura automáticamente los canales del sistema Rockstar')
+        .setDescription('Configura canales, roles y el mensaje de bienvenida del sistema Rockstar')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
-        const guild = interaction.guild;
+        const { guild, client, user } = interaction;
+        const OWNER_ID = '1134261491745493032'; // 👑 Tu ID
         const configPath = path.join(__dirname, '../data/config.json');
-
-        // Asegurar que la carpeta data existe
-        if (!fs.existsSync(path.dirname(configPath))) {
-            fs.mkdirSync(path.dirname(configPath), { recursive: true });
-        }
 
         await interaction.deferReply();
 
         try {
-            // 1. Crear la Categoría Principal
-            const category = await guild.channels.create({
-                name: '🌸 Rockstar System',
-                type: ChannelType.GuildCategory,
-            });
+            let config = {};
+            if (fs.existsSync(configPath)) {
+                config = JSON.parse(fs.readFileSync(configPath, 'utf8') || '{}');
+            }
 
-            // 2. Crear Canal de Logs (Privado para Admins)
-            const logChannel = await guild.channels.create({
-                name: '📋-auditoria-sakura',
-                type: ChannelType.GuildText,
-                parent: category.id,
-                permissionOverwrites: [
-                    {
-                        id: guild.id,
-                        deny: [PermissionFlagsBits.ViewChannel],
-                    },
-                ],
-            });
+            // 1. Crear/Buscar Rol Muted
+            let muteRole = guild.roles.cache.find(r => r.name.toLowerCase() === 'muted');
+            if (!muteRole) {
+                muteRole = await guild.roles.create({
+                    name: 'Muted',
+                    color: '#2f3136',
+                    reason: 'Setup Rockstar ✨'
+                });
+            }
 
-            // 3. Crear Canal de Economía/Chat
-            const ecoChannel = await guild.channels.create({
-                name: '🌸-jardin-sakura',
-                type: ChannelType.GuildText,
-                parent: category.id,
-                topic: 'Canal oficial para usar comandos de economía y social !!'
-            });
+            // 2. Crear Categoría y Canales
+            const category = await guild.channels.create({ name: '🌸 Rockstar System', type: ChannelType.GuildCategory });
+            const logChannel = await guild.channels.create({ name: '📋-auditoria-sakura', type: ChannelType.GuildText, parent: category.id });
+            const ecoChannel = await guild.channels.create({ name: '🌸-jardin-sakura', type: ChannelType.GuildText, parent: category.id });
 
-            // 4. Guardar en Configuración
-            const config = {
-                logChannelId: logChannel.id,
-                economyChannelId: ecoChannel.id,
-                categoryId: category.id
-            };
-
+            // 3. Guardar IDs
+            config.logChannelId = logChannel.id;
+            config.economyChannelId = ecoChannel.id;
+            config.muteRoleId = muteRole.id;
             fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
-            const embedSuccess = new EmbedBuilder()
-                .setAuthor({ 
-                    name: `Configuración de ${interaction.guild.name}`, 
-                    iconURL: guild.iconURL({ dynamic: true }) 
-                })
-                .setTitle('✨ ¡Sistema Instalado con Éxito!')
-                .setColor('#FFB6C1')
-                .setThumbnail("https://i.pinimg.com/originals/de/21/e4/de21e4286663f9a76479f6e1e7f62e6e.gif")
-                .setDescription(`Se ha creado la categoría y los canales necesarios.\n\n**Canales creados:**\n> 📋 <#${logChannel.id}>\n> 🌸 <#${ecoChannel.id}>\n\n*Los logs ya están vinculados y listos para registrar actividad.*`)
-                .setFooter({ text: 'Rockstar Setup Assistant 🎀', iconURL: client.user.displayAvatarURL() })
-                .setTimestamp();
+            // 4. Configurar Botones (FILTRO DE VISIBILIDAD)
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('view_info').setLabel('Más Info').setStyle(ButtonStyle.Secondary).setEmoji('🎀'),
+                new ButtonBuilder().setLabel('Soporte').setStyle(ButtonStyle.Link).setURL('https://discord.gg/link')
+            );
 
-            return interaction.editReply({ embeds: [embedSuccess] });
+            // 🛑 SOLO LA CREADORA VE LA TUERCA
+            if (user.id === OWNER_ID) {
+                row.addComponents(
+                    new ButtonBuilder().setCustomId('admin_settings').setLabel('⚙️').setStyle(ButtonStyle.Secondary)
+                );
+            }
+
+            const welcomeEmbed = new EmbedBuilder()
+                .setTitle('🌸 ¡Bienvenidos al Jardín Sakura! ✨')
+                .setColor(config.mainColor || '#FFB6C1')
+                .setThumbnail(guild.iconURL({ dynamic: true }))
+                .setDescription(`¡Hola! Este es el canal oficial para interactuar con el sistema de **Rockstar**. 🎀\n\nAquí puedes usar los comandos de economía y social.\n\n*Usa el prefijo \`!!\` para los comandos de texto o revisa los comandos de barra (/).*`)
+                .setImage("https://i.pinimg.com/originals/94/34/06/943406f52e463510e1378393521d965e.gif")
+                .setFooter({ text: 'Rockstar System Assistant', iconURL: client.user.displayAvatarURL() });
+
+            await ecoChannel.send({ embeds: [welcomeEmbed], components: [row] });
+
+            return interaction.editReply({ content: `✅ **Setup completado.** Los canales han sido creados en la categoría **Rockstar System**. ✨` });
 
         } catch (error) {
             console.error(error);
-            return interaction.editReply("❌ Hubo un error al crear los canales. Revisa que tenga permisos de 'Gestionar Canales'.");
+            return interaction.editReply("❌ Hubo un error al configurar el sistema.");
         }
     }
 };

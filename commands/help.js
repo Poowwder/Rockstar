@@ -5,92 +5,89 @@ const {
     ButtonBuilder, 
     ButtonStyle 
 } = require('discord.js');
-const emojis = require('../emojis.json'); 
+const emojis = require('../utils/emojiHelper.js'); 
 
 module.exports = {
     name: 'help',
     aliases: ['h', 'ayuda'],
-    description: 'Muestra el menú de ayuda interactivo ✨',
+    description: 'Muestra el menú de ayuda interactivo con auto-emojis ✨',
     async execute(input, args) {
         const isSlash = !!input.user;
         const user = isSlash ? input.user : input.author;
-        const query = isSlash ? (input.options.getString('comando') || "").toLowerCase() : args?.[0]?.toLowerCase();
+        const client = input.client;
         const rosaPastel = "#FFB7C5";
 
-        // --- 🐾 AYUDA ESPECÍFICA (EPHEMERAL) ---
-        const ayudaNekos = {
-            astra: "👑 **Astra** se obtiene al adquirir un rango **Premium**.",
-            nyx: "🌑 **Nyx** aparece cuando alcanzas el **Nivel 10**.",
-            solas: "☁️ **Solas** se une a ti tras realizar **100 acciones** sociales.",
-            mizuki: "🌸 **Mizuki** llega tras enviar **5,000 mensajes**.",
-            koko: "🍓 **Koko** es una pieza de colección rotativa en la **Boutique**."
+        // --- 🎨 SISTEMA DE AUTO-EMOJI ---
+        const emojisAzar = ['🌸', '🎀', '✨', '🩰', '🍭', '🍓', '🧁', '🌷', '☁️', '🦢'];
+        const getEmoji = (nombre) => {
+            // Si el emoji existe en tu archivo, úsalo. Si no, pon uno al azar.
+            return emojis[nombre] || emojisAzar[Math.floor(Math.random() * emojisAzar.length)];
         };
 
-        if (query && ayudaNekos[query]) {
-            return input.reply({ 
-                embeds: [new EmbedBuilder().setTitle(`Guía de Neko: ${query.charAt(0).toUpperCase() + query.slice(1)}`).setDescription(`> ${ayudaNekos[query]}`).setColor(rosaPastel)], 
-                ephemeral: true 
-            });
-        }
+        const esPremium = false; // Cambiar a true para ver el diamante
+        const totalComandos = client.commands.size;
+        const paginasTotales = esPremium ? 8 : 7;
 
         const paginas = [
-            { id: 'inicio', title: '✨ Rockstar Help Menu ✨', tipo: 'inicio', description: '¡Hola, reina! Selecciona una categoría abajo para comenzar.' },
-            { id: 'categorias', title: '📚 Índice de Comandos', tipo: 'navegacion', description: 'Explora las secciones disponibles.', comandos: '`Economía` • `Matrimonios` • `Nekos` • `Acción` • `Reacción` • `Utilidad`' },
-            { id: 'nekos', title: '🐾 Colección de Nekos', tipo: 'detalle', description: 'Insignias exclusivas de perfil.\n\n*Ayuda individual:* `!!help [nombre]`.' },
-            { id: 'eco', title: '💰 Economía & Juegos', tipo: 'detalle', description: '`daily`, `work`, `mine`, `fish`, `rob`, `bal`, `shop`, `pay`.' },
-            { id: 'marry', title: '💍 Matrimonios & Harem', tipo: 'detalle', description: '`marry`, `divorce`, `harem`, `propose`, `ship`, `waifu`, `husbando`.' },
-            { id: 'acc', title: '🎭 Comandos de Acción', tipo: 'detalle', description: '`hug`, `kiss`, `slap`, `pat`, `bite`, `poke`, `shoot`, `splash`.' }
+            { 
+                id: 'inicio', 
+                title: '✨ Rockstar System ✨', 
+                description: `¡Hola, reina! Soy tu asistente de Rockstar.\nActualmente tengo **${totalComandos}** comandos listos para ti.\n\n🌸 Para ver ayuda detallada usa: \`!!help [comando]\`\n\nSelecciona una categoría abajo para comenzar.` 
+            },
+            { 
+                id: 'categorias', title: '📚 Índice de Comandos', 
+                description: 'Explora todas las secciones disponibles en el sistema Rockstar.\n\n🌸 **Secciones:**\n`Moderación` • `Economía` • `Matrimonios` • `Nekos` • `Acción` • `Configuración`' 
+            },
+            { id: 'mod', title: '🛡️ Moderación', description: 'Herramientas potentes para mantener el orden y la seguridad.\n\n`ban`, `kick`, `warn`, `mute`, `timeout`, `purge`.' },
+            { id: 'eco', title: '💰 Economía', description: 'Gana NekoCoins, trabaja y compite con otros usuarios.\n\n`daily`, `work`, `mine`, `fish`, `rob`, `bal`, `shop`.' },
+            { id: 'marry', title: '💍 Matrimonios', description: 'El sistema social completo para parejas, harems y familias.\n\n`marry`, `divorce`, `harem`, `propose`, `ship`, `waifu`.' },
+            { id: 'acc', title: '🎭 Acción', description: 'Expresa tus sentimientos con hermosas interacciones visuales.\n\n`hug`, `kiss`, `slap`, `pat`, `bite`, `poke`, `shoot`.' },
+            { id: 'config', title: '⚙️ Configuración', description: 'Ajustes técnicos y de personalización exclusivos para admins.\n\n`setup`, `setlogs`, `setbutton`, `setprefix`.' },
+            { id: 'premium', title: '💎 Comandos Premium', description: 'Funciones exclusivas diseñadas para nuestras reinas VIP.\n\n`custom-role`, `fancy-embed`, `bypass-cooldown`.' }
         ];
 
         const generarAyuda = (index) => {
             const data = paginas[index];
             
-            // --- 💡 GUÍA DE BOTONES RESALTADA ---
-            let guiaBotones = "";
-            if (data.tipo === 'navegacion') {
-                guiaBotones = `\n\n**୨୧ ┈┈┈┈ 🏷️ Guía de Navegación ┈┈┈┈ ୨୧**\n` +
-                              `${emojis.pinkbow} \`Volver\` • ${emojis.whitebow} \`Atrás\` • ${emojis.arrow} \`Siguiente\` • ${emojis.heart} \`Cerrar\``;
-            } else if (data.tipo === 'detalle') {
-                guiaBotones = `\n\n**୨୧ ┈┈┈┈ 🏷️ Guía de Navegación ┈┈┈┈ ୨୧**\n` +
-                              `${emojis.pinkbow} \`Volver\` • ${emojis.heart} \`Cerrar\``;
-            }
+            // --- 🏷️ GUÍA DE BOTONES (Letra chiquita) ---
+            const guia = `\n\n- # ${getEmoji('pinkbow')} • *Volver* ${getEmoji('whitebow')} • *Atrás* ${getEmoji('arrow')} • *Siguiente* ${getEmoji('heart')} • *Cerrar*`;
 
             const embed = new EmbedBuilder()
                 .setTitle(data.title)
-                .setDescription(`${data.description}${data.comandos ? `\n\n🌸 **Secciones:**\n${data.comandos}` : ''}${guiaBotones}`)
+                .setDescription(`${data.description}${index !== 0 ? guia : ""}`)
                 .setColor(rosaPastel)
-                .setFooter({ text: `Rockstar System • Página ${index + 1} de ${paginas.length}` });
+                .setThumbnail(client.user.displayAvatarURL())
+                .setFooter({ text: `Rockstar System • Página ${index + 1} de ${paginasTotales}` });
 
             const filas = [];
 
-            if (data.tipo === 'inicio') {
+            if (index === 0) {
                 const menu = new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
-                        .setCustomId('help_menu').setPlaceholder('Selecciona una categoría... 🌸')
+                        .setCustomId('help_menu')
+                        .setPlaceholder('Selecciona una categoría... 🌸')
                         .addOptions([
-                            { label: 'Categorías', value: '1', emoji: emojis.pinkstars },
-                            { label: 'Nekos', value: '2', emoji: '🐾' },
+                            { label: 'Categorías', value: '1', emoji: '📚' },
+                            { label: 'Moderación', value: '2', emoji: '🛡️' },
                             { label: 'Economía', value: '3', emoji: '💰' },
                             { label: 'Matrimonios', value: '4', emoji: '💍' },
-                            { label: 'Acción', value: '5', emoji: '🎭' }
+                            { label: 'Acción', value: '5', emoji: '🎭' },
+                            { label: 'Configuración', value: '6', emoji: '⚙️' }
                         ])
                 );
                 filas.push(menu);
             } else {
-                const botonesRow = new ActionRowBuilder();
-                
-                // Botón Volver (Coquette Bow 🎀)
-                botonesRow.addComponents(new ButtonBuilder().setCustomId('volver').setEmoji(emojis.pinkbow).setStyle(ButtonStyle.Secondary));
+                const botonesRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('volver').setEmoji(getEmoji('pinkbow')).setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId('atras').setEmoji(getEmoji('whitebow')).setStyle(ButtonStyle.Secondary).setDisabled(index === 1),
+                    new ButtonBuilder().setCustomId('adelante').setEmoji(getEmoji('arrow')).setStyle(ButtonStyle.Secondary).setDisabled(index === paginasTotales - 1)
+                );
 
-                if (data.tipo === 'navegacion') {
-                    botonesRow.addComponents(
-                        new ButtonBuilder().setCustomId('atras').setEmoji(emojis.whitebow).setStyle(ButtonStyle.Secondary).setDisabled(index === 1),
-                        new ButtonBuilder().setCustomId('adelante').setEmoji(emojis.arrow).setStyle(ButtonStyle.Secondary).setDisabled(index === paginas.length - 1)
-                    );
+                if (esPremium) {
+                    botonesRow.addComponents(new ButtonBuilder().setCustomId('ir_premium').setEmoji('💎').setStyle(ButtonStyle.Primary));
                 }
 
-                // Botón Cerrar (Heart ❤️)
-                botonesRow.addComponents(new ButtonBuilder().setCustomId('cerrar').setEmoji(emojis.heart).setStyle(ButtonStyle.Danger));
+                botonesRow.addComponents(new ButtonBuilder().setCustomId('cerrar').setEmoji(getEmoji('heart')).setStyle(ButtonStyle.Danger));
                 filas.push(botonesRow);
             }
 
@@ -110,7 +107,8 @@ module.exports = {
             if (i.customId === 'help_menu') paginaActual = parseInt(i.values[0]);
             else if (i.customId === 'volver') paginaActual = 0;
             else if (i.customId === 'atras') paginaActual = Math.max(1, indexActual - 1);
-            else if (i.customId === 'adelante') paginaActual = Math.min(paginas.length - 1, indexActual + 1);
+            else if (i.customId === 'adelante') paginaActual = Math.min(paginasTotales - 1, indexActual + 1);
+            else if (i.customId === 'ir_premium') paginaActual = 7;
 
             await i.update(generarAyuda(paginaActual)).catch(() => {});
         });
