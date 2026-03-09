@@ -1,39 +1,40 @@
 const path = require('path');
 const fs = require('fs');
 
-/**
- * Buscamos el archivo en la raíz del proyecto.
- * process.cwd() apunta a /opt/render/project/ (la raíz en Render)
- */
-const jsonPath = path.join(process.cwd(), 'data', 'emojis.json');
+// Intentamos detectar la raíz real del proyecto
+const root = process.cwd(); 
+
+// Lista de rutas posibles según tu estructura
+const paths = [
+    path.join(root, 'data', 'emojis.json'),             // Si está en el inicio (como dices)
+    path.join(root, 'src', 'data', 'emojis.json'),      // Por si Render se confunde con la estructura
+    path.resolve(__dirname, '../../data/emojis.json'),  // Relativo al archivo (subiendo niveles)
+    path.resolve(__dirname, '../data/emojis.json')
+];
 
 let listaRaw = {};
+let cargado = false;
 
-try {
-    if (fs.existsSync(jsonPath)) {
-        const contenido = fs.readFileSync(jsonPath, 'utf8');
-        listaRaw = JSON.parse(contenido);
-        console.log("✅ [EmojiHelper] Archivo cargado desde: " + jsonPath);
-    } else {
-        // Si no está ahí, intentamos una ruta relativa de emergencia
-        const fallbackPath = path.resolve(__dirname, '../data/emojis.json');
-        if (fs.existsSync(fallbackPath)) {
-            listaRaw = JSON.parse(fs.readFileSync(fallbackPath, 'utf8'));
-            console.log("✅ [EmojiHelper] Archivo cargado (Fallback): " + fallbackPath);
-        } else {
-            console.error("❌ [EmojiHelper] NO SE ENCONTRÓ EL ARCHIVO EN:");
-            console.error("   1. " + jsonPath);
-            console.error("   2. " + fallbackPath);
-            // Valores por defecto para que el bot no crashee
-            listaRaw = { pinkbow: '🎀', heart: '🌸', pinkstars: '✨', exclamation: '⚠️' };
+for (const p of paths) {
+    if (fs.existsSync(p)) {
+        try {
+            listaRaw = JSON.parse(fs.readFileSync(p, 'utf8'));
+            console.log("✅ [EmojiHelper] ¡ENCONTRADO! Cargado desde: " + p);
+            cargado = true;
+            break;
+        } catch (err) {
+            console.error("❌ Error al leer el JSON encontrado:", err.message);
         }
     }
-} catch (e) {
-    console.error("❌ [EmojiHelper] Error crítico:", e.message);
-    listaRaw = { pinkbow: '🎀', heart: '🌸', pinkstars: '✨', exclamation: '⚠️' };
 }
 
-// Convertimos el objeto en una función con propiedades (tu sistema actual)
+if (!cargado) {
+    console.error("❌ [EmojiHelper] No se encontró el archivo en ninguna ruta.");
+    // Fallback para evitar crasheos (puedes añadir tus IDs reales aquí)
+    listaRaw = { pinkbow: '🎀', heart: '🤍' }; 
+}
+
+// Tu lógica de función para exportar
 const valores = Object.values(listaRaw);
 function helper() {
     return valores.length > 0 ? valores[Math.floor(Math.random() * valores.length)] : '✨';
