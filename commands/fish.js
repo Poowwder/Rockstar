@@ -1,45 +1,35 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData } = require('../economyManager.js');
+const { getUserData, updateUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'fish',
-    data: new SlashCommandBuilder().setName('fish').setDescription('🎣 Pesca en Zonas Secretas'),
-
+    data: new SlashCommandBuilder().setName('fish').setDescription('🎣 Pesca Estelar'),
     async execute(input) {
         const user = input.user || input.author;
-        const member = input.member;
         let data = await getUserData(user.id);
+        if (data.health <= 0) return input.reply("💀 Estás agotada. Ve a descansar.");
 
-        const tieneCaña = data.inventory?.some(i => i.toLowerCase().includes('caña'));
-        if (!tieneCaña) return input.reply("╰┈➤ 🌊 **¡Oh no!** No tienes una **Caña**. ¡Consigue una en `!!shop`! ✨");
+        const tieneCana = data.inventory?.some(i => i.toLowerCase().includes('caña'));
+        if (!tieneCana) return input.reply("🎣 No tienes una caña.");
 
-        let boost = 1;
-        let zona = "🛶 Lago de Malvavisco";
-        if (data.premiumType === 'mensual') { boost = 5; zona = "🌊 Arrecife de Perlas"; }
-        if (data.premiumType === 'bimestral') { boost = 8; zona = "🧜‍♀️ Reino de las Sirenas"; }
+        let cooldown = 300000, riesgo = 0.15, multa = 0.10, vidasP = 2, boost = 1;
+        if (data.premiumType === 'mensual') { cooldown = 120000; riesgo = 0.10; multa = 0.05; vidasP = 1; boost = 5; }
+        if (data.premiumType === 'bimestral') { cooldown = 0; riesgo = 0.05; multa = 0; vidasP = 0.5; boost = 8; }
 
-        let gananciaBase = (boost > 1) ? 3500 : 700;
-        let gananciaFinal = Math.floor((Math.random() * 500) + gananciaBase) * boost;
+        if (cooldown > 0 && Date.now() - (data.lastFish || 0) < cooldown) return input.reply("⏳ El mar está picado, espera.");
 
-        data.wallet += gananciaFinal;
+        if (Math.random() < riesgo) {
+            data.health -= vidasP;
+            const perdida = Math.floor(data.wallet * multa);
+            data.wallet -= perdida;
+            await updateUserData(user.id, data);
+            return input.reply("🌊 ¡Una ola te golpeó! Perdiste salud y dinero.");
+        }
+
+        let gana = Math.floor(Math.random() * 500 + 700) * boost;
+        data.wallet += gana;
+        data.lastFish = Date.now();
         await updateUserData(user.id, data);
-
-        const fishEmbed = new EmbedBuilder()
-            .setTitle(`🫧 ‧₊˚ Pesca Estelar ˚₊‧ 🫧`)
-            .setColor('#B2E2F2')
-            .setThumbnail('https://i.pinimg.com/originals/81/44/7b/81447bc9546059632890b0d61ca55913.gif')
-            .setDescription(
-                `*“El agua está perfecta hoy...”* 🎣✨\n\n` +
-                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n` +
-                `🫧 **Lugar:** \`${zona}\`\n` +
-                `🚀 **Multiplicador:** \`x${boost}\` activo\n` +
-                `🌸 **Venta:** **${gananciaFinal.toLocaleString()} flores**\n` +
-                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
-                `╰┈➤ *¡Atrapaste un pez muy brillante!*`
-            )
-            .setFooter({ text: `Pescadora: ${member.displayName} ♡`, iconURL: user.displayAvatarURL() })
-            .setTimestamp();
-
-        return input.reply({ embeds: [fishEmbed] });
+        input.reply(`🎣 Pescaste un pez de **${gana}** flores. ❤️ Vidas: ${data.health.toFixed(1)}`);
     }
 };

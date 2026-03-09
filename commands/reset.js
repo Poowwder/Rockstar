@@ -1,5 +1,5 @@
 const { EmbedBuilder, SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { updateUserData } = require('../economyManager.js');
+const { updateUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'reset',

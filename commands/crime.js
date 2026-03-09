@@ -1,83 +1,32 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData } = require('../economyManager.js');
+const { getUserData, updateUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'crime',
-    category: 'economía',
-    data: new SlashCommandBuilder()
-        .setName('crime')
-        .setDescription('🕶️ Comete un crimen para ganar flores (¡o perderlas!)'),
-
+    data: new SlashCommandBuilder().setName('crime').setDescription('🕶️ Crimen Rockstar'),
     async execute(input) {
-        const isSlash = !!input.user;
-        const user = isSlash ? input.user : input.author;
-        const member = input.member;
-
+        const user = input.user || input.author;
         let data = await getUserData(user.id);
-        const now = Date.now();
-        const cooldown = 1800000; // 30 minutos de cooldown
+        if (data.health <= 0) return input.reply("💀 En el hospital no se puede delinquir.");
 
-        if (now - (data.lastCrime || 0) < cooldown) {
-            const restante = Math.ceil((cooldown - (now - data.lastCrime)) / 60000);
-            return input.reply({ 
-                content: `⏳ **Tranquila, Rockstar...** la policía te está buscando. Espera **${restante} minutos** más.`, 
-                ephemeral: true 
-            });
+        let cooldown = 300000, prob = 0.45, vidasP = 2;
+        if (data.premiumType === 'mensual') { cooldown = 120000; prob = 0.60; vidasP = 1; }
+        if (data.premiumType === 'bimestral') { cooldown = 0; prob = 0.80; vidasP = 0.5; }
+
+        if (cooldown > 0 && Date.now() - (data.lastCrime || 0) < cooldown) return input.reply("⏳ La poli vigila...");
+
+        if (Math.random() > prob) {
+            data.health -= vidasP;
+            // Multa fija si no mueres
+            if (data.health > 0) data.wallet = Math.max(0, data.wallet - 1200);
+            await updateUserData(user.id, data);
+            return input.reply(`🚫 ¡Fallaste! Perdiste ${vidasP} vidas.`);
         }
 
-        const exito = Math.random() > 0.55; // 45% de probabilidad de éxito (es difícil)
-        const embed = new EmbedBuilder().setTimestamp();
-
-        if (exito) {
-            const ganancia = Math.floor(Math.random() * (5000 - 2000 + 1)) + 2000;
-            const crimenesPositivos = [
-                "Hackeaste la cuenta de una multinacional de cosméticos. ✨",
-                "Vendiste entradas falsas para un concierto agotado. 🎫",
-                "Encontraste una billetera de diseñador tirada y te la quedaste. 👛",
-                "Hiciste un grafiti tan artístico que alguien te pagó por no borrarlo. 🎨"
-            ];
-            const frase = crimenesPositivos[Math.floor(Math.random() * crimenesPositivos.length)];
-
-            data.wallet += ganancia;
-            data.lastCrime = now;
-
-            embed.setTitle('🕶️ ¡Crimen Perfecto!')
-                .setColor('#B5EAD7') // Verde pastel
-                .setThumbnail('https://i.pinimg.com/originals/3d/82/38/3d8238f533bc71536b6680459c3818e6.gif')
-                .setDescription(
-                    `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
-                    `**${member.displayName}**, tu plan salió a la perfección.\n\n` +
-                    `╰┈➤ **Acción:** ${frase}\n` +
-                    `╰┈➤ **Botín:** \`${ganancia.toLocaleString()} 🌸\`\n\n` +
-                    `*Eres toda una mente criminal... con estilo.* ✨\n\n` +
-                    `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`
-                );
-        } else {
-            const multa = 1200;
-            const fallos = [
-                "Intentaste robar una joyería pero te tropezaste con un estante. 💎",
-                "Te atraparon haciendo trampas en el casino clandestino. 🃏",
-                "La policía te vio tratando de hackear el cajero. 🚔"
-            ];
-            const fraseFallo = fallos[Math.floor(Math.random() * fallos.length)];
-
-            data.wallet = Math.max(0, data.wallet - multa);
-            data.lastCrime = now;
-
-            embed.setTitle('🚫 ¡A la cárcel!')
-                .setColor('#FF9AA2') // Rojo/Rosa pastel
-                .setThumbnail('https://i.pinimg.com/originals/5e/54/2e/5e542ef998492040f7d5c95333f21151.gif')
-                .setDescription(
-                    `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
-                    `**${member.displayName}**, esta vez no tuviste suerte.\n\n` +
-                    `╰┈➤ **Fallo:** ${fraseFallo}\n` +
-                    `╰┈➤ **Multa:** \`${multa.toLocaleString()} 🌸\`\n\n` +
-                    `*Tal vez deberías dedicarte a algo más honesto hoy.* 😭\n\n` +
-                    `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`
-                );
-        }
-
+        let gana = Math.floor(Math.random() * 3000 + 2000);
+        data.wallet += gana;
+        data.lastCrime = Date.now();
         await updateUserData(user.id, data);
-        return input.reply({ embeds: [embed] });
+        input.reply(`🕶️ ¡Crimen perfecto! Ganaste **${gana}** flores.`);
     }
 };

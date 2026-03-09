@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData } = require('../economyManager.js');
+const { getUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'bal',

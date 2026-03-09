@@ -1,42 +1,45 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
+const { getTiendaHoy } = require('../data/items.js');
+const { getUserData } = require('../userManager.js'); 
+const emojis = require('../utils/emojiHelper.js'); 
 
 module.exports = {
     name: 'shop',
-    aliases: ['tienda', 'store'],
-    category: 'economía',
-    data: new SlashCommandBuilder()
-        .setName('shop')
-        .setDescription('🛒 Mira los artículos disponibles en la Boutique Rockstar'),
-
     async execute(input) {
-        const member = input.member;
         const user = input.user || input.author;
+        const data = await getUserData(user.id);
+        
+        const tiendaCompleta = getTiendaHoy();
+        const nekosPoseidos = data.nekos || {};
+
+        const tiendaFiltrada = tiendaCompleta.filter(item => {
+            if (item.id === 'koko' && nekosPoseidos.koko) {
+                return false; 
+            }
+            return true; 
+        });
+
+        if (tiendaFiltrada.length === 0) {
+            return input.reply(`${emojis()} La boutique está renovando su colección. ¡Vuelve pronto! 🌸`);
+        }
 
         const shopEmbed = new EmbedBuilder()
-            .setTitle('🛍️ Boutique Rockstar - Catálogo')
+            .setTitle(`${emojis()} ‧₊˚ Boutique Rockstar ˚₊‧ ${emojis()}`)
             .setColor('#FFB6C1')
-            .setThumbnail('https://i.pinimg.com/originals/7a/74/61/7a74614210626f2a890a880628292857.gif') // Una tienda cute
+            .setThumbnail('https://i.pinimg.com/originals/7a/74/61/7a74614210626f2a890a880628292857.gif')
             .setDescription(
-                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
-                `**¡Holi, ${member.displayName}!** ✨\n` +
-                `Aquí tienes los artículos disponibles hoy:\n\n` +
-                `💍 **Anillo de Compromiso**\n` +
-                `╰┈➤ Precio: \`10,000 🌸\`\n` +
-                `╰┈➤ *Necesario para usar el comando de boda.*\n\n` +
-                `🛡️ **Escudo de Flores**\n` +
-                `╰┈➤ Precio: \`5,000 🌸\`\n` +
-                `╰┈➤ *Te protege de un robo (rob/crime).*\n\n` +
-                `💎 **Pase VIP Rockstar**\n` +
-                `╰┈➤ Precio: \`50,000 🌸\`\n` +
-                `╰┈➤ *Acceso a zonas exclusivas en /mine.*\n\n` +
-                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
-                `💡 *Para comprar algo, usa: ` + "!!buy [nombre]`*"
-            )
-            .setTimestamp()
-            .setFooter({ 
-                text: `Boutique visitada por: ${member.displayName}`, 
-                iconURL: user.displayAvatarURL() 
-            });
+                `*“Lo que hoy es tendencia, mañana es leyenda...”* ✨\n\n` +
+                `**୨୧ ┈┈┈┈ ${emojis()} Catálogo Rockstar ${emojis()} ┈┈┈┈ ୨୧**\n\n` +
+                tiendaFiltrada.map(item => {
+                    if (item.premium && data.premiumType === 'none') {
+                        return `🔒 **Ítem VIP** ‧ *(Solo para Miembros Premium)*`;
+                    }
+                    return `${item.emoji} **${item.name}** ‧ \`${item.price.toLocaleString()} 🌸\``;
+                }).join('\n') + 
+                `\n\n**୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧**\n\n` +
+                `${emojis.pinkbow} *Para comprar:* \`!!buy [nombre]\`\n` +
+                `${emojis.pinkbow} *Para usar:* \`!!use [nombre]\``
+            );
 
         return input.reply({ embeds: [shopEmbed] });
     }

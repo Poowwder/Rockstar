@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData } = require('../economyManager.js');
+const { getUserData } = require('../userManager.js'); // Ajustado a tu archivo real 🛠️
 
 module.exports = {
     name: 'inv',
@@ -18,7 +18,7 @@ module.exports = {
         const data = await getUserData(target.id);
         const inventario = data.inventory || [];
 
-        // Lógica para mostrar los items de forma linda
+        // Lógica para mostrar los items de forma organizada
         let listaItems = "";
         if (inventario.length === 0) {
             listaItems = "*Tu mochila está vacía... ¡ve a la boutique!* 🌸";
@@ -35,16 +35,16 @@ module.exports = {
         const invEmbed = new EmbedBuilder()
             .setTitle(`🎒 Mochila de ${targetMember.displayName}`)
             .setColor('#FFB6C1')
-            .setThumbnail('https://i.pinimg.com/originals/82/30/9b/82309b858e723525565349f481c0f065.gif') // Una mochila o bolso cute
+            .setThumbnail('https://i.pinimg.com/originals/82/30/9b/82309b858e723525565349f481c0f065.gif')
             .setDescription(
-                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
+                `**୨୧ ┈┈┈┈ Contenido ┈┈┈┈ ୨୧**\n\n` +
                 `${listaItems}\n\n` +
-                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`
+                `**୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧**`
             )
             .setTimestamp()
             .setFooter({ 
-                text: `Consultado por: ${input.member.displayName}`, 
-                iconURL: (input.user ? input.user.displayAvatarURL() : input.author.displayAvatarURL()) 
+                text: `Consultado por: ${isSlash ? input.user.username : input.author.username} ♡`, 
+                iconURL: target.displayAvatarURL() 
             });
 
         return input.reply({ embeds: [invEmbed] });

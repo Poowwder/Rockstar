@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const { User } = require('../economyManager.js'); 
+const { User } = require('../userManager.js'); 
 
 module.exports = {
     name: 'top',

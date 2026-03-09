@@ -1,5 +1,5 @@
 const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
-const { getUserData, updateUserData } = require('../economyManager.js');
+const { getUserData, updateUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'repair',

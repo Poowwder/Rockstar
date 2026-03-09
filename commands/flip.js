@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData } = require('../economyManager.js');
+const { getUserData, updateUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'flip',

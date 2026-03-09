@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
-const { getUserData, updateUserData } = require('../economyManager.js'); // Usamos tu DB central
+const { getUserData, updateUserData } = require('../userManager.js'); // Usamos tu DB central
 // Asumo que este archivo existe para generar el embed, si no, puedes hacerlo manual
 const { createWelcomeFarewellEmbed } = require('../events/embedBuilder.js'); 
 

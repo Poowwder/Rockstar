@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const { getUserData, updateUserData, removeItemFromInventory } = require('../economyManager.js');
+const { getUserData, updateUserData, removeItemFromInventory } = require('../userManager.js');
 const ms = require('ms')
 
 const ICONS = {

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData } = require('../economyManager.js');
+const { getUserData, updateUserData } = require('../userManager.js');
 const fs = require('fs');
 const path = require('path');
 

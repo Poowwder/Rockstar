@@ -1,48 +1,37 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData } = require('../economyManager.js');
+const { getUserData, updateUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'mine',
-    data: new SlashCommandBuilder().setName('mine').setDescription('⛏️ Minería con Zonas VIP'),
-
+    data: new SlashCommandBuilder().setName('mine').setDescription('⛏️ Minería Rockstar'),
     async execute(input) {
         const user = input.user || input.author;
-        const member = input.member;
         let data = await getUserData(user.id);
 
-        const tienePico = data.inventory?.some(i => i.toLowerCase().includes('pico'));
-        if (!tienePico) return input.reply("╰┈➤ 🌸 **¡Ups!** Necesitas un **Pico** para minar, linda. Búscalo en `!!shop` ✨");
+        if (data.health <= 0) return input.reply("💀 Estás muerta. Compra vidas en la tienda.");
 
-        let boost = 1;
-        let zona = "☁️ Mina de Algodón";
-        let decor = "🌸";
+        let cooldown = 300000, riesgo = 0.15, multa = 0.10, vidasP = 2, boost = 1;
 
-        if (data.premiumType === 'mensual') { boost = 5; zona = "✨ Cueva de Cuarzo Rosa"; decor = "🎀"; }
-        if (data.premiumType === 'bimestral') { boost = 8; zona = "💎 Palacio de Cristal"; decor = "👑"; }
+        if (data.premiumType === 'mensual') { 
+            cooldown = 120000; riesgo = 0.10; multa = 0.05; vidasP = 1; boost = 5; 
+        } else if (data.premiumType === 'bimestral') { 
+            cooldown = 0; riesgo = 0.05; multa = 0; vidasP = 0.5; boost = 8; 
+        }
 
-        let gananciaBase = (boost > 1) ? 3000 : 600;
-        let gananciaFinal = Math.floor((Math.random() * 500) + gananciaBase) * boost;
+        if (cooldown > 0 && Date.now() - (data.lastMine || 0) < cooldown) return input.reply("⏳ Espera un poco, reina.");
 
-        data.wallet += gananciaFinal;
+        if (Math.random() < riesgo) {
+            data.health -= vidasP;
+            const perdida = Math.floor(data.wallet * multa);
+            data.wallet -= perdida;
+            await updateUserData(user.id, data);
+            return input.reply({ embeds: [new EmbedBuilder().setTitle('💥 ¡Derrumbe!').setColor('#FF0000').setDescription(`Perdiste ${vidasP} vidas y ${perdida} flores.`)] });
+        }
+
+        let gana = Math.floor(Math.random() * 500 + 600) * boost;
+        data.wallet += gana;
+        data.lastMine = Date.now();
         await updateUserData(user.id, data);
-
-        const mineEmbed = new EmbedBuilder()
-            .setTitle(`${decor} ‧₊˚ Minería Rockstar ˚₊‧ ${decor}`)
-            .setColor('#FFB6C1')
-            .setThumbnail('https://i.pinimg.com/originals/30/44/8e/30448e64f8992c696e578c7739506691.gif')
-            .setDescription(
-                `*“Picando piedritas con mucho estilo...”* ⛏️✨\n\n` +
-                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n` +
-                `☁️ **Zona:** \`${zona}\`\n` +
-                `🎀 **Rango:** \`${data.premiumType || 'Usuario Normal'}\`\n` +
-                `🚀 **Boost:** \`x${boost}\` activado\n` +
-                `🌸 **Paga:** **${gananciaFinal.toLocaleString()} flores**\n` +
-                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
-                `╰┈➤ *¡Tus ahorros brillan como diamantes!*`
-            )
-            .setFooter({ text: `Minera: ${member.displayName} ♡`, iconURL: user.displayAvatarURL() })
-            .setTimestamp();
-
-        return input.reply({ embeds: [mineEmbed] });
+        input.reply(`⛏️ ¡Minaste **${gana}** flores! ❤️ Vidas: ${data.health.toFixed(1)}`);
     }
 };

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData } = require('../economyManager.js'); // Ajusta la ruta si es necesario
+const { getUserData, updateUserData } = require('../userManager.js'); // Ajusta la ruta si es necesario
 
 const ICONS = {
     level: '🌟',
