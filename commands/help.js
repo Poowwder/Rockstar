@@ -3,7 +3,8 @@ const {
     ActionRowBuilder, 
     StringSelectMenuBuilder, 
     ButtonBuilder, 
-    ButtonStyle 
+    ButtonStyle,
+    ComponentType
 } = require('discord.js');
 const emojis = require('../utils/emojiHelper.js'); 
 
@@ -18,29 +19,13 @@ module.exports = {
         const OWNER_ID = '1134261491745493032'; // 👑 Tu ID real
         const rosaPastel = "#FFB7C5";
 
-        // --- 🎨 SISTEMA DE AUTO-EMOJI ---
-        const emojisAzar = ['🌸', '🎀', '✨', '🩰', '🍭', '🍓', '🧁', '🌷', '☁️', '🦢'];
-        const getEmoji = (nombre) => {
-            return emojis[nombre] || emojisAzar[Math.floor(Math.random() * emojisAzar.length)];
-        };
-
-        // --- 👑 VERIFICACIÓN DE PODER ---
-        // Si eres tú, eres Premium automáticamente. Para otros, se puede añadir otra lógica luego.
         const esPremium = (user.id === OWNER_ID); 
-
         const totalComandos = client.commands.size;
-        const paginasTotales = esPremium ? 8 : 7;
-
+        
+        // Definimos las páginas
         const paginas = [
-            { 
-                id: 'inicio', 
-                title: '✨ Rockstar System ✨', 
-                description: `¡Hola, reina! Soy tu asistente de Rockstar.\nActualmente tengo **${totalComandos}** comandos listos para ti.\n\n🌸 Para ver ayuda detallada usa: \`!!help [comando]\`\n\nSelecciona una categoría abajo para comenzar.` 
-            },
-            { 
-                id: 'categorias', title: '📚 Índice de Comandos', 
-                description: 'Explora todas las secciones disponibles en el sistema Rockstar.\n\n🌸 **Secciones:**\n`Moderación` • `Economía` • `Matrimonios` • `Nekos` • `Acción` • `Configuración`' 
-            },
+            { id: 'inicio', title: '✨ Rockstar System ✨', description: `¡Hola, reina! Soy tu asistente de Rockstar.\nActualmente tengo **${totalComandos}** comandos listos para ti.\n\n🌸 Para ver ayuda detallada usa: \`!!help [comando]\`\n\nSelecciona una categoría abajo para comenzar.` },
+            { id: 'categorias', title: '📚 Índice de Comandos', description: 'Explora todas las secciones disponibles en el sistema Rockstar.\n\n🌸 **Secciones:**\n`Moderación` • `Economía` • `Matrimonios` • `Nekos` • `Acción` • `Configuración`' },
             { id: 'mod', title: '🛡️ Moderación', description: 'Herramientas potentes para mantener el orden y la seguridad.\n\n`ban`, `kick`, `warn`, `mute`, `timeout`, `purge`.' },
             { id: 'eco', title: '💰 Economía', description: 'Gana NekoCoins, trabaja y compite con otros usuarios.\n\n`daily`, `work`, `mine`, `fish`, `rob`, `bal`, `shop`.' },
             { id: 'marry', title: '💍 Matrimonios', description: 'El sistema social completo para parejas, harems y familias.\n\n`marry`, `divorce`, `harem`, `propose`, `ship`, `waifu`.' },
@@ -49,16 +34,21 @@ module.exports = {
             { id: 'premium', title: '💎 Comandos Premium', description: 'Funciones VIP exclusivas.\n\n`custom-role`, `fancy-embed`, `bypass-cooldown`, `special-badges`.' }
         ];
 
+        // Filtramos las páginas si el usuario no es premium (quitamos la última)
+        const paginasVisibles = esPremium ? paginas : paginas.slice(0, -1);
+        const paginasTotales = paginasVisibles.length;
+
         const generarAyuda = (index) => {
-            const data = paginas[index];
-            const guia = `\n\n- # ${getEmoji('pinkbow')} • *Volver* ${getEmoji('whitebow')} • *Atrás* ${getEmoji('arrow')} • *Siguiente* ${getEmoji('heart')} • *Cerrar*`;
+            const data = paginasVisibles[index];
+            // Guía usando tus emojis del JSON
+            const guia = `\n\n- # ${emojis.pinkbow || '🎀'} • *Volver* ${emojis.whitebow || '⬅️'} • *Atrás* ${emojis.arrow || '➡️'} • *Siguiente* ${emojis.heart || '❤️'} • *Cerrar*`;
 
             const embed = new EmbedBuilder()
                 .setTitle(data.title)
                 .setDescription(`${data.description}${index !== 0 ? guia : ""}`)
                 .setColor(rosaPastel)
                 .setThumbnail(client.user.displayAvatarURL())
-                .setFooter({ text: `Página ${index + 1} de ${paginasTotales}` });
+                .setFooter({ text: `Página ${index + 1} de ${paginasTotales} • Rockstar System ✨` });
 
             const filas = [];
 
@@ -79,37 +69,42 @@ module.exports = {
                 filas.push(menu);
             } else {
                 const botonesRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('volver').setEmoji(getEmoji('pinkbow')).setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId('atras').setEmoji(getEmoji('whitebow')).setStyle(ButtonStyle.Secondary).setDisabled(index === 1),
-                    new ButtonBuilder().setCustomId('adelante').setEmoji(getEmoji('arrow')).setStyle(ButtonStyle.Secondary).setDisabled(index === paginasTotales - 1)
+                    new ButtonBuilder().setCustomId('volver').setEmoji(emojis.pinkbow || '🎀').setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId('atras').setEmoji(emojis.whitebow || '⬅️').setStyle(ButtonStyle.Secondary).setDisabled(index === 1),
+                    new ButtonBuilder().setCustomId('adelante').setEmoji(emojis.arrow || '➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === paginasTotales - 1)
                 );
 
-                // El diamante solo aparece si eres tú (o premium en el futuro)
                 if (esPremium) {
-                    botonesRow.addComponents(new ButtonBuilder().setCustomId('ir_premium').setEmoji('💎').setStyle(ButtonStyle.Primary));
+                    botonesRow.addComponents(new ButtonBuilder().setCustomId('ir_premium').setEmoji('💎').setStyle(ButtonStyle.Primary).setDisabled(index === 7));
                 }
 
-                botonesRow.addComponents(new ButtonBuilder().setCustomId('cerrar').setEmoji(getEmoji('heart')).setStyle(ButtonStyle.Danger));
+                botonesRow.addComponents(new ButtonBuilder().setCustomId('cerrar').setEmoji(emojis.heart || '❤️').setStyle(ButtonStyle.Danger));
                 filas.push(botonesRow);
             }
 
             return { embeds: [embed], components: filas };
         };
 
-        const msg = await input.reply(generarAyuda(0));
-        const collector = msg.createMessageComponentCollector({ filter: (i) => i.user.id === user.id, time: 300000 });
+        const response = await input.reply(generarAyuda(0));
+        
+        // Creamos el colector
+        const collector = response.createMessageComponentCollector({ 
+            componentType: ComponentType.Button || ComponentType.StringSelect,
+            time: 300000 
+        });
+
+        let paginaActual = 0;
 
         collector.on('collect', async (i) => {
+            if (i.user.id !== user.id) return i.reply({ content: '🌸 No puedes usar este menú.', ephemeral: true });
+
             if (i.customId === 'cerrar') return await i.message.delete().catch(() => {});
             
-            let paginaActual = 0;
-            const embedTitulo = i.message.embeds[0].title;
-            const indexActual = paginas.findIndex(p => p.title === embedTitulo);
-
+            // Lógica de navegación corregida
             if (i.customId === 'help_menu') paginaActual = parseInt(i.values[0]);
             else if (i.customId === 'volver') paginaActual = 0;
-            else if (i.customId === 'atras') paginaActual = Math.max(1, indexActual - 1);
-            else if (i.customId === 'adelante') paginaActual = Math.min(paginasTotales - 1, indexActual + 1);
+            else if (i.customId === 'atras') paginaActual = Math.max(1, paginaActual - 1);
+            else if (i.customId === 'adelante') paginaActual = Math.min(paginasTotales - 1, paginaActual + 1);
             else if (i.customId === 'ir_premium') paginaActual = 7;
 
             await i.update(generarAyuda(paginaActual)).catch(() => {});

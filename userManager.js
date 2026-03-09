@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { EmbedBuilder } = require('discord.js'); // Necesario para el DM
+const { EmbedBuilder } = require('discord.js');
 
 const UserSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
@@ -15,10 +15,15 @@ const UserSchema = new mongoose.Schema({
     lastRob: { type: Date, default: null },
     harem: { type: Array, default: [] },
     inventory: { type: Array, default: [] },
+    marryId: { type: String, default: null }, // ❤️ Añadido para matrimonios
     
-    // --- 🐾 NUEVA SECCIÓN DE NEKOS Y ESTADÍSTICAS ---
-    interactionsCount: { type: Number, default: 0 }, // Para Solas (100)
-    messageCount: { type: Number, default: 0 },      // Para Mizuki (5000)
+    // --- 📈 NIVELES Y ACTIVIDAD ---
+    xp: { type: Number, default: 0 },         // ✨ XP actual
+    level: { type: Number, default: 1 },      // 🆙 Nivel actual
+    interactionsCount: { type: Number, default: 0 }, 
+    messageCount: { type: Number, default: 0 },      
+    
+    // --- 🐾 NEKOS ---
     nekos: {
         solas: { type: Boolean, default: false },
         nyx: { type: Boolean, default: false },
@@ -30,16 +35,39 @@ const UserSchema = new mongoose.Schema({
 
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
 
+// --- 📈 FUNCIÓN DE XP Y NIVELES ---
+async function addXP(userId, amount, client) {
+    let user = await User.findOne({ userId });
+    if (!user) user = await User.create({ userId });
+
+    user.xp += amount;
+    const nextLevelXP = user.level * 500; // Cada nivel pide 500 más
+
+    if (user.xp >= nextLevelXP) {
+        user.level += 1;
+        user.xp = 0;
+        
+        // 🌑 Verificación de Neko Nyx (Nivel 10)
+        if (user.level === 10 && !user.nekos.nyx) {
+            await grantNeko(userId, 'nyx', client);
+        }
+        
+        await user.save();
+        return { leveledUp: true, level: user.level };
+    }
+
+    await user.save();
+    return { leveledUp: false };
+}
+
 // --- 🎀 FUNCIÓN PARA DAR NEKOS CON DM ---
 async function grantNeko(userId, nekoId, client) {
     const user = await User.findOne({ userId });
-    if (!user || user.nekos[nekoId]) return; // Si no existe o ya lo tiene, ignorar
+    if (!user || user.nekos[nekoId]) return;
 
-    // Marcar como obtenido
     user.nekos[nekoId] = true;
     await user.save();
 
-    // Enviar DM Aesthetic
     try {
         const discordUser = await client.users.fetch(userId);
         const names = { solas: 'Solas ☁️', nyx: 'Nyx 🌑', mizuki: 'Mizuki 🌸', astra: 'Astra 👑', koko: 'Koko 🍓' };
@@ -82,7 +110,7 @@ async function updateUserData(userId, data) {
     try {
         if (data.health <= 0) {
             data.deadCount = (data.deadCount || 0) + 1;
-            data.health = 3; // Te lo reseteo a 3 para que no buclee en muerte
+            data.health = 3; 
             data.wallet = 0; 
         }
         await User.findOneAndUpdate({ userId }, { $set: data }, { upsert: true });
@@ -90,4 +118,5 @@ async function updateUserData(userId, data) {
     } catch (err) { return false; }
 }
 
-module.exports = { User, getUserData, updateUserData, grantNeko };
+// Exportamos todo incluyendo la nueva función addXP
+module.exports = { User, getUserData, updateUserData, grantNeko, addXP };
