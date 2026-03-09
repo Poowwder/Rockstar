@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData } = require('../userManager.js'); // Ajustado a tu archivo real 🛠️
+const { getUserData } = require('../userManager.js'); 
+const emojis = require('../utils/emojiHelper.js');
 
 module.exports = {
     name: 'inv',
@@ -13,22 +14,26 @@ module.exports = {
     async execute(input) {
         const isSlash = !!input.user;
         const target = isSlash ? (input.options.getUser('usuario') || input.user) : (input.mentions.users.first() || input.author);
-        const targetMember = input.guild.members.cache.get(target.id);
+        const targetMember = input.guild.members.cache.get(target.id) || { displayName: target.username };
         
         const data = await getUserData(target.id);
-        const inventario = data.inventory || [];
+        
+        // --- ⚙️ LÓGICA PARA LEER EL OBJETO ---
+        const inventario = data.inventory || {}; // Esto es un objeto: { wood: 10, stone: 5 }
+        const itemKeys = Object.keys(inventario).filter(key => inventario[key] > 0);
 
-        // Lógica para mostrar los items de forma organizada
         let listaItems = "";
-        if (inventario.length === 0) {
-            listaItems = "*Tu mochila está vacía... ¡ve a la boutique!* 🌸";
+
+        if (itemKeys.length === 0) {
+            listaItems = "*Tu mochila está vacía... ¡ve a recolectar algo!* 🌸";
         } else {
-            // Agrupamos items repetidos para que se vea más limpio
-            const counts = {};
-            inventario.forEach(x => { counts[x] = (counts[x] || 0) + 1; });
-            
-            listaItems = Object.entries(counts)
-                .map(([name, count]) => `╰┈➤ **${name}** x\`${count}\``)
+            // Mapeamos las llaves del objeto para mostrar nombre y cantidad
+            listaItems = itemKeys
+                .map(key => {
+                    // Ponemos la primera letra en mayúscula y reemplazamos guiones bajos
+                    const nameNice = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    return `╰┈➤ **${nameNice}** x\`${inventario[key]}\``;
+                })
                 .join('\n');
         }
 
@@ -43,7 +48,7 @@ module.exports = {
             )
             .setTimestamp()
             .setFooter({ 
-                text: `Consultado por: ${isSlash ? input.user.username : input.author.username} ♡`, 
+                text: `Rockstar Inventory ✨`, 
                 iconURL: target.displayAvatarURL() 
             });
 

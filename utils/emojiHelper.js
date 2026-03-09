@@ -1,11 +1,11 @@
 const path = require('path');
 const fs = require('fs');
 
-// 🚀 RUTA RELATIVA DIRECTA:
-// __dirname es /utils. 
-// '..' sube a la raíz del proyecto.
-// 'data/emojis.json' entra a la carpeta.
-const jsonPath = path.join(__dirname, '..', 'data', 'emojis.json');
+/**
+ * Buscamos el archivo en la raíz del proyecto.
+ * process.cwd() apunta a /opt/render/project/ (la raíz en Render)
+ */
+const jsonPath = path.join(process.cwd(), 'data', 'emojis.json');
 
 let listaRaw = {};
 
@@ -13,19 +13,31 @@ try {
     if (fs.existsSync(jsonPath)) {
         const contenido = fs.readFileSync(jsonPath, 'utf8');
         listaRaw = JSON.parse(contenido);
-        console.log("✅ Emojis cargados con éxito desde: " + jsonPath);
+        console.log("✅ [EmojiHelper] Archivo cargado desde: " + jsonPath);
     } else {
-        // Si falla, imprimimos dónde lo buscó para saber qué pasa en Render
-        console.error("❌ ERROR: El archivo NO existe en: " + jsonPath);
-        listaRaw = { pinkbow: '🎀', whitebow: '⬅️', arrow: '➡️', heart: '❤️', star: '⭐', pinkstars: '✨', exclamation: '⚠️' };
+        // Si no está ahí, intentamos una ruta relativa de emergencia
+        const fallbackPath = path.resolve(__dirname, '../data/emojis.json');
+        if (fs.existsSync(fallbackPath)) {
+            listaRaw = JSON.parse(fs.readFileSync(fallbackPath, 'utf8'));
+            console.log("✅ [EmojiHelper] Archivo cargado (Fallback): " + fallbackPath);
+        } else {
+            console.error("❌ [EmojiHelper] NO SE ENCONTRÓ EL ARCHIVO EN:");
+            console.error("   1. " + jsonPath);
+            console.error("   2. " + fallbackPath);
+            // Valores por defecto para que el bot no crashee
+            listaRaw = { pinkbow: '🎀', heart: '🌸', pinkstars: '✨', exclamation: '⚠️' };
+        }
     }
 } catch (e) {
-    console.error("❌ Error al procesar el JSON:", e.message);
-    listaRaw = { pinkbow: '🎀', whitebow: '⬅️', arrow: '➡️', heart: '❤️', star: '⭐', pinkstars: '✨', exclamation: '⚠️' };
+    console.error("❌ [EmojiHelper] Error crítico:", e.message);
+    listaRaw = { pinkbow: '🎀', heart: '🌸', pinkstars: '✨', exclamation: '⚠️' };
 }
 
+// Convertimos el objeto en una función con propiedades (tu sistema actual)
 const valores = Object.values(listaRaw);
-function helper() { return valores.length > 0 ? valores[Math.floor(Math.random() * valores.length)] : '✨'; }
+function helper() {
+    return valores.length > 0 ? valores[Math.floor(Math.random() * valores.length)] : '✨';
+}
 
 for (const [key, value] of Object.entries(listaRaw)) {
     helper[key] = value;
