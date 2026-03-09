@@ -1,8 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData } = require('../userManager.js');
-const { addXP } = require('../levelManager.js');
+const { getUserData, updateUserData, addXP } = require('../userManager.js'); // ✅ Importación corregida
 const fs = require('fs');
 const path = require('path');
+const emojis = require('../utils/emojiHelper.js'); 
 
 const recipesPath = path.join(__dirname, '../data/recipes.json');
 
@@ -16,11 +16,17 @@ module.exports = {
     async execute(interaction) {
         const userId = interaction.user.id;
         const member = interaction.member;
+        
+        // Verificamos que el archivo de recetas exista para evitar crashes
+        if (!fs.existsSync(recipesPath)) {
+            return interaction.reply({ content: "⚠️ No se encontró el libro de recetas (`recipes.json`).", ephemeral: true });
+        }
+
         const recipes = JSON.parse(fs.readFileSync(recipesPath, 'utf8'));
         const itemToCraft = interaction.options.getString('item')?.toLowerCase();
         const data = await getUserData(userId);
 
-        // --- MENÚ DE RECETAS AESTHETIC ---
+        // --- 🎀 MENÚ DE RECETAS AESTHETIC ---
         if (!itemToCraft) {
             let listaRecetas = "";
             for (const id in recipes) {
@@ -49,26 +55,32 @@ module.exports = {
         const recipe = recipes[itemToCraft];
         if (!recipe) return interaction.reply({ content: "╰┈➤ 🌸 **¡Oh no!** Esa receta no existe en mi librito rosa.", ephemeral: true });
 
-        // --- VERIFICAR MATERIALES ---
+        // --- 🛡️ VERIFICAR MATERIALES ---
+        // Aseguramos que data.inventory sea un objeto
+        if (!data.inventory) data.inventory = []; 
+        
+        // Nota: Si tu inventario es un Array de objetos, esta lógica cambia, 
+        // pero asumiendo que es un objeto de cantidades:
         for (const mat in recipe.materials) {
-            if ((data.inventory[mat] || 0) < recipe.materials[mat]) {
+            const cantidadPoseida = data.inventory[mat] || 0;
+            if (cantidadPoseida < recipe.materials[mat]) {
                 return interaction.reply({ content: `╰┈➤ ❌ **${member.displayName}**, te falta un poquito de **${mat}** para completar esto.`, ephemeral: true });
             }
         }
 
-        // --- LÓGICA DE FALLO ---
-        const isPremium = data.premiumType === 'mensual' || data.premiumType === 'bimestral';
-        const failChance = isPremium ? 0.10 : 0.30; // 10% VIP vs 30% Normal
+        // --- 🎲 LÓGICA DE FALLO ---
+        const isPremium = data.premiumType !== 'none';
+        const failChance = isPremium ? 0.10 : 0.30; 
         const random = Math.random();
 
-        // Consumir materiales siempre
+        // Consumir materiales
         for (const mat in recipe.materials) {
             data.inventory[mat] -= recipe.materials[mat];
         }
 
-        // --- RESULTADO: FALLO ---
+        // --- 💥 RESULTADO: FALLO ---
         if (random < failChance) {
-            await updateUserData(userId, data);
+            await updateUserData(userId, { inventory: data.inventory });
             const failEmbed = new EmbedBuilder()
                 .setTitle('💥 ‧₊˚ ¡Algo salió mal! ˚₊‧ 💥')
                 .setColor('#FF9AA2')
@@ -86,10 +98,14 @@ module.exports = {
             return interaction.reply({ embeds: [failEmbed] });
         }
 
-        // --- RESULTADO: ÉXITO ---
+        // --- ✨ RESULTADO: ÉXITO ---
         data.inventory[itemToCraft] = (data.inventory[itemToCraft] || 0) + 1;
-        await updateUserData(userId, data);
-        await addXP(userId, 150, interaction, { getUserData, updateUserData });
+        
+        // Guardamos cambios
+        await updateUserData(userId, { inventory: data.inventory });
+        
+        // Sistema de XP (Usando la nueva función de userManager)
+        const xpResult = await addXP(userId, 150, interaction.client);
 
         const successEmbed = new EmbedBuilder()
             .setTitle('✨ ‧₊˚ ¡Creación Exitosa! ˚₊‧ ✨')
@@ -100,7 +116,7 @@ module.exports = {
                 `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
                 `🌸 **Objeto:** \`${recipe.name}\`\n` +
                 `💎 **Bonus:** \`+150 XP\`\n` +
-                `✨ **Estado:** \`¡Listo para usar!\`\n\n` +
+                `✨ **Estado:** \`¡Listo para usar!\`${xpResult.leveledUp ? `\n\n${emojis.pinkstars || '⭐'} **¡LEVEL UP!** Ahora eres nivel **${xpResult.level}**` : ''}\n\n` +
                 `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
                 `╰┈➤ *¡Eres una artesana Rockstar increíble!*`
             )
