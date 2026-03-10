@@ -1,23 +1,28 @@
 const { 
-    EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, 
-    StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ComponentType 
+    SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, 
+    ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ComponentType 
 } = require('discord.js');
 const { getUserData, updateUserData, addXP } = require('../userManager.js');
 
 module.exports = {
     name: 'craft',
-    description: 'Taller de forja y restauración gótica.',
+    description: 'Taller de forja y restauración aesthetic.',
     category: 'economia',
-    usage: '!!craft',
-    async execute(message, args) {
-        const user = message.author;
-        const guild = message.guild;
-        
-        // --- ⟢ Emojis Dinámicos ⟢ ---
-        const localEmojis = guild.emojis.cache.filter(e => e.available);
-        const getRndEmoji = () => localEmojis.size > 0 ? localEmojis.random().toString() : '';
+    data: new SlashCommandBuilder()
+        .setName('craft')
+        .setDescription('🛠️ Fabrica o repara herramientas mágicas'),
 
-        // --- ✦ Base de Datos de Herramientas ✦ ---
+    async execute(input) {
+        const isSlash = input.type !== undefined;
+        const user = isSlash ? input.user : input.author;
+        const guild = input.guild;
+        const userId = user.id;
+
+        const getRndEmoji = () => {
+            const emojis = guild.emojis.cache.filter(e => e.available);
+            return emojis.size > 0 ? emojis.random().toString() : '✨';
+        };
+
         const recipes = {
             picos: [
                 { id: 'pico_madera', name: 'Púa de Corteza', mats: { madera: 5 }, dur: 15, premium: false },
@@ -35,106 +40,79 @@ module.exports = {
             ]
         };
 
-        let data = await getUserData(user.id);
+        let data = await getUserData(userId);
         
-        // --- ⚖️ Configuración de Probabilidades ---
-        let failChance = 0.20; // 20% Normal
-        if (data.premiumType === 'pro') failChance = 0.10; // 10% Pro
-        if (data.premiumType === 'ultra') failChance = 0.15; // 15% Ultra
+        let failChance = 0.20; 
+        if (data.premiumType === 'pro') failChance = 0.10; 
+        if (data.premiumType === 'ultra') failChance = 0.15; 
 
         let currentCategory = 'home';
 
         const generarInterfaz = () => {
             const embed = new EmbedBuilder()
                 .setColor('#1a1a1a')
-                .setFooter({ text: `✦ ${user.username} ⊹ Alquimia de Sombras`, iconURL: user.displayAvatarURL() });
+                .setFooter({ text: `✦ ${user.username} ⊹ Alquimia`, iconURL: user.displayAvatarURL() });
 
+            const rows = [];
             const rowNav = new ActionRowBuilder();
-            const rowMenu = new ActionRowBuilder();
 
             if (currentCategory === 'home') {
-                embed.setTitle(`${getRndEmoji()} ⟢ ₊˚ Taller Rockstar ˚₊ ⟣ ${getRndEmoji()}`.trim())
-                    .setDescription(
-                        `> *“Lo que se rompe puede sanar, pero lo que se descuida se pierde...”* ⊹\n\n` +
-                        `Bienvenida la persona artesana. ¿En qué puedo asistirte?\n\n` +
-                        `✦ **Picos / Cañas:** Crea herramientas nuevas.\n` +
-                        `✦ **Reparar:** Restaura tus objetos dañados (Una vida extra).`
-                    );
+                embed.setTitle(`${getRndEmoji()} ⟢ ₊˚ Taller Rockstar ˚₊ ⟣ ${getRndEmoji()}`)
+                    .setDescription(`> *“Lo que se rompe puede sanar, pero lo que se descuida se pierde...”*\n\nBienvenida la persona artesana. ¿Qué deseas hacer hoy?`);
 
                 rowNav.addComponents(
                     new ButtonBuilder().setCustomId('cat_picos').setLabel('PICOS').setStyle(ButtonStyle.Secondary).setEmoji('⚒️'),
                     new ButtonBuilder().setCustomId('cat_canas').setLabel('CAÑAS').setStyle(ButtonStyle.Secondary).setEmoji('🎣'),
                     new ButtonBuilder().setCustomId('cat_repair').setLabel('REPARAR').setStyle(ButtonStyle.Secondary).setEmoji('🛠️'),
-                    new ButtonBuilder().setCustomId('close').setLabel('Cerrar').setStyle(ButtonStyle.Danger)
+                    new ButtonBuilder().setCustomId('close').setLabel('CERRAR').setStyle(ButtonStyle.Danger)
                 );
+                rows.push(rowNav);
             } 
             else if (currentCategory === 'repair') {
-                const brokenItems = Object.entries(data.inventory || {})
-                    .filter(([id, qty]) => id.endsWith('_broken') && qty > 0);
-
-                embed.setTitle(`${getRndEmoji()} ⊹ Restauración de Alma ⊹ ${getRndEmoji()}`.trim())
-                    .setDescription(
-                        `*Objetos que aún tienen una esperanza:* ✦\n\n` +
-                        (brokenItems.length > 0 
-                            ? brokenItems.map(([id]) => `╰┈➤ **${id.replace('_broken', '').toUpperCase()}**\n 🎀 *Costo:* 50% de materiales originales.`).join('\n\n')
-                            : "🥀 *No tienes herramientas rotas actualmente.*")
-                    );
+                const brokenItems = Object.entries(data.inventory || {}).filter(([id, qty]) => id.endsWith('_broken') && qty > 0);
+                embed.setTitle(`${getRndEmoji()} ⊹ Restauración ⊹ ${getRndEmoji()}`)
+                    .setDescription(brokenItems.length > 0 ? brokenItems.map(([id]) => `╰┈➤ **${id.replace('_broken', '').toUpperCase()}**\n 🎀 *Costo:* 50% materiales.`).join('\n\n') : "🥀 *No hay herramientas rotas en tu inventario.*");
 
                 rowNav.addComponents(
-                    new ButtonBuilder().setCustomId('go_home').setLabel('Volver').setStyle(ButtonStyle.Secondary).setEmoji('🏠'),
+                    new ButtonBuilder().setCustomId('go_home').setLabel('Inicio').setStyle(ButtonStyle.Secondary).setEmoji('🏠'),
                     new ButtonBuilder().setCustomId('close').setLabel('Cerrar').setStyle(ButtonStyle.Danger)
                 );
+                rows.push(rowNav);
 
                 if (brokenItems.length > 0) {
-                    const select = new StringSelectMenuBuilder().setCustomId('do_repair').setPlaceholder('¿Qué deseas reparar?');
+                    const select = new StringSelectMenuBuilder().setCustomId('do_repair').setPlaceholder('Selecciona un objeto roto...');
                     brokenItems.forEach(([id]) => select.addOptions(new StringSelectMenuOptionBuilder().setLabel(id.replace('_broken', '').toUpperCase()).setValue(id)));
-                    rowMenu.addComponents(select);
+                    rows.push(new ActionRowBuilder().addComponents(select));
                 }
             }
             else {
                 const pool = recipes[currentCategory].filter(i => !i.premium || (data.premiumType !== 'none' && data.premiumType !== undefined));
-                
-                embed.setTitle(`${getRndEmoji()} ⊹ Sección: ${currentCategory.toUpperCase()} ⊹ ${getRndEmoji()}`.trim())
-                    .setDescription(
-                        `*Detalles de forja para esta sección:* ✦\n\n` +
-                        pool.map(i => `**${i.name}**\n╰ Durabilidad: \`${i.dur} usos\` ⊹ \`${(failChance * 100).toFixed(0)}% fallo\``).join('\n\n')
-                    );
+                embed.setTitle(`${getRndEmoji()} ⊹ Sección: ${currentCategory.toUpperCase()} ⊹ ${getRndEmoji()}`)
+                    .setDescription(pool.map(i => `**${i.name}**\n╰ Dur: \`${i.dur}\` ⊹ Fallo: \`${(failChance * 100).toFixed(0)}%\``).join('\n\n'));
 
                 rowNav.addComponents(
-                    new ButtonBuilder().setCustomId('go_home').setLabel('Volver').setStyle(ButtonStyle.Secondary).setEmoji('🏠'),
+                    new ButtonBuilder().setCustomId('go_home').setLabel('Inicio').setStyle(ButtonStyle.Secondary).setEmoji('🏠'),
                     new ButtonBuilder().setCustomId('close').setLabel('Cerrar').setStyle(ButtonStyle.Danger)
                 );
+                rows.push(rowNav);
 
                 const select = new StringSelectMenuBuilder().setCustomId('do_craft').setPlaceholder('Forjar herramienta...');
                 pool.forEach(i => select.addOptions(new StringSelectMenuOptionBuilder().setLabel(i.name).setValue(i.id)));
-                rowMenu.addComponents(select);
+                rows.push(new ActionRowBuilder().addComponents(select));
             }
-
-            return { embeds: [embed], components: rowMenu.components.length > 0 ? [rowNav, rowMenu] : [rowNav] };
+            return { embeds: [embed], components: rows };
         };
 
-        const response = await message.reply(generarInterfaz());
+        const response = isSlash ? await input.reply({ ...generarInterfaz(), fetchReply: true }) : await input.reply(generarInterfaz());
         const collector = response.createMessageComponentCollector({ time: 300000 });
 
         collector.on('collect', async i => {
-            if (i.user.id !== user.id) return i.reply({ content: '⟢ Estas sombras no te pertenecen.', ephemeral: true });
+            if (i.user.id !== userId) return i.reply({ content: '⟢ Estas sombras no te pertenecen.', ephemeral: true });
 
-            if (i.customId === 'close') {
-                await i.message.delete().catch(() => null);
-                return collector.stop();
-            }
+            if (i.customId === 'close') { await i.message.delete().catch(() => null); return collector.stop(); }
+            if (i.customId === 'go_home') currentCategory = 'home';
+            else if (i.customId.startsWith('cat_')) currentCategory = i.customId.replace('cat_', '');
 
-            if (i.customId === 'go_home') {
-                currentCategory = 'home';
-                return await i.update(generarInterfaz());
-            }
-
-            if (i.customId.startsWith('cat_')) {
-                currentCategory = i.customId.replace('cat_', '');
-                return await i.update(generarInterfaz());
-            }
-
-            // --- ⚙️ Lógica de Reparación ---
             if (i.customId === 'do_repair') {
                 const brokenId = i.values[0];
                 const originalId = brokenId.replace('_broken', '');
@@ -148,31 +126,33 @@ module.exports = {
 
                 data.inventory[brokenId] -= 1;
                 data.inventory[`${originalId}_repaired`] = (data.inventory[`${originalId}_repaired`] || 0) + 1;
-                await updateUserData(user.id, { inventory: data.inventory });
-                await i.reply({ content: `✨ ⊹ **${recipe.name}** restaurado. Esta es su última vida. ✦`, ephemeral: true });
+                await updateUserData(userId, { inventory: data.inventory });
+                await i.reply({ content: `✨ **${recipe.name}** restaurado. ¡Es su última vida! ✦`, ephemeral: true });
                 return await i.message.edit(generarInterfaz());
             }
 
-            // --- ⚒️ Lógica de Crafteo ---
             if (i.customId === 'do_craft') {
-                const recipe = [...recipes.picos, ...recipes.canas].find(r => r.id === i.values[0]);
+                const recipeId = i.values[0];
+                const recipe = [...recipes.picos, ...recipes.canas].find(r => r.id === recipeId);
 
                 for (const [mat, cant] of Object.entries(recipe.mats)) {
-                    if ((data.inventory[mat] || 0) < cant) return i.reply({ content: `🕸️ Te faltan materiales.`, ephemeral: true });
+                    if ((data.inventory[mat] || 0) < cant) return i.reply({ content: `🕸️ No tienes materiales suficientes.`, ephemeral: true });
                     data.inventory[mat] -= cant;
                 }
 
                 if (Math.random() < failChance) {
-                    await updateUserData(user.id, { inventory: data.inventory });
+                    await updateUserData(userId, { inventory: data.inventory });
                     return i.reply({ content: `💥 La forja falló. Los materiales se han perdido. 🥀`, ephemeral: true });
                 }
 
                 data.inventory[recipe.id] = (data.inventory[recipe.id] || 0) + 1;
-                await updateUserData(user.id, { inventory: data.inventory });
-                await addXP(user.id, 150, i.client);
-                await i.reply({ content: `✨ ⊹ **${recipe.name}** forjado con éxito. ✦`, ephemeral: true });
+                await updateUserData(userId, { inventory: data.inventory });
+                await addXP(userId, 150, i.client);
+                await i.reply({ content: `✨ **${recipe.name}** forjado con éxito. ✦`, ephemeral: true });
                 return await i.message.edit(generarInterfaz());
             }
+
+            await i.update(generarInterfaz());
         });
     }
 };
