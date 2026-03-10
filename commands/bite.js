@@ -1,14 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runAction } = require('../utils/actionHandler.js');
 module.exports = {
-    name: 'bite',
-    description: 'Dale una mordidita a alguien 🦷',
-    async execute(message, args) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply("🌸 ¿A quién quieres morder, linda? ✨");
-        const embed = new EmbedBuilder()
-            .setDescription(`🦷 **${message.author.username}** le dio una mordida a **${user.username}**... ¡Auch! 🎀`)
-            .setImage("https://media.tenor.com/noV4m_In6v4AAAAC/anime-bite.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'bite', description: 'Muerde a alguien', category: 'interacción',
+    async execute(input) {
+        const target = input.mentions.users.first();
+        if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
+        const result = await runAction(input, 'bite', target);
+        await input.reply(result);
     }
 };
