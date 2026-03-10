@@ -2,109 +2,78 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentTyp
 
 module.exports = {
     name: 'help',
-    description: 'Muestra la lista de comandos del bot.',
+    description: 'Muestra la lista de comandos.',
+    category: 'info',
     async execute(message, args) {
         
-        // --- 📂 CONFIGURACIÓN DE CONTENIDO ---
-        const info = {
+        // --- FILAS DE BOTONES ---
+        const rowMain = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('cat_economia').setLabel('Economía').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('cat_niveles').setLabel('Niveles').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('cat_diversion').setLabel('Diversión').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('cat_utilidad').setLabel('Utilidad').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('close_help').setLabel('Cerrar').setStyle(ButtonStyle.Danger)
+        );
+
+        const rowOnlyClose = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('close_help').setLabel('Cerrar').setStyle(ButtonStyle.Danger)
+        );
+
+        // --- CONTENIDO ---
+        const pages = {
             main: {
-                title: '🌸 Panel de Categorías - Rockstar',
-                description: 'Bienvenido al menú de ayuda. Haz clic en los botones de abajo para ver los comandos de cada sección.\n\n' +
-                             '💰 **Economía**\n' +
-                             '🎀 **Niveles**\n' +
-                             '🎮 **Diversión**\n' +
-                             '⚙️ **Utilidad**',
-                color: '#ffb7c5'
+                title: '📂 Categorías del Bot',
+                description: 'Selecciona una categoría para ver sus comandos:\n\n💰 **Economía**\n🎀 **Niveles**\n🎮 **Diversión**\n⚙️ **Utilidad**',
+                components: [rowMain]
             },
             economia: {
                 title: '💰 Categoría: Economía',
-                description: 'Aquí encontrarás todo lo necesario para gestionar tus monedas y progresar financieramente en el servidor.',
-                commands: '`!!work`, `!!bal`, `!!daily`, `!!shop`, `!!pay`',
-                color: '#f1c40f'
+                description: 'Comandos para gestionar tu dinero:\n\n`!!work` - Trabaja por monedas.\n`!!bal` - Mira tu dinero.\n`!!daily` - Tu bono diario.',
+                components: [rowOnlyClose] // SOLO CERRAR
             },
             niveles: {
                 title: '🎀 Categoría: Niveles',
-                description: 'Comandos para revisar tu experiencia, rango y el ranking global de usuarios activos.',
-                commands: '`!!rank`, `!!leaderboard`, `!!xp-info`',
-                color: '#e91e63'
+                description: 'Tu progreso en el servidor:\n\n`!!rank` - Tu nivel actual.\n`!!leaderboard` - Los mejores del servidor.',
+                components: [rowOnlyClose] // SOLO CERRAR
             },
             diversion: {
                 title: '🎮 Categoría: Diversión',
-                description: '¡Pásalo bien con estos comandos! Roleplay, juegos y acciones para interactuar con otros.',
-                commands: '`!!kiss`, `!!hug`, `!!slap`, `!!dice`, `!!8ball`',
-                color: '#3498db'
+                description: 'Para pasar el rato:\n\n`!!kiss` - Un beso.\n`!!hug` - Un abrazo.\n`!!slap` - Una bofetada.',
+                components: [rowOnlyClose] // SOLO CERRAR
             },
             utilidad: {
                 title: '⚙️ Categoría: Utilidad',
-                description: 'Información técnica, ayuda del sistema y herramientas útiles para el día a día.',
-                commands: '`!!ping`, `!!userinfo`, `!!serverinfo`, `!!avatar`',
-                color: '#95a5a6'
+                description: 'Información y herramientas:\n\n`!!bot-info` - Stats del bot.\n`!!invite` - Link de invitación.\n`!!setup-full` - Configura el servidor.',
+                components: [rowOnlyClose] // SOLO CERRAR
             }
         };
 
-        // --- 🔘 FILAS DE BOTONES ---
-        // Fila 1: Solo para el menú principal (Categorías)
-        const rowMain = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('go_economia').setLabel('Economía').setEmoji('💰').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('go_niveles').setLabel('Niveles').setEmoji('🎀').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('go_diversion').setLabel('Diversión').setEmoji('🎮').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('go_utilidad').setLabel('Utilidad').setEmoji('⚙️').setStyle(ButtonStyle.Secondary)
-        );
+        const embed = new EmbedBuilder()
+            .setTitle(pages.main.title)
+            .setDescription(pages.main.description)
+            .setColor('#ffb7c5');
 
-        // Fila 2: Solo el botón de Cerrar (y Volver si quisieras, pero pondremos solo Cerrar)
-        const rowClose = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('close_help').setLabel('Cerrar Menú').setStyle(ButtonStyle.Danger)
-        );
+        const response = await message.reply({ embeds: [embed], components: pages.main.components });
 
-        // --- 🖼️ MENSAJE INICIAL ---
-        const mainEmbed = new EmbedBuilder()
-            .setTitle(info.main.title)
-            .setDescription(info.main.description)
-            .setColor(info.main.color)
-            .setThumbnail(message.client.user.displayAvatarURL());
-
-        const response = await message.reply({ 
-            embeds: [mainEmbed], 
-            components: [rowMain, rowClose] 
-        });
-
-        const collector = response.createMessageComponentCollector({
-            componentType: ComponentType.Button,
-            time: 60000
-        });
+        const collector = response.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
 
         collector.on('collect', async (i) => {
-            if (i.user.id !== message.author.id) {
-                return i.reply({ content: '❌ Solo quien pidió la ayuda puede usar los botones.', ephemeral: true });
-            }
+            if (i.user.id !== message.author.id) return i.reply({ content: 'No puedes usar esto.', ephemeral: true });
 
             if (i.customId === 'close_help') {
-                await i.update({ content: '🌸 Menú de ayuda cerrado.', embeds: [], components: [] });
+                await i.update({ content: 'Menú cerrado.', embeds: [], components: [] });
                 return collector.stop();
             }
 
-            // Identificar qué categoría eligió
-            const selected = i.customId.split('_')[1];
-            const data = info[selected];
+            const cat = i.customId.replace('cat_', '');
+            const page = pages[cat];
 
-            const categoryEmbed = new EmbedBuilder()
-                .setTitle(data.title)
-                .setDescription(`${data.description}\n\n**Comandos:**\n${data.commands}`)
-                .setColor(data.color)
-                .setFooter({ text: 'Usa !! antes de cada comando' });
+            const newEmbed = new EmbedBuilder()
+                .setTitle(page.title)
+                .setDescription(page.description)
+                .setColor('#ffb7c5');
 
-            // AQUÍ ESTÁ EL CAMBIO: Al entrar a una categoría, quitamos la fila de navegación (rowMain)
-            // y dejamos solamente el botón de Cerrar (rowClose).
-            await i.update({ 
-                embeds: [categoryEmbed], 
-                components: [rowClose] 
-            });
+            await i.update({ embeds: [newEmbed], components: page.components });
         });
-
-        collector.on('end', () => {
-            if (response.editable) {
-                response.edit({ components: [] }).catch(() => {});
-            }
-        });
-    },
+    }
 };
