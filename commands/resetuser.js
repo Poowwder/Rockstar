@@ -4,7 +4,7 @@ const { updateUserData } = require('../userManager.js');
 module.exports = {
     name: 'reset',
     data: new SlashCommandBuilder()
-        .setName('reset')
+        .setName('resetuser')
         .setDescription('🧹 Reinicia los datos de un usuario (Admin Only)')
         .addUserOption(opt => opt.setName('usuario').setDescription('Usuario a reiniciar').setRequired(true))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),

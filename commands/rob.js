@@ -3,7 +3,7 @@ const { getUserData, updateUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'crime',
-    data: new SlashCommandBuilder().setName('crime').setDescription('🕶️ Crimen Rockstar'),
+    data: new SlashCommandBuilder().setName('rob').setDescription('🕶️ Crimen Rockstar'),
     async execute(input) {
         const user = input.user || input.author;
         let data = await getUserData(user.id);

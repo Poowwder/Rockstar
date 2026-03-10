@@ -3,7 +3,7 @@ const { getGuildData, updateGuildData } = require('../userManager.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('reset')
+        .setName('resetconfig')
         .setDescription('🗑️ Borra la configuración visual del servidor')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
         .addSubcommand(sub =>
