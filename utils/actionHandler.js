@@ -1,47 +1,115 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 
-async function runAction(client, type, user, target) {
-    // Si el usuario intenta hacerse la acción a sí mismo (opcional)
-    if (user.id === target.id) {
-        return { content: "¡No puedes hacerte eso a ti misma, loquita! 🐾", ephemeral: true };
+// --- ✨ EMOJIS AL AZAR ---
+const getRndEmoji = (guild) => {
+    if (!guild) return '✨';
+    const emojis = guild.emojis.cache.filter(e => e.available);
+    return emojis.size > 0 ? emojis.random().toString() : '✨';
+};
+
+// --- ⚙️ HANDLER PRINCIPAL ---
+// Nota: Cambié 'client' por 'input' (el message o interaction) para poder extraer el Guild y los Apodos.
+async function runAction(input, type, targetUser) {
+    const isSlash = !!input.user;
+    const author = isSlash ? input.user : input.author;
+    const guild = input.guild;
+
+    // Obtenemos los apodos (Display Names) del servidor
+    const authorMember = guild.members.cache.get(author.id) || { displayName: author.username };
+    const targetMember = guild.members.cache.get(targetUser.id) || { displayName: targetUser.username };
+
+    const e1 = getRndEmoji(guild);
+    const e2 = getRndEmoji(guild);
+
+    // --- 🛡️ AUTO-ACCIÓN ---
+    if (author.id === targetUser.id) {
+        return { 
+            content: `╰┈➤ ${e1} Las sombras no permiten que dirijas esta acción hacia tu propia persona.`, 
+            ephemeral: true 
+        };
     }
 
+    // --- 📜 DICCIONARIO NEUTRAL Y AESTHETIC ---
     const actions = {
-        bite: { text: `¡**${user.username}** le dio un mordisco a **${target.username}**! 🦷`, color: '#FF5555' },
-        bully: { text: `¡**${user.username}** está molestando a **${target.username}**! 😈`, color: '#555555' },
-        clap: { text: `¡**${user.username}** le aplaude a **${target.username}**! 👏`, color: '#FFFF55' },
-        cuddle: { text: `¡**${user.username}** se acurruca tiernamente con **${target.username}**! 💤`, color: '#FFB6C1' },
-        feed: { text: `¡**${user.username}** le está dando de comer a **${target.username}**! 🍲`, color: '#FFA500' },
-        handhold: { text: `¡**${user.username}** tomó la mano de **${target.username}**! 🤝`, color: '#FFC0CB' },
-        highfive: { text: `¡**${user.username}** y **${target.username}** chocaron esos cinco! ✋`, color: '#00FF00' },
-        hug: { text: `¡**${user.username}** abrazó fuertemente a **${target.username}**! 🤗`, color: '#87CEEB' },
-        kill: { text: `¡**${user.username}** ha acabado con **${target.username}**! 💀`, color: '#000000' },
-        kiss: { text: `¡**${user.username}** le dio un beso a **${target.username}**! 💋`, color: '#FF0080' },
-        lick: { text: `¡**${user.username}** lamió a **${target.username}**! 👅`, color: '#FF69B4' },
-        nom: { text: `¡**${user.username}** le dio un ñam a **${target.username}**! 😋`, color: '#F4A460' },
-        pat: { text: `¡**${user.username}** acarició la cabecita de **${target.username}**! ✨`, color: '#FFFACD' },
-        poke: { text: `¡**${user.username}** está picando a **${target.username}**! 👉`, color: '#ADD8E6' },
-        punch: { text: `¡**${user.username}** le dio un puñetazo a **${target.username}**! 🥊`, color: '#FF4500' },
-        shoot: { text: `¡**${user.username}** le disparó a **${target.username}**! 🔫`, color: '#2F4F4F' },
-        slap: { text: `¡**${user.username}** le dio una cachetada a **${target.username}**! 🖐️`, color: '#FF0000' },
-        spank: { text: `¡**${user.username}** le dio una nalgada a **${target.username}**! 🍑`, color: '#800080' },
-        splash: { text: `¡**${user.username}** salpicó de agua a **${target.username}**! 💦`, color: '#0000FF' },
-        spray: { text: `¡**${user.username}** roció a **${target.username}**! 💨`, color: '#7FFFD4' },
-        stare: { text: `**${user.username}** mira fijamente a **${target.username}**... 👀`, color: '#F0E68C' },
-        sue: { text: `¡**${user.username}** demandó legalmente a **${target.username}**! ⚖️`, color: '#708090' },
-        tickle: { text: `¡**${user.username}** le hace cosquillas a **${target.username}**! 😂`, color: '#FFD700' },
-        yeet: { text: `¡**${user.username}** lanzó a **${target.username}** muy lejos! 🚀`, color: '#00FFFF' }
+        bite: `ha clavado sus colmillos en`,
+        bully: `ha decidido atormentar a`,
+        clap: `celebra con aplausos la presencia de`,
+        cuddle: `comparte un momento íntimo y se acurruca con`,
+        feed: `comparte su alimento con`,
+        handhold: `entrelaza sus manos con`,
+        highfive: `choca los cinco en complicidad con`,
+        hug: `envuelve en un cálido abrazo a`,
+        kill: `ha reclamado el alma de`,
+        kiss: `ha sellado un beso con`,
+        lick: `ha pasado su lengua sobre`,
+        nom: `ha dado un mordisco juguetón a`,
+        pat: `acaricia suavemente a`,
+        poke: `ha dado un toque de atención a`,
+        punch: `ha asestado un golpe directo contra`,
+        shoot: `ha abierto fuego sin piedad contra`,
+        slap: `ha cruzado el rostro de`,
+        spank: `ha dado una palmada a`,
+        splash: `ha empapado por completo a`,
+        spray: `ha rociado sin compasión a`,
+        stare: `clava su mirada penetrante en`,
+        sue: `ha iniciado un conflicto legal contra`,
+        tickle: `desata una ola de cosquillas sobre`,
+        yeet: `ha mandado a volar lejos a`
     };
 
-    const action = actions[type];
+    const actionText = actions[type] || `interactúa misteriosamente con`;
 
+    // --- 🖼️ MOTOR DE RUTAS Y ARCHIVOS LOCALES ---
+    // Busca en la carpeta: /assets/actions/hug/ (o el tipo que sea)
+    const folderPath = path.join(__dirname, '..', 'assets', 'actions', type);
+    
+    let selectedImage = null;
+    let animeName = 'Desconocido';
+    let attachment = null;
+
+    try {
+        if (fs.existsSync(folderPath)) {
+            const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.gif') || file.endsWith('.png'));
+            
+            if (files.length > 0) {
+                // Elegimos un archivo al azar
+                selectedImage = files[Math.floor(Math.random() * files.length)];
+                
+                // Extraemos el nombre del Anime (Ej: "Naruto_01.gif" -> "Naruto")
+                animeName = selectedImage.split('_')[0].replace(/-/g, ' ');
+
+                // Preparamos el archivo para enviarlo a Discord
+                attachment = new AttachmentBuilder(path.join(folderPath, selectedImage), { name: selectedImage });
+            }
+        }
+    } catch (error) {
+        console.error(`❌ Error leyendo la ruta de imágenes para ${type}:`, error);
+    }
+
+    // --- 📄 CONSTRUCCIÓN DEL EMBED ROCKSTAR ---
     const embed = new EmbedBuilder()
-        .setColor(action.color)
-        .setDescription(action.text)
-        .setImage('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjEx.../giphy.gif') // Aquí pon tus GIFs preferidos
-        .setFooter({ text: `Acción solicitada por ${user.username}` });
+        .setColor('#1a1a1a')
+        .setDescription(`> ${e1} **${authorMember.displayName}** ${actionText} **${targetMember.displayName}** ${e2}`)
+        .setTimestamp() // Agrega la hora exacta abajo
+        .setFooter({ 
+            text: `Fuente: ${animeName} ⊹ Solicitado por ${authorMember.displayName}`,
+            iconURL: author.displayAvatarURL({ dynamic: true })
+        });
 
-    return { embeds: [embed] };
+    // Si encontró una imagen local, la adjunta al embed
+    let responseObj = { embeds: [embed] };
+
+    if (attachment && selectedImage) {
+        embed.setImage(`attachment://${selectedImage}`);
+        responseObj.files = [attachment];
+    } else {
+        // Fallback por si la carpeta está vacía
+        embed.setImage('https://i.pinimg.com/originals/c9/22/68/c92268d92cf2adc01fb14197940562dc.gif'); 
+    }
+
+    return responseObj;
 }
 
 module.exports = { runAction };
