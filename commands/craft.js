@@ -1,127 +1,178 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData, addXP } = require('../userManager.js'); // ✅ Importación corregida
-const fs = require('fs');
-const path = require('path');
-const emojis = require('../utils/emojiHelper.js'); 
-
-const recipesPath = path.join(__dirname, '../data/recipes.json');
+const { 
+    EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, 
+    StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ComponentType 
+} = require('discord.js');
+const { getUserData, updateUserData, addXP } = require('../userManager.js');
 
 module.exports = {
     name: 'craft',
-    data: new SlashCommandBuilder()
-        .setName('craft')
-        .setDescription('🛠️ Fabrica herramientas mágicas (Cuidado: puede fallar)')
-        .addStringOption(opt => opt.setName('item').setDescription('ID del objeto').setRequired(false)),
-
-    async execute(interaction) {
-        const userId = interaction.user.id;
-        const member = interaction.member;
+    description: 'Taller de forja y restauración gótica.',
+    category: 'economia',
+    usage: '!!craft',
+    async execute(message, args) {
+        const user = message.author;
+        const guild = message.guild;
         
-        // Verificamos que el archivo de recetas exista para evitar crashes
-        if (!fs.existsSync(recipesPath)) {
-            return interaction.reply({ content: "⚠️ No se encontró el libro de recetas (`recipes.json`).", ephemeral: true });
-        }
+        // --- ⟢ Emojis Dinámicos ⟢ ---
+        const localEmojis = guild.emojis.cache.filter(e => e.available);
+        const getRndEmoji = () => localEmojis.size > 0 ? localEmojis.random().toString() : '';
 
-        const recipes = JSON.parse(fs.readFileSync(recipesPath, 'utf8'));
-        const itemToCraft = interaction.options.getString('item')?.toLowerCase();
-        const data = await getUserData(userId);
+        // --- ✦ Base de Datos de Herramientas ✦ ---
+        const recipes = {
+            picos: [
+                { id: 'pico_madera', name: 'Púa de Corteza', mats: { madera: 5 }, dur: 15, premium: false },
+                { id: 'pico_piedra', name: 'Triturador de Granito', mats: { piedra: 10 }, dur: 45, premium: false },
+                { id: 'pico_hierro', name: 'Rompealmas de Acero', mats: { hierro: 8 }, dur: 120, premium: false },
+                { id: 'pico_diamante', name: 'Perforador Celestial', mats: { diamante: 5 }, dur: 350, premium: false },
+                { id: 'pico_mitico', name: 'Eclipse Eterno', mats: { diamante: 10, mitico: 1 }, dur: 2000, premium: true }
+            ],
+            canas: [
+                { id: 'cana_basica', name: 'Hilo de Seda', mats: { madera: 3, hilo: 2 }, dur: 10, premium: false },
+                { id: 'cana_reforzada', name: 'Garra de Río', mats: { madera: 5, hierro: 2 }, dur: 35, premium: false },
+                { id: 'cana_profesional', name: 'Señuelo Abisal', mats: { hierro: 5, diamante: 1 }, dur: 100, premium: false },
+                { id: 'cana_legendaria', name: 'Atrapasueños Marino', mats: { diamante: 5, perla: 2 }, dur: 300, premium: false },
+                { id: 'cana_divina', name: 'Lágrima de Neptuno', mats: { diamante: 10, esencia: 1 }, dur: 1500, premium: true }
+            ]
+        };
 
-        // --- 🎀 MENÚ DE RECETAS AESTHETIC ---
-        if (!itemToCraft) {
-            let listaRecetas = "";
-            for (const id in recipes) {
-                const r = recipes[id];
-                const mats = Object.entries(r.materials).map(([m, c]) => `\`${c}x ${m}\``).join(' 🌸 ');
-                listaRecetas += `╰┈➤ **${r.name}** \`(${id})\`\n 🎀 *Materiales:* ${mats}\n\n`;
+        let data = await getUserData(user.id);
+        
+        // --- ⚖️ Configuración de Probabilidades ---
+        let failChance = 0.20; // 20% Normal
+        if (data.premiumType === 'pro') failChance = 0.10; // 10% Pro
+        if (data.premiumType === 'ultra') failChance = 0.15; // 15% Ultra
+
+        let currentCategory = 'home';
+
+        const generarInterfaz = () => {
+            const embed = new EmbedBuilder()
+                .setColor('#1a1a1a')
+                .setFooter({ text: `✦ ${user.username} ⊹ Alquimia de Sombras`, iconURL: user.displayAvatarURL() });
+
+            const rowNav = new ActionRowBuilder();
+            const rowMenu = new ActionRowBuilder();
+
+            if (currentCategory === 'home') {
+                embed.setTitle(`${getRndEmoji()} ⟢ ₊˚ Taller Rockstar ˚₊ ⟣ ${getRndEmoji()}`.trim())
+                    .setDescription(
+                        `> *“Lo que se rompe puede sanar, pero lo que se descuida se pierde...”* ⊹\n\n` +
+                        `Bienvenida la persona artesana. ¿En qué puedo asistirte?\n\n` +
+                        `✦ **Picos / Cañas:** Crea herramientas nuevas.\n` +
+                        `✦ **Reparar:** Restaura tus objetos dañados (Una vida extra).`
+                    );
+
+                rowNav.addComponents(
+                    new ButtonBuilder().setCustomId('cat_picos').setLabel('PICOS').setStyle(ButtonStyle.Secondary).setEmoji('⚒️'),
+                    new ButtonBuilder().setCustomId('cat_canas').setLabel('CAÑAS').setStyle(ButtonStyle.Secondary).setEmoji('🎣'),
+                    new ButtonBuilder().setCustomId('cat_repair').setLabel('REPARAR').setStyle(ButtonStyle.Secondary).setEmoji('🛠️'),
+                    new ButtonBuilder().setCustomId('close').setLabel('Cerrar').setStyle(ButtonStyle.Danger)
+                );
+            } 
+            else if (currentCategory === 'repair') {
+                const brokenItems = Object.entries(data.inventory || {})
+                    .filter(([id, qty]) => id.endsWith('_broken') && qty > 0);
+
+                embed.setTitle(`${getRndEmoji()} ⊹ Restauración de Alma ⊹ ${getRndEmoji()}`.trim())
+                    .setDescription(
+                        `*Objetos que aún tienen una esperanza:* ✦\n\n` +
+                        (brokenItems.length > 0 
+                            ? brokenItems.map(([id]) => `╰┈➤ **${id.replace('_broken', '').toUpperCase()}**\n 🎀 *Costo:* 50% de materiales originales.`).join('\n\n')
+                            : "🥀 *No tienes herramientas rotas actualmente.*")
+                    );
+
+                rowNav.addComponents(
+                    new ButtonBuilder().setCustomId('go_home').setLabel('Volver').setStyle(ButtonStyle.Secondary).setEmoji('🏠'),
+                    new ButtonBuilder().setCustomId('close').setLabel('Cerrar').setStyle(ButtonStyle.Danger)
+                );
+
+                if (brokenItems.length > 0) {
+                    const select = new StringSelectMenuBuilder().setCustomId('do_repair').setPlaceholder('¿Qué deseas reparar?');
+                    brokenItems.forEach(([id]) => select.addOptions(new StringSelectMenuOptionBuilder().setLabel(id.replace('_broken', '').toUpperCase()).setValue(id)));
+                    rowMenu.addComponents(select);
+                }
+            }
+            else {
+                const pool = recipes[currentCategory].filter(i => !i.premium || (data.premiumType !== 'none' && data.premiumType !== undefined));
+                
+                embed.setTitle(`${getRndEmoji()} ⊹ Sección: ${currentCategory.toUpperCase()} ⊹ ${getRndEmoji()}`.trim())
+                    .setDescription(
+                        `*Detalles de forja para esta sección:* ✦\n\n` +
+                        pool.map(i => `**${i.name}**\n╰ Durabilidad: \`${i.dur} usos\` ⊹ \`${(failChance * 100).toFixed(0)}% fallo\``).join('\n\n')
+                    );
+
+                rowNav.addComponents(
+                    new ButtonBuilder().setCustomId('go_home').setLabel('Volver').setStyle(ButtonStyle.Secondary).setEmoji('🏠'),
+                    new ButtonBuilder().setCustomId('close').setLabel('Cerrar').setStyle(ButtonStyle.Danger)
+                );
+
+                const select = new StringSelectMenuBuilder().setCustomId('do_craft').setPlaceholder('Forjar herramienta...');
+                pool.forEach(i => select.addOptions(new StringSelectMenuOptionBuilder().setLabel(i.name).setValue(i.id)));
+                rowMenu.addComponents(select);
             }
 
-            const listEmbed = new EmbedBuilder()
-                .setTitle('🛠️ ‧₊˚ Taller Artesanal Rockstar ˚₊‧ 🛠️')
-                .setColor('#FFB6C1')
-                .setThumbnail('https://i.pinimg.com/originals/de/13/8d/de138d68962534575975d4f7c975a5c5.gif')
-                .setDescription(
-                    `*“Creando tesoros con manos de seda...”* ✨\n\n` +
-                    `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
-                    `${listaRecetas}` +
-                    `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
-                    `💡 **Tip:** Usa \`/craft [id]\` para fabricar un item.`
-                )
-                .setTimestamp()
-                .setFooter({ text: `Consultado por: ${member.displayName} ♡`, iconURL: interaction.user.displayAvatarURL() });
+            return { embeds: [embed], components: rowMenu.components.length > 0 ? [rowNav, rowMenu] : [rowNav] };
+        };
 
-            return interaction.reply({ embeds: [listEmbed] });
-        }
+        const response = await message.reply(generarInterfaz());
+        const collector = response.createMessageComponentCollector({ time: 300000 });
 
-        const recipe = recipes[itemToCraft];
-        if (!recipe) return interaction.reply({ content: "╰┈➤ 🌸 **¡Oh no!** Esa receta no existe en mi librito rosa.", ephemeral: true });
+        collector.on('collect', async i => {
+            if (i.user.id !== user.id) return i.reply({ content: '⟢ Estas sombras no te pertenecen.', ephemeral: true });
 
-        // --- 🛡️ VERIFICAR MATERIALES ---
-        // Aseguramos que data.inventory sea un objeto
-        if (!data.inventory) data.inventory = []; 
-        
-        // Nota: Si tu inventario es un Array de objetos, esta lógica cambia, 
-        // pero asumiendo que es un objeto de cantidades:
-        for (const mat in recipe.materials) {
-            const cantidadPoseida = data.inventory[mat] || 0;
-            if (cantidadPoseida < recipe.materials[mat]) {
-                return interaction.reply({ content: `╰┈➤ ❌ **${member.displayName}**, te falta un poquito de **${mat}** para completar esto.`, ephemeral: true });
+            if (i.customId === 'close') {
+                await i.message.delete().catch(() => null);
+                return collector.stop();
             }
-        }
 
-        // --- 🎲 LÓGICA DE FALLO ---
-        const isPremium = data.premiumType !== 'none';
-        const failChance = isPremium ? 0.10 : 0.30; 
-        const random = Math.random();
+            if (i.customId === 'go_home') {
+                currentCategory = 'home';
+                return await i.update(generarInterfaz());
+            }
 
-        // Consumir materiales
-        for (const mat in recipe.materials) {
-            data.inventory[mat] -= recipe.materials[mat];
-        }
+            if (i.customId.startsWith('cat_')) {
+                currentCategory = i.customId.replace('cat_', '');
+                return await i.update(generarInterfaz());
+            }
 
-        // --- 💥 RESULTADO: FALLO ---
-        if (random < failChance) {
-            await updateUserData(userId, { inventory: data.inventory });
-            const failEmbed = new EmbedBuilder()
-                .setTitle('💥 ‧₊˚ ¡Algo salió mal! ˚₊‧ 💥')
-                .setColor('#FF9AA2')
-                .setThumbnail('https://i.pinimg.com/originals/f3/f5/63/f3f56363a0336215707a276856037e81.gif')
-                .setDescription(
-                    `*“Un pequeño error en el taller...”* 🌸\n\n` +
-                    `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
-                    `╰┈➤ Lo siento, **${member.displayName}**, el crafteo falló.\n` +
-                    `╰┈➤ Los materiales se han perdido en el proceso.\n\n` +
-                    `🎀 *${isPremium ? 'Tu seguro Premium redujo el riesgo, ¡no te rindas!' : '¡Los usuarios Premium tienen menos riesgo de fallo!'}*\n\n` +
-                    `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧`
-                )
-                .setFooter({ text: `Intento de: ${member.displayName} ♡` });
+            // --- ⚙️ Lógica de Reparación ---
+            if (i.customId === 'do_repair') {
+                const brokenId = i.values[0];
+                const originalId = brokenId.replace('_broken', '');
+                const recipe = [...recipes.picos, ...recipes.canas].find(r => r.id === originalId);
 
-            return interaction.reply({ embeds: [failEmbed] });
-        }
+                for (const [mat, cant] of Object.entries(recipe.mats)) {
+                    const cost = Math.ceil(cant / 2);
+                    if ((data.inventory[mat] || 0) < cost) return i.reply({ content: `🕸️ Te faltan materiales (${cost}x ${mat}).`, ephemeral: true });
+                    data.inventory[mat] -= cost;
+                }
 
-        // --- ✨ RESULTADO: ÉXITO ---
-        data.inventory[itemToCraft] = (data.inventory[itemToCraft] || 0) + 1;
-        
-        // Guardamos cambios
-        await updateUserData(userId, { inventory: data.inventory });
-        
-        // Sistema de XP (Usando la nueva función de userManager)
-        const xpResult = await addXP(userId, 150, interaction.client);
+                data.inventory[brokenId] -= 1;
+                data.inventory[`${originalId}_repaired`] = (data.inventory[`${originalId}_repaired`] || 0) + 1;
+                await updateUserData(user.id, { inventory: data.inventory });
+                await i.reply({ content: `✨ ⊹ **${recipe.name}** restaurado. Esta es su última vida. ✦`, ephemeral: true });
+                return await i.message.edit(generarInterfaz());
+            }
 
-        const successEmbed = new EmbedBuilder()
-            .setTitle('✨ ‧₊˚ ¡Creación Exitosa! ˚₊‧ ✨')
-            .setColor('#B5EAD7')
-            .setThumbnail('https://i.pinimg.com/originals/6d/6d/0a/6d6d0a7a37936a2818619623c21a147a.gif')
-            .setDescription(
-                `*“¡Ha quedado precioso!”* ⚒️🎀\n\n` +
-                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
-                `🌸 **Objeto:** \`${recipe.name}\`\n` +
-                `💎 **Bonus:** \`+150 XP\`\n` +
-                `✨ **Estado:** \`¡Listo para usar!\`${xpResult.leveledUp ? `\n\n${emojis.pinkstars || '⭐'} **¡LEVEL UP!** Ahora eres nivel **${xpResult.level}**` : ''}\n\n` +
-                `୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧\n\n` +
-                `╰┈➤ *¡Eres una artesana Rockstar increíble!*`
-            )
-            .setFooter({ text: `Creado por: ${member.displayName} ♡` });
+            // --- ⚒️ Lógica de Crafteo ---
+            if (i.customId === 'do_craft') {
+                const recipe = [...recipes.picos, ...recipes.canas].find(r => r.id === i.values[0]);
 
-        return interaction.reply({ embeds: [successEmbed] });
+                for (const [mat, cant] of Object.entries(recipe.mats)) {
+                    if ((data.inventory[mat] || 0) < cant) return i.reply({ content: `🕸️ Te faltan materiales.`, ephemeral: true });
+                    data.inventory[mat] -= cant;
+                }
+
+                if (Math.random() < failChance) {
+                    await updateUserData(user.id, { inventory: data.inventory });
+                    return i.reply({ content: `💥 La forja falló. Los materiales se han perdido. 🥀`, ephemeral: true });
+                }
+
+                data.inventory[recipe.id] = (data.inventory[recipe.id] || 0) + 1;
+                await updateUserData(user.id, { inventory: data.inventory });
+                await addXP(user.id, 150, i.client);
+                await i.reply({ content: `✨ ⊹ **${recipe.name}** forjado con éxito. ✦`, ephemeral: true });
+                return await i.message.edit(generarInterfaz());
+            }
+        });
     }
 };
