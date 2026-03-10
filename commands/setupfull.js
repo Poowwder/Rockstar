@@ -3,117 +3,95 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = {
-    // --- Configuración para !! (Prefijo) ---
-    name: 'setup-full',
-    description: '👑 Configuración total: Canales, Roles de Identidad y Categorías',
+    // --- IMPORTANTE: Sin guion para que coincida con el nombre del archivo si prefieres ---
+    name: 'setupfull', 
+    description: '👑 Configuración total de canales y roles Rockstar',
     category: 'utilidad',
 
-    // --- Configuración para / (Slash) ---
+    // Configuración para el menú de Slash Commands /
     data: new SlashCommandBuilder()
-        .setName('setup-full')
-        .setDescription('👑 Configuración total: Canales, Roles de Identidad y Categorías')
+        .setName('setupfull')
+        .setDescription('👑 Configuración total de servidor')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-    // --- Ejecución por mensaje (!!) ---
+    // Ejecución con prefijo !!setupfull
     async execute(message, args) {
         if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return message.reply("❌ Solo los administradores pueden usar este comando.");
+            return message.reply("❌ Necesitas permisos de Administrador para usar esto.");
         }
-        await message.reply("✨ **Diseñando el universo Rockstar... Esto creará muchos roles, paciencia.**");
+        await message.reply("🚀 **Iniciando el despliegue del imperio Rockstar...**");
         return this.runSetup(message);
     },
 
-    // --- Ejecución por Slash (/) ---
+    // Ejecución con Slash /setupfull
     async executeSlash(interaction) {
-        await interaction.reply("✨ **Diseñando el universo Rockstar... Esto creará muchos roles, paciencia.**");
+        await interaction.reply("🚀 **Iniciando el despliegue del imperio Rockstar...**");
         return this.runSetup(interaction);
     },
 
-    // --- LÓGICA PRINCIPAL (TU CÓDIGO ORIGINAL CON MEJORAS) ---
     async runSetup(ctx) {
         const { guild } = ctx;
         const configPath = path.join(process.cwd(), 'welcomeConfig.json');
 
         try {
-            // Función para crear roles con un pequeño retraso para evitar bloqueos
+            // Función para crear roles con pausa (evita que Discord bloquee al bot)
             const createRole = async (name, color) => {
-                await new Promise(resolve => setTimeout(resolve, 600)); // 0.6 segundos de espera entre roles
+                await new Promise(r => setTimeout(r, 800)); 
                 return guild.roles.create({ name, color, reason: 'Setup Rockstar' });
             };
 
-            // --- 1. SEPARADORES Y ROLES (TU LISTA COMPLETA) ---
-            
-            // GÉNEROS
+            // --- 1. CREACIÓN DE ROLES (ORDENADOS) ---
             await createRole('━━━━━ GÉNEROS ━━━━━', '#000000');
-            const roleMasc = await createRole('He/Him ♂️', '#89CFF0');
-            const roleFem = await createRole('She/Her ♀️', '#F4C2C2');
-            const roleNon = await createRole('They/Them ⚧', '#E0BBE4');
+            await createRole('He/Him ♂️', '#89CFF0');
+            await createRole('She/Her ♀️', '#F4C2C2');
+            await createRole('They/Them ⚧', '#E0BBE4');
 
-            // EDADES
             await createRole('━━━━━ EDADES ━━━━━', '#000000');
-            const roleMinor = await createRole('-18', '#FFD1DC');
-            const roleAdult = await createRole('+18', '#FF6961');
+            await createRole('-18', '#FFD1DC');
+            await createRole('+18', '#FF6961');
 
-            // SIGNOS
             await createRole('━━━━━ SIGNOS ━━━━━', '#000000');
             const signos = ['Aries ♈', 'Tauro ♉', 'Géminis ♊', 'Cáncer ♋', 'Leo ♌', 'Virgo ♍', 'Libra ♎', 'Escorpio ♏', 'Sagitario ♐', 'Capricornio ♑', 'Acuario ♒', 'Piscis ♓'];
             for (const s of signos) await createRole(s, '#FFF9C4');
 
-            // COLORES
-            await createRole('━━━━━ COLORES ━━━━━', '#000000');
-            const colores = [['Pastel Pink', '#FFB6C1'], ['Sky Blue', '#A2D2FF'], ['Mint Green', '#B5EAD7'], ['Lavender', '#E0BBE4']];
-            for (const [n, c] of colores) await createRole(n, c);
-
-            // JUEGOS
-            await createRole('━━━━━ JUEGOS ━━━━━', '#000000');
-            const juegos = ['Minecraft ⛏️', 'Roblox 🧸', 'Valorant 🔫', 'League of Legends 🐉', 'Free Fire 🔥'];
-            for (const j of juegos) await createRole(j, '#B2DFDB');
-
-            // PINGS
-            await createRole('━━━━━ PINGS ━━━━━', '#000000');
-            const pings = ['Anuncios 📢', 'Sorteos 🎁', 'Eventos ✨', 'Alianzas 🤝'];
-            for (const p of pings) await createRole(p, '#FFCCBC');
-
-            // ROLES DEL SISTEMA
-            const roleStaff = await createRole('⭐ Staff Rockstar', '#FF0000');
             const roleUser = await createRole('🌸 Miembro', '#FFB6C1');
             const roleBot = await createRole('🤖 Bot Rockstar', '#A2D2FF');
 
-            // --- 2. CANALES BÁSICOS ---
-            const catInfo = await guild.channels.create({ name: '🌸 ‧ Informacion', type: ChannelType.GuildCategory });
-            const welcomeChan = await guild.channels.create({ name: '🎀-│-bienvenidas', type: ChannelType.GuildText, parent: catInfo.id });
-            const logsChan = await guild.channels.create({ name: '🛠-logs-generales', type: ChannelType.GuildText });
+            // --- 2. CREACIÓN DE CANALES ---
+            const category = await guild.channels.create({ 
+                name: '🌸 Rockstar System', 
+                type: ChannelType.GuildCategory 
+            });
 
-            // --- 3. GUARDAR EN JSON ---
-            let allConfigs = {};
+            const welcomeChannel = await guild.channels.create({ 
+                name: '🎀-bienvenidas', 
+                type: ChannelType.GuildText, 
+                parent: category.id 
+            });
+
+            // --- 3. GUARDADO DE CONFIGURACIÓN ---
+            let config = {};
             if (fs.existsSync(configPath)) {
-                allConfigs = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             }
-
-            allConfigs[guild.id] = {
-                channelId: welcomeChan.id,
-                logsId: logsChan.id,
-                userRoleId: roleUser.id,
-                botRoleId: roleBot.id
+            config[guild.id] = { 
+                welcomeChannel: welcomeChannel.id, 
+                memberRole: roleUser.id 
             };
-
-            fs.writeFileSync(configPath, JSON.stringify(allConfigs, null, 4));
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
 
             const successEmbed = new EmbedBuilder()
-                .setTitle('👑 ¡Imperio Rockstar Creado!')
-                .setColor('#FFB6C1')
-                .setDescription(`Se han creado los canales y **más de 30 roles** organizados por categorías.\n\n📌 **Recuerda:** Mueve el rol del bot hasta arriba de todo para que pueda gestionar estos nuevos roles.`);
+                .setTitle("✅ ¡Setup Rockstar Finalizado!")
+                .setColor("#B5EAD7")
+                .setDescription("Se han creado todos los roles y el canal de bienvenidas.\n\n⚠️ **Nota:** Sube el rol del bot al principio de la lista de roles.");
 
-            // Respuesta final dependiendo de cómo se llamó al comando
-            if (ctx.editReply) {
-                await ctx.editReply({ content: '', embeds: [successEmbed] });
-            } else {
-                await ctx.channel.send({ embeds: [successEmbed] });
-            }
+            // Responder según el tipo de contexto (Slash o Mensaje)
+            if (ctx.editReply) await ctx.editReply({ content: ' ', embeds: [successEmbed] });
+            else await ctx.channel.send({ embeds: [successEmbed] });
 
         } catch (error) {
             console.error(error);
-            const errorMsg = "❌ Error al crear los roles. Verifica que el bot tenga permisos de Administrador.";
+            const errorMsg = "❌ Hubo un error al crear los roles. Verifica que tenga permisos de Administrador.";
             if (ctx.editReply) await ctx.editReply(errorMsg);
             else await ctx.channel.send(errorMsg);
         }
