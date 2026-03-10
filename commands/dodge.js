@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { runReaction } = require('../utils/reactionHandler');
+const { runReaction } = require('../utils/reactionHandler.js');
 module.exports = {
     name: 'dodge',
     description: '¡Intenta esquivar un ataque con estilo! 💨',
