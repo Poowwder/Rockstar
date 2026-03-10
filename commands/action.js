@@ -2,6 +2,9 @@ const { SlashCommandBuilder } = require('discord.js');
 const { runAction } = require('../utils/actionHandler.js');
 
 module.exports = {
+    name: 'action',
+    description: 'Interactúa con otros usuarios en el servidor ✨',
+    category: 'interacción', // Agregado para que tu help.js lo organice bien
     data: new SlashCommandBuilder()
         .setName('action')
         .setDescription('Interactúa con otros usuarios ✨')
@@ -31,9 +34,13 @@ module.exports = {
         .addSubcommand(sub => sub.setName('yeet').setDescription('Lanza a alguien por los aires').addUserOption(opt => opt.setName('user').setDescription('A quién lanzar').setRequired(true))),
 
     async execute(interaction) {
+        // Obtenemos qué acción eligió y a quién mencionó
         const type = interaction.options.getSubcommand();
         const target = interaction.options.getUser('user');
-        const result = await runAction(interaction.client, type, interaction.user, target);
+        
+        // 🚀 NUEVO: Le pasamos directamente la 'interaction' al Handler
+        const result = await runAction(interaction, type, target);
+        
         await interaction.reply(result);
     }
 };
