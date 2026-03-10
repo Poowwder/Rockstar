@@ -1,14 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runAction } = require('../utils/actionHandler.js');
 module.exports = {
-    name: 'punch',
-    description: '¡Dale un buen golpe a alguien! 👊',
-    async execute(message, args) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply("🌸 ¿A quién le vas a pegar, reina? ✨");
-        const embed = new EmbedBuilder()
-            .setDescription(`👊 **${message.author.username}** le dio un puñetazo a **${user.username}**... ¡Eso tuvo que doler! 🎀`)
-            .setImage("https://media.tenor.com/6a47ls6CKYQAAAAC/anime-punch.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'punch', description: 'Dale un puñetazo a alguien', category: 'interacción',
+    async execute(input) {
+        const target = input.mentions.users.first();
+        if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
+        const result = await runAction(input, 'punch', target);
+        await input.reply(result);
     }
 };
