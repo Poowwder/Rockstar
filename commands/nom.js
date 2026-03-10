@@ -1,12 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runAction } = require('../utils/actionHandler.js');
 module.exports = {
-    name: 'nom',
-    description: '¡A comer se ha dicho! 😋',
-    async execute(message) {
-        const embed = new EmbedBuilder()
-            .setDescription(`😋 **${message.author.username}** está disfrutando de algo delicioso... ¡Nom nom! 🌸`)
-            .setImage("https://media.tenor.com/M_R59G6Y-WkAAAAC/anime-eat.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'nom', description: 'Dale un mordisquito a alguien', category: 'interacción',
+    async execute(input) {
+        const target = input.mentions.users.first();
+        if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
+        const result = await runAction(input, 'nom', target);
+        await input.reply(result);
     }
 };
