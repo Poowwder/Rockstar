@@ -1,14 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runAction } = require('../utils/actionHandler.js');
 module.exports = {
-    name: 'bully',
-    description: 'Molesta un poquito a tus amigos 😈',
-    async execute(message, args) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply("🌸 ¿A quién vas a molestar hoy? ✨");
-        const embed = new EmbedBuilder()
-            .setDescription(`😈 **${message.author.username}** le está haciendo bully a **${user.username}**... ¡Qué mala! 🎀`)
-            .setImage("https://media.tenor.com/p9p9p9p9p9pAAAAC/anime-bully.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'bully', description: 'Molesta a alguien', category: 'interacción',
+    async execute(input) {
+        const target = input.mentions.users.first();
+        if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
+        const result = await runAction(input, 'bully', target);
+        await input.reply(result);
     }
 };
