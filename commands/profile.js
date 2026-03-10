@@ -3,7 +3,7 @@ const {
     ButtonBuilder, ButtonStyle, ComponentType 
 } = require('discord.js');
 const { getUserData } = require('../userManager.js'); 
-const { UserProfile } = require('../data/mongodb.js'); // Importamos el nuevo modelo de Nekos
+const { UserProfile } = require('../data/mongodb.js'); 
 const emojis = require('../utils/emojiHelper.js'); 
 
 module.exports = {
@@ -20,7 +20,7 @@ module.exports = {
         const target = isSlash ? (input.options.getUser('u') || input.user) : (input.mentions.users.first() || input.author);
         const member = input.guild.members.cache.get(target.id) || { displayName: target.username };
         
-        // Obtenemos datos de ambos sistemas
+        // --- 📂 EXTRACCIÓN DE DATOS ---
         const data = await getUserData(target.id);
         const profileDB = await UserProfile.findOne({ UserID: target.id, GuildID: input.guild.id });
 
@@ -30,9 +30,8 @@ module.exports = {
         let rankTitle = data.premiumType ? data.premiumType.toUpperCase() : "USUARIO";
         if (isOwner) rankTitle = "𝕽☆𝖈𝖐𝖘𝖙𝖆𝖗 𝕹𝖔𝖛𝖆";
 
-        // --- 🐱 LÓGICA DE NEKOS ACTUALIZADA ---
-        // Verificamos si la imagen del Neko está en el array de su perfil
-        const hasNeko = (imgPart) => profileDB?.Nekos?.some(url => url.includes(imgPart)) || false;
+        // --- 🐱 LÓGICA DE NEKOS (NEKOTINA STYLE) ---
+        const hasNeko = (imgPart) => profileDB?.Nekos?.some(url => url.toLowerCase().includes(imgPart.toLowerCase())) || false;
 
         const collection = [
             { name: 'Solas', icon: '☁️', check: hasNeko('SOLAS') },
@@ -47,18 +46,21 @@ module.exports = {
             .map(n => `\`${n.icon} ${n.name}\``)
             .join('  ');
 
+        // --- ❤️ BARRA DE SALUD ---
         const vMax = 3;
         const vActual = data.health ?? 3;
         const filled = Math.round((Math.min(vActual / vMax, 1)) * 10);
-        const barraHarem = "🌸".repeat(filled) + "🤍".repeat(10 - filled); 
+        const barraSalud = "🌸".repeat(filled) + "🤍".repeat(10 - filled); 
 
+        // --- 🔘 FILA DE BOTONES ---
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('main').setEmoji(emojis.pinkbow).setLabel('Perfil').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('stats').setEmoji(emojis.star).setLabel('Stats').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('stats').setEmoji(emojis.star).setLabel('Status').setStyle(ButtonStyle.Secondary),
             new ButtonBuilder().setCustomId('harem').setEmoji(emojis.heart).setLabel('Harem').setStyle(ButtonStyle.Secondary),
             new ButtonBuilder().setCustomId('exit').setEmoji(emojis.heart).setStyle(ButtonStyle.Danger)
         );
 
+        // --- 📄 PÁGINA 1: PERFIL PRINCIPAL ---
         const mainEmbed = () => new EmbedBuilder()
             .setTitle(`${emojis.star} ‧₊˚ Perfil Rockstar ˚₊‧ ${emojis.star}`)
             .setColor(isOwner ? '#E6E6FA' : '#FFB6C1')
@@ -70,7 +72,7 @@ module.exports = {
                 (visibleNekos ? `**୨୧ ┈┈┈┈ 𐐪 Nekos 𐑂 ┈┈┈┈ ୨୧**\n> ${visibleNekos}\n\n` : "") +
                 `**୨୧ ┈┈┈┈ Estado Vital ┈┈┈┈ ୨୧**\n` +
                 `❤️ **Salud:** \`${vActual.toFixed(1)} / ${vMax}\`\n` +
-                `> ${barraHarem}\n\n` +
+                `> ${barraSalud}\n\n` +
                 `**୨୧ ┈┈┈┈ Información ┈┈┈┈ ୨୧**\n` +
                 `${emojis.pinkstars} **Nombre:** \`${member.displayName}\`\n` +
                 `${emojis.star} **Carisma:** \`${data.rep || 0} Rep\`\n` +
@@ -78,15 +80,19 @@ module.exports = {
                 `**୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧**`
             );
 
+        // --- 📄 PÁGINA 2: STATUS (ESTADÍSTICAS) ---
         const statsEmbed = () => new EmbedBuilder()
-            .setTitle(`${emojis.star} ‧₊˚ Estadísticas Rockstar ˚₊‧ ${emojis.star}`)
+            .setTitle(`${emojis.star} ‧₊˚ Status Rockstar ˚₊‧ ${emojis.star}`)
             .setColor('#CDB4DB')
-            .setDescription(`**୨୧ ┈┈┈┈ Actividad ┈┈┈┈ ୨୧**\n` +
-                `${emojis.heart} **Acciones:** \`${profileDB?.ActionCount || 0} / 100\`\n` +
-                `${emojis.pinkstars} **Mensajes:** \`${profileDB?.MessageCount || 0} / 5000\`\n` +
-                `${emojis.star} **Nivel:** \`${profileDB?.Level || 1}\`\n` +
+            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
+            .setDescription(`**୨୧ ┈┈┈┈ Actividad ┈┈┈┈ ୨୧**\n\n` +
+                `${emojis.heart} **Acciones:** \`${profileDB?.ActionCount || 0}\` interacciones\n` +
+                `${emojis.pinkstars} **Mensajes:** \`${profileDB?.MessageCount || 0}\` enviados\n` +
+                `${emojis.star} **Nivel Actual:** \`${profileDB?.Level || 1}\` (Neko Rank)\n\n` +
+                `> *“Tus acciones resuenan en el vacío...”*\n` +
                 `**୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧**`);
 
+        // --- 📄 PÁGINA 3: HAREM ---
         const haremEmbed = () => {
             const maxSlots = data.maxHaremSlots || 5; 
             const list = data.harem?.map((m, i) => `${emojis.pinkstars} **${i+1}.** <@${m.id}>`).join('\n') || "*Harem solitario...* ☁️";
