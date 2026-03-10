@@ -1,5 +1,5 @@
 const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { updateShopItemDB } = require('../databaseManager.js');
+const { updateShopItemDB } = require('../userManager.js');
 
 module.exports = {
     name: 'additem',
