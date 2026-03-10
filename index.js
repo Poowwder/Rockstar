@@ -1,18 +1,21 @@
 const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
+const fs = require('fs'); // ⬅️ Falta esta línea crítica para leer tus comandos
 const { connectDB } = require('./data/mongodb.js'); 
 const { checkNekos } = require('./functions/checkNekos.js');
 const http = require('http');
 require('dotenv').config();
 
-// --- 🌐 SERVIDOR PARA RENDER (Solución Port Scan) ---
+// --- 🌐 SERVIDOR PARA RENDER ---
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Rockstar Bot está en línea 🐾');
+  res.end('Rockstar Bot está en línea y brillando 🐾');
 });
 const PORT = process.env.PORT || 3000;
-server.listen(PORT);
+server.listen(PORT, () => {
+  console.log(`==> Puerto ${PORT} detectado. Render listo.`);
+});
 
-// --- 🤖 CONFIGURACIÓN ---
+// --- 🤖 CONFIGURACIÓN DEL CLIENTE ---
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -25,7 +28,7 @@ const client = new Client({
 client.commands = new Collection();
 const prefix = "!!";
 
-// Conexión a la base de datos
+// Conexión a MongoDB
 connectDB();
 
 // --- 📂 CARGA Y REGISTRO DE COMANDOS ---
@@ -34,11 +37,16 @@ const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('
 
 for (const file of commandFiles) {
     const command = require(`./commands/${file}`);
-    client.commands.set(command.name, command);
     
-    // Si el comando tiene estructura Slash, lo preparamos para registrarlo
-    if (command.data) {
-        commands.push(command.data.toJSON());
+    // Si el comando es un array (como en algunos sistemas de help)
+    if (Array.isArray(command)) {
+        command.forEach(cmd => {
+            client.commands.set(cmd.name, cmd);
+            if (cmd.data) commands.push(cmd.data.toJSON());
+        });
+    } else {
+        client.commands.set(command.name, command);
+        if (command.data) commands.push(command.data.toJSON());
     }
 }
 
@@ -48,7 +56,7 @@ client.once('ready', async () => {
     
     const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
     try {
-        console.log('⏳ Registrando comandos slash...');
+        console.log('⏳ Sincronizando comandos slash con Discord...');
         await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands },
@@ -59,11 +67,11 @@ client.once('ready', async () => {
     }
 });
 
-// --- 💬 EVENTO: MESSAGE CREATE (Comandos !! y Actividad) ---
+// --- 💬 EVENTO: MESSAGE CREATE (Prefijo !! y Actividad) ---
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
-    // 1. Lógica de Prefijo (!!help, !!profile, etc.)
+    // 1. Detección de Comandos Legacy (!!)
     if (message.content.startsWith(prefix)) {
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
@@ -71,15 +79,18 @@ client.on('messageCreate', async message => {
 
         if (cmd) {
             try {
+                // Ejecutar comando de texto
                 await cmd.execute(message, args);
-                // Sumar actividad solo si el comando existe
+                // Sumar actividad (Mizuki)
                 await checkNekos(message, 'message');
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(`Error en comando ${commandName}:`, e);
+            }
             return;
         }
     }
 
-    // 2. Si es un mensaje normal, sumar actividad para Mizuki
+    // 2. Mensajes normales (Mizuki)
     await checkNekos(message, 'message');
 });
 
@@ -94,7 +105,7 @@ client.on('interactionCreate', async interaction => {
         // Ejecutar Slash
         await cmd.execute(interaction);
         
-        // Sumar actividad
+        // Sumar actividad general
         await checkNekos(interaction, 'message');
 
         // Lógica de Solas (Acciones)
@@ -104,9 +115,9 @@ client.on('interactionCreate', async interaction => {
         }
 
     } catch (error) {
-        console.error(error);
-        if (!interaction.replied) {
-            await interaction.reply({ content: '❌ Error al ejecutar el comando.', ephemeral: true });
+        console.error('Error en Slash Interaction:', error);
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: '✨ Se ha producido un error al procesar esta solicitud.', ephemeral: true });
         }
     }
 });
