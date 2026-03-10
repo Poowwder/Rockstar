@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, REST, Routes, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -42,9 +42,7 @@ for (const file of commandFiles) {
         delete require.cache[require.resolve(filePath)];
         const command = require(filePath);
 
-        // Validación para evitar el error "Expected the value to not be null"
         if (command.data) {
-            // Un comando Slash DEBE tener nombre y descripción
             if (!command.data.name || !command.data.description) {
                 console.error(`⚠️ ERROR en [${file}]: Los comandos Slash necesitan .setName() y .setDescription() con texto.`);
                 continue;
@@ -68,8 +66,8 @@ for (const file of commandFiles) {
     }
 }
 
-// --- ⚡ EVENTO: CLIENTREADY (v15 compatible) ---
-client.once('ready', async (c) => { // Usamos ready por compatibilidad, pero el log dirá clientReady
+// --- ⚡ EVENTO: CLIENTREADY (v15 compatible - Aviso corregido) ---
+client.once(Events.ClientReady, async (c) => { 
     console.log(`✅ Rockstar logueado como ${c.user.tag}`);
     
     const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
