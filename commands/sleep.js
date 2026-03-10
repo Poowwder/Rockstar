@@ -1,12 +1,8 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runReaction } = require('../utils/reactionHandler.js');
 module.exports = {
-    name: 'sleep',
-    description: 'Muestra que tienes mucho sueño 😴',
-    async execute(message) {
-        const embed = new EmbedBuilder()
-            .setDescription(`😴 **${message.author.username}** se ha quedado dormida... ¡Shhh, no la despierten! ✨`)
-            .setImage("https://media.tenor.com/N6637U08_v0AAAAC/anime-sleep.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'sleep', description: 'Tengo sueño 💤', category: 'reacción',
+    async execute(input) {
+        const result = await runReaction(input, 'sleep');
+        await input.reply(result);
     }
 };
