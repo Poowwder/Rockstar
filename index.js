@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, REST, Routes, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -30,8 +30,6 @@ const prefix = "!!";
 connectDB();
 
 // --- 📂 CARGA DE COMANDOS CON VALIDACIÓN ---
-const commands = [];
-const uniqueSlashNames = new Set();
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 
 console.log('--- 🛠️ Cargando Comandos ---');
@@ -42,45 +40,25 @@ for (const file of commandFiles) {
         delete require.cache[require.resolve(filePath)];
         const command = require(filePath);
 
-        if (command.data) {
-            if (!command.data.name || !command.data.description) {
-                console.error(`⚠️ ERROR en [${file}]: Los comandos Slash necesitan .setName() y .setDescription() con texto.`);
-                continue;
-            }
-
-            if (uniqueSlashNames.has(command.data.name)) {
-                console.warn(`[!] Omitiendo duplicado Slash: /${command.data.name} en ${file}`);
-                continue;
-            }
-
-            commands.push(command.data.toJSON());
-            uniqueSlashNames.add(command.data.name);
-        }
-
+        // Registro para comandos Slash y de Prefijo
         if (command.name) {
             client.commands.set(command.name, command);
         }
+        // Si el comando tiene data (Slash), usamos el nombre de data.name para el mapa
+        if (command.data && command.data.name) {
+            client.commands.set(command.data.name, command);
+        }
+
     } catch (error) {
         console.error(`\n🚨 ERROR CRÍTICO EN EL ARCHIVO: [${file}]`);
         console.error(`Mensaje: ${error.message}\n`);
     }
 }
 
-// --- ⚡ EVENTO: CLIENTREADY (v15 compatible - Aviso corregido) ---
-client.once(Events.ClientReady, async (c) => { 
+// --- ⚡ EVENTO: CLIENTREADY (Limpio de Deploy) ---
+client.once(Events.ClientReady, (c) => { 
     console.log(`✅ Rockstar logueado como ${c.user.tag}`);
-    
-    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-    try {
-        console.log(`⏳ Sincronizando ${commands.length} comandos únicos con Discord...`);
-        await rest.put(
-            Routes.applicationCommands(c.user.id),
-            { body: commands },
-        );
-        console.log('✨ Menú de comandos "/" actualizado.');
-    } catch (error) {
-        console.error('❌ Error al registrar comandos en la API de Discord:', error);
-    }
+    console.log('🚀 Bot listo para recibir interacciones.');
 });
 
 // --- 💬 EVENTO: MESSAGE (Prefijo !! y Actividad) ---
