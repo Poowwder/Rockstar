@@ -1,6 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { runReaction } = require('../utils/reactionHandler');
-
 module.exports = {
     name: 'yandere',
     description: 'Modo yandere activado... no te acerques 🔪',

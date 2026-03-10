@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { runReaction } = require('../utils/reactionHandler'); // Ruta corregida (un solo punto)
-
+const { runReaction } = require('../utils/reactionHandler');
 module.exports = {
     name: 'dodge',
     description: '¡Intenta esquivar un ataque con estilo! 💨',
