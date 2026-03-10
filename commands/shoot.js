@@ -1,14 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runAction } = require('../utils/actionHandler.js');
 module.exports = {
-    name: 'shoot',
-    description: '¡Pium pium! Dispárale a alguien (estilo anime) 🔫',
-    async execute(message, args) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply("🌸 ¿A quién le quieres disparar, reina? ✨");
-        const embed = new EmbedBuilder()
-            .setDescription(`🔫 **${message.author.username}** le disparó a **${user.username}**... ¡Directo al corazón! 🥀`)
-            .setImage("https://media.tenor.com/6-y-6-y-6-yAAAAC/anime-shoot.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'shoot', description: 'Dispárale a alguien', category: 'interacción',
+    async execute(input) {
+        const target = input.mentions.users.first();
+        if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
+        const result = await runAction(input, 'shoot', target);
+        await input.reply(result);
     }
 };
