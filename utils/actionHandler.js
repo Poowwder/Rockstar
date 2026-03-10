@@ -10,13 +10,11 @@ const getRndEmoji = (guild) => {
 };
 
 // --- ⚙️ HANDLER PRINCIPAL ---
-// Nota: Cambié 'client' por 'input' (el message o interaction) para poder extraer el Guild y los Apodos.
 async function runAction(input, type, targetUser) {
     const isSlash = !!input.user;
     const author = isSlash ? input.user : input.author;
     const guild = input.guild;
 
-    // Obtenemos los apodos (Display Names) del servidor
     const authorMember = guild.members.cache.get(author.id) || { displayName: author.username };
     const targetMember = guild.members.cache.get(targetUser.id) || { displayName: targetUser.username };
 
@@ -61,9 +59,9 @@ async function runAction(input, type, targetUser) {
 
     const actionText = actions[type] || `interactúa misteriosamente con`;
 
-    // --- 🖼️ MOTOR DE RUTAS Y ARCHIVOS LOCALES ---
-    // Busca en la carpeta: /assets/actions/hug/ (o el tipo que sea)
-    const folderPath = path.join(__dirname, '..', 'assets', 'actions', type);
+    // --- 🖼️ MOTOR DE RUTAS (Modificado para leer directo de /commands/) ---
+    // Busca en la carpeta: /commands/hug/ (o el tipo de comando que sea)
+    const folderPath = path.join(__dirname, '..', 'commands', type);
     
     let selectedImage = null;
     let animeName = 'Desconocido';
@@ -74,13 +72,9 @@ async function runAction(input, type, targetUser) {
             const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.gif') || file.endsWith('.png'));
             
             if (files.length > 0) {
-                // Elegimos un archivo al azar
                 selectedImage = files[Math.floor(Math.random() * files.length)];
-                
-                // Extraemos el nombre del Anime (Ej: "Naruto_01.gif" -> "Naruto")
+                // Extrae el nombre del anime antes del guión bajo
                 animeName = selectedImage.split('_')[0].replace(/-/g, ' ');
-
-                // Preparamos el archivo para enviarlo a Discord
                 attachment = new AttachmentBuilder(path.join(folderPath, selectedImage), { name: selectedImage });
             }
         }
@@ -92,20 +86,18 @@ async function runAction(input, type, targetUser) {
     const embed = new EmbedBuilder()
         .setColor('#1a1a1a')
         .setDescription(`> ${e1} **${authorMember.displayName}** ${actionText} **${targetMember.displayName}** ${e2}`)
-        .setTimestamp() // Agrega la hora exacta abajo
+        .setTimestamp() 
         .setFooter({ 
             text: `Fuente: ${animeName} ⊹ Solicitado por ${authorMember.displayName}`,
             iconURL: author.displayAvatarURL({ dynamic: true })
         });
 
-    // Si encontró una imagen local, la adjunta al embed
     let responseObj = { embeds: [embed] };
 
     if (attachment && selectedImage) {
         embed.setImage(`attachment://${selectedImage}`);
         responseObj.files = [attachment];
     } else {
-        // Fallback por si la carpeta está vacía
         embed.setImage('https://i.pinimg.com/originals/c9/22/68/c92268d92cf2adc01fb14197940562dc.gif'); 
     }
 
