@@ -1,6 +1,7 @@
 const { 
     SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType 
 } = require('discord.js');
+const emojis = require('../utils/emojiHelper.js'); // Tus emojis
 
 module.exports = {
     name: 'help',
@@ -16,47 +17,40 @@ module.exports = {
                 .setRequired(false)),
 
     async execute(input, args) {
-        const isSlash = !input.author;
+        const isSlash = !!input.user;
         const user = isSlash ? input.user : input.author;
         const client = input.client;
         const guild = input.guild;
 
-        // --- ⚙️ Lógica de Detección Automática ---
+        // --- ⚙️ LÓGICA DE BÚSQUEDA ESPECÍFICA ---
         const commands = client.commands;
+        const query = isSlash ? input.options.getString('comando') : args?.[0];
         
-        // Si el usuario pide ayuda de un comando específico (!!help mine)
-        const query = isSlash ? input.options.getString('comando') : args[0];
         if (query) {
             const cmd = commands.get(query.toLowerCase()) || commands.find(c => c.aliases && c.aliases.includes(query.toLowerCase()));
             if (cmd) {
                 const detailEmbed = new EmbedBuilder()
                     .setColor('#1a1a1a')
-                    .setTitle(`⟢ Comando: ${cmd.name.toUpperCase()} ⟣`)
+                    .setTitle(`${emojis.star} ‧₊˚ Comando: ${cmd.name.toUpperCase()} ˚₊‧ ${emojis.star}`)
                     .addFields(
                         { name: '✦ Descripción', value: `\`${cmd.description || 'Sin descripción.'}\`` },
                         { name: '✦ Categoría', value: `\`${cmd.category || 'General'}\``, inline: true },
                         { name: '✦ Uso', value: `\`${cmd.usage || '!!' + cmd.name}\``, inline: true }
                     )
                     .setFooter({ text: `Aliases: ${cmd.aliases ? cmd.aliases.join(', ') : 'Ninguno'}` });
-                return isSlash ? input.reply({ embeds: [detailEmbed] }) : input.reply({ embeds: [detailEmbed] });
+                return input.reply({ embeds: [detailEmbed] });
             }
         }
 
-        // --- 📂 Generar Categorías Automáticamente ---
-        // Esto filtra las categorías únicas de todos los comandos cargados en el bot
+        // --- 📂 SISTEMA DE NAVEGACIÓN (BOTONES) ---
+        // Extraemos las categorías únicas y descartamos la "oculta"
         const rawCategories = [...new Set(commands.map(cmd => cmd.category || 'otros'))];
-        const categories = rawCategories.filter(c => c !== 'oculto'); // Por si quieres ocultar comandos de admin
+        const categories = rawCategories.filter(c => c !== 'oculto'); 
 
         let currentCategory = 'home';
 
-        const getEmoji = () => {
-            if (!guild) return '✨';
-            const emojis = guild.emojis.cache.filter(e => e.available);
-            return emojis.size > 0 ? emojis.random().toString() : '✨';
-        };
-
+        // Función para renderizar el menú en vivo
         const generarInterfaz = () => {
-            const emoji = getEmoji();
             const embed = new EmbedBuilder()
                 .setColor('#1a1a1a')
                 .setFooter({ text: `✦ ${user.username} ⊹ Rockstar System`, iconURL: user.displayAvatarURL() });
@@ -64,59 +58,79 @@ module.exports = {
             const rows = [];
 
             if (currentCategory === 'home') {
-                embed.setTitle(`${emoji} ⟢ ₊˚ Rockstar Archive ˚₊ ⟣ ${emoji}`)
+                embed.setTitle(`${emojis.star} ⟢ ₊˚ Rockstar Archive ˚₊ ⟣ ${emojis.star}`)
                     .setDescription(`> *“Todo lo que buscas está escrito en las sombras.”*\n\n` +
-                                   `He detectado **${commands.size}** comandos en mi núcleo.\n` +
-                                   `Selecciona una categoría para explorar su funcionamiento.`);
+                                    `He detectado **${commands.size}** comandos en mi núcleo.\n` +
+                                    `Selecciona una categoría para explorar su funcionamiento.`);
 
-                // Generar botones de categorías dinámicamente
-                let row = new ActionRowBuilder();
-                categories.forEach((cat, index) => {
-                    if (index > 0 && index % 3 === 0) {
-                        rows.push(row);
-                        row = new ActionRowBuilder();
-                    }
-                    row.addComponents(
-                        new ButtonBuilder()
-                            .setCustomId(`cat_${cat}`)
-                            .setLabel(cat.toUpperCase())
-                            .setStyle(ButtonStyle.Secondary)
-                    );
+                // Función para dividir los botones en grupos de 3 (Discord solo acepta hasta 5 por fila)
+                const chunkArray = (arr, size) => arr.length ? [arr.slice(0, size), ...chunkArray(arr.slice(size), size)] : [];
+                const catChunks = chunkArray(categories, 3);
+
+                catChunks.forEach(chunk => {
+                    const row = new ActionRowBuilder();
+                    chunk.forEach(cat => {
+                        row.addComponents(
+                            new ButtonBuilder()
+                                .setCustomId(`cat_${cat}`)
+                                .setLabel(cat.toUpperCase())
+                                .setEmoji(emojis.pinkbow || '🎀')
+                                .setStyle(ButtonStyle.Secondary)
+                        );
+                    });
+                    rows.push(row);
                 });
-                rows.push(row);
 
-                const rowClose = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('close').setLabel('CERRAR').setStyle(ButtonStyle.Danger)
-                );
-                rows.push(rowClose);
+                // Fila final con el botón de cerrar
+                rows.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('close')
+                        .setEmoji('✖️')
+                        .setStyle(ButtonStyle.Danger)
+                ));
+
             } else {
                 const filtered = commands.filter(cmd => (cmd.category || 'otros') === currentCategory);
 
-                embed.setTitle(`${emoji} ⊹ Sección: ${currentCategory.toUpperCase()} ⊹`)
+                embed.setTitle(`${emojis.pinkstars} ⊹ Sección: ${currentCategory.toUpperCase()} ⊹`)
                     .setDescription(filtered.map(cmd => 
                         `**!!${cmd.name}**\n╰ *Uso:* \`${cmd.usage || '!!' + cmd.name}\`\n╰ \`${cmd.description || 'Sin descripción.'}\``
                     ).join('\n\n'));
 
                 rows.push(new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('go_home').setLabel('INICIO').setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setCustomId('close').setLabel('CERRAR').setStyle(ButtonStyle.Danger)
+                    new ButtonBuilder()
+                        .setCustomId('go_home')
+                        .setLabel('INICIO')
+                        .setEmoji(emojis.star || '⭐')
+                        .setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder()
+                        .setCustomId('close')
+                        .setEmoji('✖️')
+                        .setStyle(ButtonStyle.Danger)
                 ));
             }
+
             return { embeds: [embed], components: rows };
         };
 
-        const response = isSlash 
-            ? await input.reply({ ...generarInterfaz(), fetchReply: true }) 
-            : await input.reply(generarInterfaz());
+        // --- 🚀 EJECUCIÓN Y RECOLECTOR ---
+        // Forzamos fetchReply para que el recolector funcione tanto en prefijo como en Slash
+        const response = await input.reply({ ...generarInterfaz(), fetchReply: true });
 
         const collector = response.createMessageComponentCollector({ 
-            filter: i => i.user.id === user.id, 
-            time: 300000 
+            componentType: ComponentType.Button,
+            time: 60000 
         });
 
         collector.on('collect', async i => {
+            // Evita que otros usuarios usen los botones y les da un aviso elegante
+            if (i.user.id !== user.id) {
+                return i.reply({ content: `${emojis.exclamation || '❌'} Esos accesos están restringidos para ti.`, ephemeral: true });
+            }
+
             if (i.customId === 'close') {
-                await i.message.delete().catch(() => null);
+                await i.update({ content: `${emojis.pinkbow} *Archivos cerrados...*`, embeds: [], components: [] });
+                setTimeout(() => response.delete().catch(() => {}), 2000);
                 return collector.stop();
             }
 
@@ -126,11 +140,13 @@ module.exports = {
                 currentCategory = i.customId.replace('cat_', '');
             }
 
-            await i.update(generarInterfaz()).catch(() => null);
+            // Actualizamos la interfaz con la nueva categoría
+            await i.update(generarInterfaz()).catch(e => console.error("Error al actualizar Help:", e));
         });
-
+        
+        // Cuando pasan los 60 segundos, desactiva los botones para que no quede basura visual
         collector.on('end', () => {
-            if (!isSlash) response.edit({ components: [] }).catch(() => null);
+            response.edit({ components: [] }).catch(() => null);
         });
     }
 };
