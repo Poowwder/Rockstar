@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { runReaction } = require('../utils/reactionHandler');
+const { runReaction } = require('../utils/reactionHandler.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
