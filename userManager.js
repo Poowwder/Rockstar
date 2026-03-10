@@ -30,16 +30,16 @@ const UserSchema = new mongoose.Schema({
     }
 });
 
-// --- 🏠 ESQUEMA DE SERVIDOR (Configuración de Bienvenidas, Roles, etc.) ---
+// --- 🏠 ESQUEMA DE SERVIDOR ---
 const GuildSchema = new mongoose.Schema({
     guildId: { type: String, required: true, unique: true },
-    welcomeConfig: { type: Object, default: {} } // Aquí guardaremos B1, B2 y Despedida
+    welcomeConfig: { type: Object, default: {} } 
 });
 
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
 const Guild = mongoose.models.Guild || mongoose.model('Guild', GuildSchema);
 
-// --- 🛠️ FUNCIONES DE SERVIDOR (NUEVAS) ---
+// --- 🛠️ FUNCIONES DE SERVIDOR ---
 
 async function getGuildData(guildId) {
     let guild = await Guild.findOne({ guildId });
@@ -66,7 +66,10 @@ async function addXP(userId, amount, client) {
     if (user.xp >= nextLevelXP) {
         user.level += 1;
         user.xp = 0;
-        if (user.level === 10 && !user.nekos.nyx) await grantNeko(userId, 'nyx', client);
+        // Si llega a nivel 10, desbloquea a Nyx automáticamente
+        if (user.level === 10 && !user.nekos.nyx) {
+            await grantNeko(userId, 'nyx', client);
+        }
         await user.save();
         return { leveledUp: true, level: user.level };
     }
@@ -77,11 +80,19 @@ async function addXP(userId, amount, client) {
 async function grantNeko(userId, nekoId, client) {
     const user = await User.findOne({ userId });
     if (!user || user.nekos[nekoId]) return;
+
     user.nekos[nekoId] = true;
     await user.save();
+
     try {
         const discordUser = await client.users.fetch(userId);
-        const names = { solas: 'Solas ☁️', nyx: 'Nyx 🌑', mizuki: 'Mizuki 🌸', astra: 'Astra 👑', koko: 'Koko 🍓' };
+        const names = { 
+            solas: 'Solas ☁️', 
+            nyx: 'Nyx 🌑', 
+            mizuki: 'Mizuki 🌸', 
+            astra: 'Astra 👑', 
+            koko: 'Koko 🍓' 
+        };
         const desc = {
             solas: 'tu carisma social (100 interacciones)',
             nyx: 'tu gran dedicación (Nivel 10)',
@@ -89,18 +100,24 @@ async function grantNeko(userId, nekoId, client) {
             astra: 'tu estatus de élite (Premium)',
             koko: 'tu buen gusto en la Boutique'
         };
+
         const embed = new EmbedBuilder()
             .setTitle('✨ ¡𝕽☆𝖈𝖐𝖘𝖙𝖆𝖗 𝕹𝖊𝖐𝖔 𝕬𝖑𝖊𝖗𝖙! ✨')
             .setColor('#E6E6FA')
             .setThumbnail(discordUser.displayAvatarURL())
             .setDescription(`*“Un destello de luz ha aparecido en tu perfil...”*\n\nHas desbloqueado a **${names[nekoId]}**.\nSe ha unido a ti por **${desc[nekoId]}**.\n\n🐾 *Ya puedes presumirlo en tu \`/profile\`*`);
+
         await discordUser.send({ embeds: [embed] });
-    } catch (e) { console.log(`DM bloqueado para ${userId}`); }
+    } catch (e) { 
+        console.log(`DM bloqueado para ${userId}, no se pudo enviar la notificación del Neko.`); 
+    }
 }
 
 async function getUserData(userId) {
     let user = await User.findOne({ userId });
     if (!user) user = await User.create({ userId });
+
+    // Verificar si el Premium expiró
     if (user.premiumType !== 'none' && user.premiumUntil && new Date() > user.premiumUntil) {
         user.premiumType = 'none';
         user.premiumUntil = null;
@@ -111,6 +128,7 @@ async function getUserData(userId) {
 
 async function updateUserData(userId, data) {
     try {
+        // Lógica de muerte y pérdida de cartera
         if (data.health <= 0) {
             data.deadCount = (data.deadCount || 0) + 1;
             data.health = 3; 
@@ -118,7 +136,18 @@ async function updateUserData(userId, data) {
         }
         await User.findOneAndUpdate({ userId }, { $set: data }, { upsert: true });
         return true;
-    } catch (err) { return false; }
+    } catch (err) { 
+        return false; 
+    }
 }
 
-module.exports = { User, Guild, getUserData, updateUserData, getGuildData, updateGuildData, grantNeko, addXP };
+module.exports = { 
+    User, 
+    Guild, 
+    getUserData, 
+    updateUserData, 
+    getGuildData, 
+    updateGuildData, 
+    grantNeko, 
+    addXP 
+};
