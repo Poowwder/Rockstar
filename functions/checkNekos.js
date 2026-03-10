@@ -1,4 +1,4 @@
-const Neko = require('../models/nekoSchema');
+const Neko = require('../models/nekoSchema.js');
 
 async function checkNekos(message, type) {
     const userId = message.author ? message.author.id : message.user.id;
