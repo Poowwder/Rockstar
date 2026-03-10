@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, version } = require('discord.js');
 const os = require('os');
 
+// --- 📋 LISTA DE COMANDOS SIMPLES ---
 const commands = [
     {
         name: 'bot-info',
@@ -21,7 +22,10 @@ const commands = [
                     { name: 'Uso de Memoria', value: `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`, inline: true },
                 )
                 .setTimestamp();
-            await ctx.reply({ embeds: [embed] });
+            
+            // Verificamos si es interacción o mensaje para responder correctamente
+            if (ctx.reply) await ctx.reply({ embeds: [embed] });
+            else await ctx.channel.send({ embeds: [embed] });
         }
     },
     {
@@ -31,22 +35,25 @@ const commands = [
             const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${ctx.client.user.id}&scope=bot%20applications.commands&permissions=8`;
             const embed = new EmbedBuilder()
                 .setTitle('🔗 Invítame')
-                .setDescription(`Puedes invitarme a tu servidor usando este enlace.`)
+                .setDescription(`Puedes invitarme a tu servidor usando [este enlace](${inviteUrl}).`)
                 .setColor('#77DD77');
-            await ctx.reply({ embeds: [embed] });
+            
+            if (ctx.reply) await ctx.reply({ embeds: [embed] });
+            else await ctx.channel.send({ embeds: [embed] });
         }
     },
     {
         name: 'support',
         description: 'Obtén el enlace al servidor de soporte.',
         async execute(ctx) {
-            // Reemplaza con tu enlace de servidor de soporte
-            const supportUrl = 'https://discord.gg/tu-servidor';
+            const supportUrl = 'https://discord.gg/tu-servidor'; // Reemplaza esto
             const embed = new EmbedBuilder()
                 .setTitle('🤝 Soporte')
-                .setDescription(`¿Necesitas ayuda? Únete a nuestro servidor de soporte.`)
+                .setDescription(`¿Necesitas ayuda? Únete a nuestro [servidor de soporte](${supportUrl}).`)
                 .setColor('#F7DBA7');
-            await ctx.reply({ embeds: [embed] });
+            
+            if (ctx.reply) await ctx.reply({ embeds: [embed] });
+            else await ctx.channel.send({ embeds: [embed] });
         }
     },
     {
@@ -55,30 +62,35 @@ const commands = [
         async execute(ctx) {
             const embed = new EmbedBuilder()
                 .setTitle('🎛️ Dashboard')
-                .setDescription('Gestiona el bot desde nuestra web: Click Aquí')
+                .setDescription('Gestiona el bot desde nuestra web: [Click Aquí](https://tu-web.com)')
                 .setColor('#5865F2');
-            await ctx.reply({ embeds: [embed] });
+            
+            if (ctx.reply) await ctx.reply({ embeds: [embed] });
+            else await ctx.channel.send({ embeds: [embed] });
         }
     },
     {
         name: 'donate',
         description: 'Apoya el desarrollo del bot.',
         async execute(ctx) {
-            await ctx.reply('💖 Puedes apoyarnos en: https://ko-fi.com/rockstarbot');
+            const msg = '💖 Puedes apoyarnos en: https://ko-fi.com/rockstarbot';
+            if (ctx.reply) await ctx.reply(msg);
+            else await ctx.channel.send(msg);
         }
     }
 ];
 
+// --- 👤 COMANDO DE USUARIO (CON SUBCOMANDOS) ---
 const userCommand = {
     data: new SlashCommandBuilder()
         .setName('user')
         .setDescription('Muestra información sobre un usuario.')
-        .addSubcommand(sub => sub.setName('info').setDescription('Muestra información general del usuario.').addUserOption(opt => opt.setName('usuario').setDescription('El usuario a consultar.')))
-        .addSubcommand(sub => sub.setName('avatar').setDescription('Muestra el avatar de un usuario.').addUserOption(opt => opt.setName('usuario').setDescription('El usuario a consultar.')))
-        .addSubcommand(sub => sub.setName('banner').setDescription('Muestra el banner de un usuario.').addUserOption(opt => opt.setName('usuario').setDescription('El usuario a consultar.'))),
+        .addSubcommand(sub => sub.setName('info').setDescription('Muestra información general.').addUserOption(opt => opt.setName('usuario').setDescription('El usuario.')))
+        .addSubcommand(sub => sub.setName('avatar').setDescription('Muestra el avatar.').addUserOption(opt => opt.setName('usuario').setDescription('El usuario.')))
+        .addSubcommand(sub => sub.setName('banner').setDescription('Muestra el banner.').addUserOption(opt => opt.setName('usuario').setDescription('El usuario.'))),
     category: 'info',
     async execute(message, args) {
-        await message.reply('Este comando solo está disponible como comando de barra (`/user ...`).');
+        await message.reply('Este comando solo está disponible con `/user [info/avatar/banner]`.');
     },
     async executeSlash(interaction) {
         const subcommand = interaction.options.getSubcommand();
@@ -93,14 +105,12 @@ const userCommand = {
                 .addFields(
                     { name: 'Tag', value: target.tag, inline: true },
                     { name: 'ID', value: target.id, inline: true },
-                    { name: 'Es un Bot?', value: target.bot ? 'Sí' : 'No', inline: true },
                     { name: 'Cuenta Creada', value: `<t:${Math.floor(target.createdTimestamp / 1000)}:R>`, inline: true },
                 );
             if (member) {
-                 embed.addFields(
-                    { name: 'Apodo', value: member.nickname || 'Ninguno', inline: true },
-                    { name: 'Se unió al servidor', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
-                 );
+                embed.addFields(
+                    { name: 'Se unió', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
+                );
             }
             return interaction.reply({ embeds: [embed] });
         }
@@ -114,7 +124,6 @@ const userCommand = {
         }
 
         if (subcommand === 'banner') {
-            // Es necesario hacer un fetch extra para obtener el banner
             const userWithBanner = await target.fetch(true);
             const bannerUrl = userWithBanner.bannerURL({ dynamic: true, size: 512 });
             if (!bannerUrl) return interaction.reply({ content: 'Este usuario no tiene un banner.', ephemeral: true });
@@ -128,15 +137,15 @@ const userCommand = {
     }
 };
 
+// --- 📦 EXPORTACIÓN ---
 module.exports = [
     ...commands.map(cmdConfig => ({
         data: new SlashCommandBuilder().setName(cmdConfig.name).setDescription(cmdConfig.description),
-        category: 'info',
+        category: 'info', // Esto asegura que tu help.js lo detecte automáticamente
+        name: cmdConfig.name,
         description: cmdConfig.description,
-        usage: `!!${cmdConfig.name}`,
-        aliases: [],
-        async execute(message, args) { return cmdConfig.execute(message, args); },
+        async execute(message, args) { return cmdConfig.execute(message); },
         async executeSlash(interaction) { return cmdConfig.execute(interaction); }
-	})),
+    })),
     userCommand
 ];

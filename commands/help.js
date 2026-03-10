@@ -1,138 +1,110 @@
-const { 
-    EmbedBuilder, 
-    ActionRowBuilder, 
-    StringSelectMenuBuilder, 
-    ButtonBuilder, 
-    ButtonStyle,
-    ComponentType
-} = require('discord.js');
-const emojis = require('../utils/emojiHelper.js'); 
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 
 module.exports = {
     name: 'help',
-    aliases: ['h', 'ayuda'],
-    description: 'Menú de ayuda dinámico con respuestas privadas ✨',
-    async execute(input, args) {
-        const isSlash = !!input.user;
-        const user = isSlash ? input.user : input.author;
-        const client = input.client;
-        const OWNER_ID = '1134261491745493032'; 
-        const rosaPastel = "#FFB7C5";
-
-        // --- 🔍 AYUDA ESPECÍFICA (Privada/Ephemeral) ---
-        const comandoBusqueda = args?.[0]?.toLowerCase();
+    description: 'Muestra la lista de comandos del bot.',
+    async execute(message, args) {
         
-        if (comandoBusqueda === 'welcome' || comandoBusqueda === 'goodbye' || comandoBusqueda === 'bienvenida' || comandoBusqueda === 'despedida') {
-            const variablesEmbed = new EmbedBuilder()
-                .setTitle(`✨ Guía de Diseño: ${comandoBusqueda.toUpperCase()}`)
-                .setColor(rosaPastel)
-                .setThumbnail(client.user.displayAvatarURL())
-                .setDescription(
-                    `Usa \`/${comandoBusqueda}\` para configurar.\n\n` +
-                    `📝 **Variables para el Modal:**\n` +
-                    `• \`{username}\` - Nombre de usuario\n` +
-                    `• \`{taguser}\` - Menciona al usuario\n` +
-                    `• \`{serveruser}\` - Nombre del server\n` +
-                    `• \`{membercount}\` - Humanos (sin bots)\n` +
-                    `• \`{serverimg}\` - Icono del servidor\n\n` +
-                    `⏰ **Opciones:**\n` +
-                    `En **Timestamp**, escribe \`yes\` para activarlo.`
-                )
-                .setFooter({ text: 'Esta guía es privada y solo tú la ves ✨' });
-
-            const rowEjemplo = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('ver_ejemplo_visual')
-                    .setLabel('Ver Ejemplo Visual')
-                    .setEmoji('🖼️')
-                    .setStyle(ButtonStyle.Primary)
-            );
-
-            // Respondemos de forma EFÍMERA
-            return await input.reply({ embeds: [variablesEmbed], components: [rowEjemplo], ephemeral: true });
-        }
-
-        // --- 📚 MENÚ DE AYUDA GENERAL (Público) ---
-        const esPremium = (user.id === OWNER_ID); 
-        const paginas = [
-            { id: 'inicio', title: '✨ Rockstar System ✨', description: `¡Hola, reina! Soy tu asistente de Rockstar.\nActualmente tengo **${client.commands.size}** comandos listos.\n\n🌸 Selecciona una categoría abajo.` },
-            { id: 'categorias', title: '📚 Índice de Comandos', description: 'Explora las secciones Rockstar.' },
-            { id: 'mod', title: '🛡️ Moderación', description: '`ban`, `kick`, `warn`, `mute`, `purge`, `welcome`, `goodbye`.' },
-            { id: 'eco', title: '💰 Economía', description: '`daily`, `work`, `mine`, `fish`, `rob`, `bal`, `shop`.' },
-            { id: 'marry', title: '💍 Matrimonios', description: '`marry`, `divorce`, `harem`, `propose`, `ship`, `waifu`.' },
-            { id: 'acc', title: '🎭 Acción', description: '`hug`, `kiss`, `slap`, `pat`, `bite`, `poke`, `shoot`.' },
-            { id: 'config', title: '⚙️ Configuración', description: '`setup`, `setlogs`, `setbutton`, `setprefix`.' },
-            { id: 'premium', title: '💎 Comandos Premium', description: 'Funciones VIP exclusivas.' }
-        ];
-
-        const paginasVisibles = esPremium ? paginas : paginas.slice(0, -1);
-        const paginasTotales = paginasVisibles.length;
-
-        const generarAyuda = (index) => {
-            const data = paginasVisibles[index];
-            const guia = `\n\n- # ${emojis.pinkbow || '🎀'} • *Volver* ${emojis.whitebow || '⬅️'} • *Atrás* ${emojis.arrow || '➡️'} • *Siguiente* ${emojis.heart || '❤️'} • *Cerrar*`;
-
-            const embed = new EmbedBuilder()
-                .setTitle(data.title)
-                .setDescription(`${data.description}${index !== 0 ? guia : ""}`)
-                .setColor(rosaPastel)
-                .setThumbnail(client.user.displayAvatarURL())
-                .setFooter({ text: `Página ${index + 1} de ${paginasTotales} • Rockstar ✨` });
-
-            const filas = [];
-            if (index === 0) {
-                const menu = new ActionRowBuilder().addComponents(
-                    new StringSelectMenuBuilder()
-                        .setCustomId('help_menu')
-                        .setPlaceholder('Selecciona una categoría... 🌸')
-                        .addOptions([
-                            { label: 'Categorías', value: '1', emoji: '📚' },
-                            { label: 'Moderación', value: '2', emoji: '🛡️' },
-                            { label: 'Economía', value: '3', emoji: '💰' },
-                            { label: 'Matrimonios', value: '4', emoji: '💍' },
-                            { label: 'Acción', value: '5', emoji: '🎭' },
-                            { label: 'Configuración', value: '6', emoji: '⚙️' }
-                        ])
-                );
-                filas.push(menu);
-            } else {
-                const botonesRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('volver').setEmoji(emojis.pinkbow || '🎀').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId('atras').setEmoji(emojis.whitebow || '⬅️').setStyle(ButtonStyle.Secondary).setDisabled(index === 1),
-                    new ButtonBuilder().setCustomId('adelante').setEmoji(emojis.arrow || '➡️').setStyle(ButtonStyle.Secondary).setDisabled(index === paginasTotales - 1),
-                    new ButtonBuilder().setCustomId('cerrar').setEmoji(emojis.heart || '❤️').setStyle(ButtonStyle.Danger)
-                );
-                filas.push(botonesRow);
+        // --- 📂 CONFIGURACIÓN DE CONTENIDO ---
+        const info = {
+            main: {
+                title: '🌸 Panel de Categorías - Rockstar',
+                description: 'Bienvenido al menú de ayuda. Haz clic en los botones de abajo para ver los comandos de cada sección.\n\n' +
+                             '💰 **Economía**\n' +
+                             '🎀 **Niveles**\n' +
+                             '🎮 **Diversión**\n' +
+                             '⚙️ **Utilidad**',
+                color: '#ffb7c5'
+            },
+            economia: {
+                title: '💰 Categoría: Economía',
+                description: 'Aquí encontrarás todo lo necesario para gestionar tus monedas y progresar financieramente en el servidor.',
+                commands: '`!!work`, `!!bal`, `!!daily`, `!!shop`, `!!pay`',
+                color: '#f1c40f'
+            },
+            niveles: {
+                title: '🎀 Categoría: Niveles',
+                description: 'Comandos para revisar tu experiencia, rango y el ranking global de usuarios activos.',
+                commands: '`!!rank`, `!!leaderboard`, `!!xp-info`',
+                color: '#e91e63'
+            },
+            diversion: {
+                title: '🎮 Categoría: Diversión',
+                description: '¡Pásalo bien con estos comandos! Roleplay, juegos y acciones para interactuar con otros.',
+                commands: '`!!kiss`, `!!hug`, `!!slap`, `!!dice`, `!!8ball`',
+                color: '#3498db'
+            },
+            utilidad: {
+                title: '⚙️ Categoría: Utilidad',
+                description: 'Información técnica, ayuda del sistema y herramientas útiles para el día a día.',
+                commands: '`!!ping`, `!!userinfo`, `!!serverinfo`, `!!avatar`',
+                color: '#95a5a6'
             }
-            return { embeds: [embed], components: filas };
         };
 
-        const response = await input.reply(generarAyuda(0));
-        const collector = response.createMessageComponentCollector({ time: 300000 });
-        let paginaActual = 0;
+        // --- 🔘 FILAS DE BOTONES ---
+        // Fila 1: Solo para el menú principal (Categorías)
+        const rowMain = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('go_economia').setLabel('Economía').setEmoji('💰').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('go_niveles').setLabel('Niveles').setEmoji('🎀').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('go_diversion').setLabel('Diversión').setEmoji('🎮').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('go_utilidad').setLabel('Utilidad').setEmoji('⚙️').setStyle(ButtonStyle.Secondary)
+        );
+
+        // Fila 2: Solo el botón de Cerrar (y Volver si quisieras, pero pondremos solo Cerrar)
+        const rowClose = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('close_help').setLabel('Cerrar Menú').setStyle(ButtonStyle.Danger)
+        );
+
+        // --- 🖼️ MENSAJE INICIAL ---
+        const mainEmbed = new EmbedBuilder()
+            .setTitle(info.main.title)
+            .setDescription(info.main.description)
+            .setColor(info.main.color)
+            .setThumbnail(message.client.user.displayAvatarURL());
+
+        const response = await message.reply({ 
+            embeds: [mainEmbed], 
+            components: [rowMain, rowClose] 
+        });
+
+        const collector = response.createMessageComponentCollector({
+            componentType: ComponentType.Button,
+            time: 60000
+        });
 
         collector.on('collect', async (i) => {
-            if (i.user.id !== user.id) return i.reply({ content: '🌸 No puedes usar este menú.', ephemeral: true });
-            
-            // --- NUEVA LÓGICA: EJEMPLO VISUAL ---
-            if (i.customId === 'ver_ejemplo_visual') {
-                const ejemploEmbed = new EmbedBuilder()
-                    .setTitle('¡Bienvenida a Rockstar Guild!')
-                    .setDescription(`🌸 ¡Hola **${user.username}**! Disfruta de tu estadía.\nEres el miembro número **${i.guild.memberCount}** de nuestra familia.`)
-                    .setColor(rosaPastel)
-                    .setFooter({ text: `Enviado desde ${i.guild.name}`, iconURL: i.guild.iconURL() })
-                    .setTimestamp();
-                return await i.reply({ content: '✨ **Ejemplo de cómo quedaría tu diseño:**', embeds: [ejemploEmbed], ephemeral: true });
+            if (i.user.id !== message.author.id) {
+                return i.reply({ content: '❌ Solo quien pidió la ayuda puede usar los botones.', ephemeral: true });
             }
 
-            if (i.customId === 'cerrar') return await i.message.delete().catch(() => {});
-            
-            if (i.customId === 'help_menu') paginaActual = parseInt(i.values[0]);
-            else if (i.customId === 'volver') paginaActual = 0;
-            else if (i.customId === 'atras') paginaActual = Math.max(1, paginaActual - 1);
-            else if (i.customId === 'adelante') paginaActual = Math.min(paginasTotales - 1, paginaActual + 1);
+            if (i.customId === 'close_help') {
+                await i.update({ content: '🌸 Menú de ayuda cerrado.', embeds: [], components: [] });
+                return collector.stop();
+            }
 
-            await i.update(generarAyuda(paginaActual)).catch(() => {});
+            // Identificar qué categoría eligió
+            const selected = i.customId.split('_')[1];
+            const data = info[selected];
+
+            const categoryEmbed = new EmbedBuilder()
+                .setTitle(data.title)
+                .setDescription(`${data.description}\n\n**Comandos:**\n${data.commands}`)
+                .setColor(data.color)
+                .setFooter({ text: 'Usa !! antes de cada comando' });
+
+            // AQUÍ ESTÁ EL CAMBIO: Al entrar a una categoría, quitamos la fila de navegación (rowMain)
+            // y dejamos solamente el botón de Cerrar (rowClose).
+            await i.update({ 
+                embeds: [categoryEmbed], 
+                components: [rowClose] 
+            });
         });
-    }
+
+        collector.on('end', () => {
+            if (response.editable) {
+                response.edit({ components: [] }).catch(() => {});
+            }
+        });
+    },
 };
