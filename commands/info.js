@@ -49,7 +49,7 @@ const commands = [
         name: 'support',
         description: 'Obtén el enlace al servidor de soporte.',
         async execute(ctx) {
-            const supportUrl = 'https://discord.gg/tu-servidor'; // ⚠️ CAMBIA ESTO
+            const supportUrl = 'https://discord.gg/sPBUEjpuDu'; // ✅ Enlace actualizado
             const embed = new EmbedBuilder()
                 .setTitle('🤝 Soporte')
                 .setDescription('¿Necesitas ayuda? Únete a nuestro servidor oficial.')
