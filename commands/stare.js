@@ -1,14 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runAction } = require('../utils/actionHandler.js');
 module.exports = {
-    name: 'stare',
-    description: 'Quédate viendo fijamente a alguien... 👀',
-    async execute(message, args) {
-        const user = message.mentions.users.first();
-        const desc = user ? `👀 **${message.author.username}** se le quedó viendo fijamente a **${user.username}**... ✨` : `👀 **${message.author.username}** está observando... ✨`;
-        const embed = new EmbedBuilder()
-            .setDescription(desc)
-            .setImage("https://media.tenor.com/mF9mIDvN-m0AAAAC/anime-stare.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'stare', description: 'Mira fijamente a alguien', category: 'interacción',
+    async execute(input) {
+        const target = input.mentions.users.first();
+        if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
+        const result = await runAction(input, 'stare', target);
+        await input.reply(result);
     }
 };
