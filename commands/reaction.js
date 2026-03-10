@@ -2,6 +2,9 @@ const { SlashCommandBuilder } = require('discord.js');
 const { runReaction } = require('../utils/reactionHandler.js');
 
 module.exports = {
+    name: 'reaction',
+    description: 'Expresa tus emociones a través del sistema ✨',
+    category: 'reacción', // Para que se organice en el Help
     data: new SlashCommandBuilder()
         .setName('reaction')
         .setDescription('Muestra cómo te sientes con un GIF ✨')
@@ -14,7 +17,7 @@ module.exports = {
         .addSubcommand(sub => sub.setName('cringe').setDescription('¡Qué cringe! 😬'))
         .addSubcommand(sub => sub.setName('cry').setDescription('Estás llorando 😭'))
         .addSubcommand(sub => sub.setName('dance').setDescription('¡A bailar! 💃'))
-        .addSubcommand(sub => sub.setName('dere').setDescription('¡Estás muy enamorada! 💕')) // <--- NUEVO
+        .addSubcommand(sub => sub.setName('dere').setDescription('¡Estás muy enamorada! 💕'))
         .addSubcommand(sub => sub.setName('dodge').setDescription('¡Esquiva con estilo! 💨'))
         .addSubcommand(sub => sub.setName('grafitti').setDescription('Haz un graffiti 🎨'))
         .addSubcommand(sub => sub.setName('happy').setDescription('Estás feliz ✨'))
@@ -38,12 +41,17 @@ module.exports = {
     async execute(interaction) {
         try {
             const type = interaction.options.getSubcommand();
-            const result = await runReaction(interaction.client, type, interaction.user);
+            
+            // 🚀 NUEVO: Conexión directa y simplificada al Handler
+            const result = await runReaction(interaction, type);
+            
             await interaction.reply(result);
+            
         } catch (error) {
             console.error("Error en el comando reaction:", error);
             if (!interaction.replied) {
-                await interaction.reply({ content: "❌ Ocurrió un error al procesar la reacción.", ephemeral: true });
+                // Mensaje de error con estilo Rockstar
+                await interaction.reply({ content: "❌ Las sombras interfirieron con tu reacción.", ephemeral: true });
             }
         }
     }
