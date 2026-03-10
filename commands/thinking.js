@@ -1,12 +1,8 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runReaction } = require('../utils/reactionHandler.js');
 module.exports = {
-    name: 'thinking',
-    description: 'Muestra que estás pensando mucho algo 🤔',
-    async execute(message) {
-        const embed = new EmbedBuilder()
-            .setDescription(`🤔 **${message.author.username}** está pensando seriamente... ✨`)
-            .setImage("https://media.tenor.com/v_v_v_v_v_vAAAAC/anime-thinking.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'thinking', description: 'Estás pensando 🤔', category: 'reacción',
+    async execute(input) {
+        const result = await runReaction(input, 'thinking');
+        await input.reply(result);
     }
 };
