@@ -9,7 +9,7 @@ require('dotenv').config();
 // --- 🌐 SERVIDOR PARA RENDER ---
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Rockstar Bot está activo 🐾');
+    res.end('Rockstar Bot está en línea 🐾');
 });
 const PORT = process.env.PORT || 3000;
 server.listen(PORT);
@@ -29,12 +29,12 @@ const prefix = "!!";
 
 connectDB();
 
-// --- 📂 CARGA DE COMANDOS ---
+// --- 📂 CARGA DE COMANDOS CON VALIDACIÓN ---
 const commands = [];
 const uniqueSlashNames = new Set();
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 
-console.log('--- 🛠️ Cargando Comandos Rockstar ---');
+console.log('--- 🛠️ Cargando Comandos ---');
 
 for (const file of commandFiles) {
     try {
@@ -42,41 +42,50 @@ for (const file of commandFiles) {
         delete require.cache[require.resolve(filePath)];
         const command = require(filePath);
 
-        if (command.name) {
-            client.commands.set(command.name, command);
-        }
+        // Validación para evitar el error "Expected the value to not be null"
+        if (command.data) {
+            // Un comando Slash DEBE tener nombre y descripción
+            if (!command.data.name || !command.data.description) {
+                console.error(`⚠️ ERROR en [${file}]: Los comandos Slash necesitan .setName() y .setDescription() con texto.`);
+                continue;
+            }
 
-        if (command.data && command.data.name) {
             if (uniqueSlashNames.has(command.data.name)) {
                 console.warn(`[!] Omitiendo duplicado Slash: /${command.data.name} en ${file}`);
-                continue; 
+                continue;
             }
+
             commands.push(command.data.toJSON());
             uniqueSlashNames.add(command.data.name);
         }
+
+        if (command.name) {
+            client.commands.set(command.name, command);
+        }
     } catch (error) {
-        console.error(`❌ Error en ${file}:`, error);
+        console.error(`\n🚨 ERROR CRÍTICO EN EL ARCHIVO: [${file}]`);
+        console.error(`Mensaje: ${error.message}\n`);
     }
 }
 
-// --- ⚡ EVENTO: CLIENTREADY (Corregido para v15) ---
-client.once('clientReady', async (c) => {
+// --- ⚡ EVENTO: CLIENTREADY (v15 compatible) ---
+client.once('ready', async (c) => { // Usamos ready por compatibilidad, pero el log dirá clientReady
     console.log(`✅ Rockstar logueado como ${c.user.tag}`);
     
     const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
     try {
-        console.log(`⏳ Registrando ${commands.length} comandos slash únicos...`);
+        console.log(`⏳ Sincronizando ${commands.length} comandos únicos con Discord...`);
         await rest.put(
             Routes.applicationCommands(c.user.id),
             { body: commands },
         );
-        console.log('✨ Sincronización completa.');
+        console.log('✨ Menú de comandos "/" actualizado.');
     } catch (error) {
-        console.error('❌ Error en el registro:', error);
+        console.error('❌ Error al registrar comandos en la API de Discord:', error);
     }
 });
 
-// --- 💬 EVENTO: MESSAGE CREATE (!! y Actividad) ---
+// --- 💬 EVENTO: MESSAGE (Prefijo !! y Actividad) ---
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
@@ -96,7 +105,7 @@ client.on('messageCreate', async message => {
     await checkNekos(message, 'message');
 });
 
-// --- ⚡ EVENTO: INTERACTION CREATE (Comandos /) ---
+// --- ⚡ EVENTO: INTERACTION (Comandos /) ---
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -114,7 +123,7 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
         console.error(error);
         if (!interaction.replied) {
-            await interaction.reply({ content: '❌ Error al ejecutar el comando.', ephemeral: true });
+            await interaction.reply({ content: '❌ Hubo un error al ejecutar este comando.', ephemeral: true });
         }
     }
 });
