@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { runAction } = require('../utils/actionHandler');
+const { runAction } = require('../utils/actionHandler.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
