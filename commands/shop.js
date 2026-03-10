@@ -1,6 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { ITEMS_FIJOS, BOLSA_ROTATIVA } = require('../data/items.js');
-const { getShopItemsDB, getUserData } = require('../databaseManager.js');
+const { getShopItemsDB, getUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'shop',
