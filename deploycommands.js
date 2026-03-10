@@ -6,7 +6,7 @@ require('dotenv').config();
 const commands = [];
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 
-console.log('--- 📡 Preparando Comandos para Discord ---');
+console.log('--- 🚀 Forzando Sincronización de Comandos ---');
 
 for (const file of commandFiles) {
     const filePath = path.join(__dirname, 'commands', file);
@@ -14,7 +14,7 @@ for (const file of commandFiles) {
 
     if (command.data) {
         commands.push(command.data.toJSON());
-        console.log(`✅ Preparado: /${command.data.name}`);
+        console.log(`📦 Comando preparado: /${command.data.name}`);
     }
 }
 
@@ -22,16 +22,18 @@ const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
 (async () => {
     try {
-        console.log(`⏳ Sincronizando ${commands.length} comandos con la API de Discord...`);
+        console.log('🧹 Limpiando comandos antiguos...');
+        // Esto borra los comandos viejos antes de poner los nuevos
+        await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: [] });
 
-        // Usamos Routes.applicationCommands para que sea GLOBAL
+        console.log(`⏳ Registrando ${commands.length} comandos nuevos...`);
         await rest.put(
             Routes.applicationCommands(process.env.CLIENT_ID),
             { body: commands },
         );
 
-        console.log('✨ ¡Éxito! El menú de comandos "/" ha sido actualizado en todos los servidores.');
+        console.log('✨ ¡TODO LISTO! Discord ha sido actualizado.');
     } catch (error) {
-        console.error('❌ Error crítico al registrar comandos:', error);
+        console.error('❌ Error en el Deploy:', error);
     }
 })();
