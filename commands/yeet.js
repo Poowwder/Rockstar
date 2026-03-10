@@ -1,14 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runAction } = require('../utils/actionHandler.js');
 module.exports = {
-    name: 'yeet',
-    description: '¡Lanza a alguien por los aires! 🚀',
-    async execute(message, args) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply("🌸 ¿A quién quieres lanzar lejos? ✨");
-        const embed = new EmbedBuilder()
-            .setDescription(`🚀 **${message.author.username}** hizo un YEET con **${user.username}**... ¡Hasta la vista! 🌸`)
-            .setImage("https://media.tenor.com/y3y3y3y3y3yAAAAC/anime-yeet.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'yeet', description: 'Lanza a alguien por los aires', category: 'interacción',
+    async execute(input) {
+        const target = input.mentions.users.first();
+        if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
+        const result = await runAction(input, 'yeet', target);
+        await input.reply(result);
     }
 };
