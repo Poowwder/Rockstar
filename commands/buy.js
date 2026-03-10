@@ -1,4 +1,4 @@
-const { ITEMS_FIJOS, BOLSA_ROTATIVA } = require('../utils/items.js');
+const { ITEMS_FIJOS, BOLSA_ROTATIVA } = require('../data/items.js');
 const { getShopItemsDB, getUserData, updateUserData } = require('../userManager.js'); 
 const { UserProfile } = require('../data/mongodb.js'); 
 const { NEKO_DATA } = require('../functions/checkNekos.js'); 
