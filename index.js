@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
-const fs = require('fs'); // ⬅️ Falta esta línea crítica para leer tus comandos
+const fs = require('fs'); 
 const { connectDB } = require('./data/mongodb.js'); 
 const { checkNekos } = require('./functions/checkNekos.js');
 const http = require('http');
@@ -11,11 +11,9 @@ const server = http.createServer((req, res) => {
   res.end('Rockstar Bot está en línea y brillando 🐾');
 });
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`==> Puerto ${PORT} detectado. Render listo.`);
-});
+server.listen(PORT);
 
-// --- 🤖 CONFIGURACIÓN DEL CLIENTE ---
+// --- 🤖 CONFIGURACIÓN ---
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -28,50 +26,57 @@ const client = new Client({
 client.commands = new Collection();
 const prefix = "!!";
 
-// Conexión a MongoDB
 connectDB();
 
-// --- 📂 CARGA Y REGISTRO DE COMANDOS ---
+// --- 📂 CARGA DE COMANDOS (Con filtro de duplicados) ---
 const commands = [];
+const commandNames = new Set(); // Para rastrear nombres ya usados
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 
 for (const file of commandFiles) {
     const command = require(`./commands/${file}`);
     
-    // Si el comando es un array (como en algunos sistemas de help)
+    // Función interna para procesar cada comando
+    const processCommand = (cmd) => {
+        client.commands.set(cmd.name, cmd);
+        
+        // Solo añadimos al registro Slash si tiene data y NO es un nombre duplicado
+        if (cmd.data && !commandNames.has(cmd.data.name)) {
+            commands.push(cmd.data.toJSON());
+            commandNames.add(cmd.data.name);
+        } else if (cmd.data && commandNames.has(cmd.data.name)) {
+            console.warn(`⚠️ Aviso: Se omitió el duplicado Slash del comando: ${cmd.data.name} (Archivo: ${file})`);
+        }
+    };
+
     if (Array.isArray(command)) {
-        command.forEach(cmd => {
-            client.commands.set(cmd.name, cmd);
-            if (cmd.data) commands.push(cmd.data.toJSON());
-        });
+        command.forEach(cmd => processCommand(cmd));
     } else {
-        client.commands.set(command.name, command);
-        if (command.data) commands.push(command.data.toJSON());
+        processCommand(command);
     }
 }
 
-// --- ⚡ EVENTO: READY (Registrar Slash Commands) ---
+// --- ⚡ EVENTO: CLIENTREADY (Corregido para v14/v15) ---
 client.once('ready', async () => {
     console.log(`✅ Rockstar logueado como ${client.user.tag}`);
     
     const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
     try {
-        console.log('⏳ Sincronizando comandos slash con Discord...');
+        console.log(`⏳ Sincronizando ${commands.length} comandos slash únicos...`);
         await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands },
         );
-        console.log('✨ Comandos slash registrados con éxito.');
+        console.log('✨ Registro completado sin duplicados.');
     } catch (error) {
-        console.error('❌ Error al registrar slash:', error);
+        console.error('❌ Error crítico en el registro:', error);
     }
 });
 
-// --- 💬 EVENTO: MESSAGE CREATE (Prefijo !! y Actividad) ---
+// --- 💬 EVENTO: MESSAGE CREATE (Comandos !! y Actividad) ---
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
-    // 1. Detección de Comandos Legacy (!!)
     if (message.content.startsWith(prefix)) {
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
@@ -79,18 +84,12 @@ client.on('messageCreate', async message => {
 
         if (cmd) {
             try {
-                // Ejecutar comando de texto
                 await cmd.execute(message, args);
-                // Sumar actividad (Mizuki)
                 await checkNekos(message, 'message');
-            } catch (e) {
-                console.error(`Error en comando ${commandName}:`, e);
-            }
+            } catch (e) { console.error(e); }
             return;
         }
     }
-
-    // 2. Mensajes normales (Mizuki)
     await checkNekos(message, 'message');
 });
 
@@ -102,22 +101,17 @@ client.on('interactionCreate', async interaction => {
     if (!cmd) return;
 
     try {
-        // Ejecutar Slash
         await cmd.execute(interaction);
-        
-        // Sumar actividad general
         await checkNekos(interaction, 'message');
 
-        // Lógica de Solas (Acciones)
         const listaAcciones = ['kiss', 'hug', 'pat', 'slap', 'kill', 'cuddle', 'punch', 'feed', 'bite'];
         if (listaAcciones.includes(interaction.commandName)) {
             await checkNekos(interaction, 'action');
         }
-
     } catch (error) {
-        console.error('Error en Slash Interaction:', error);
-        if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: '✨ Se ha producido un error al procesar esta solicitud.', ephemeral: true });
+        console.error(error);
+        if (!interaction.replied) {
+            await interaction.reply({ content: '❌ Error al ejecutar el comando.', ephemeral: true });
         }
     }
 });
