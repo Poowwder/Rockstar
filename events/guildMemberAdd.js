@@ -1,14 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
-const mongoose = require('mongoose');
-
-// Usamos el mismo modelo de configuración que el setup
-const GuildConfig = mongoose.models.GuildConfig || mongoose.model('GuildConfig', new mongoose.Schema({
-    GuildID: String,
-    welcome_1: Object, // { channelId: String, title: String, desc: String, ... }
-    welcome_2: Object, // { channelId: String, desc: String }
-    userRoleId: String,
-    botRoleId: String
-}));
+// Importamos la configuración desde tu central de datos
+const { GuildConfig } = require('../data/mongodb.js'); 
 
 module.exports = {
     name: 'guildMemberAdd',
@@ -19,49 +11,59 @@ module.exports = {
         const config = await GuildConfig.findOne({ GuildID: guild.id });
         if (!config) return;
 
-        // --- 🟢 BIENVENIDA 1 (Embed Estético) ---
-        if (config.welcome_1?.channelId) {
-            const channelB1 = guild.channels.cache.get(config.welcome_1.channelId);
+        // --- 🎭 SISTEMA DE AUTO-ROLE (Se ejecuta primero para evitar demoras) ---
+        try {
+            if (member.user.bot && config.botRoleId) {
+                const role = guild.roles.cache.get(config.botRoleId);
+                if (role) await member.roles.add(role);
+            } else if (!member.user.bot && config.userRoleId) {
+                const role = guild.roles.cache.get(config.userRoleId);
+                if (role) await member.roles.add(role);
+            }
+        } catch (err) {
+            console.log(`⚠️ Error Auto-Role en ${guild.name}: Verifica mi jerarquía de roles.`);
+        }
+
+        // --- 🟢 BIENVENIDA 1 (Embed Estético Principal) ---
+        if (config.Welcome1Config?.channelId) {
+            const channelB1 = guild.channels.cache.get(config.Welcome1Config.channelId);
             if (channelB1) {
                 const guildEmojis = guild.emojis.cache.filter(e => e.available);
                 const rndEmoji = guildEmojis.size > 0 ? guildEmojis.random().toString() : '🌸';
 
                 const embed = new EmbedBuilder()
-                    .setTitle(config.welcome_1.title || `${rndEmoji} ¡Nueva Estrella!`)
-                    .setDescription(config.welcome_1.desc?.replace(/{user}/g, member) || `¡Bienvenid@ ${member} a **${guild.name}**! ✨`)
+                    .setTitle(config.Welcome1Config.title?.replace(/{username}/g, member.user.username) || `${rndEmoji} ¡Nueva Estrella!`)
+                    .setDescription(
+                        (config.Welcome1Config.desc || `¡Bienvenid@ {user} a **{server}**! ✨`)
+                        .replace(/{user}/g, member.toString())
+                        .replace(/{server}/g, guild.name)
+                        .replace(/{membercount}/g, guild.memberCount.toString())
+                    )
                     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
                     .setColor('#FFB6C1')
-                    .setFooter({ text: `Miembro #${guild.memberCount}`, iconURL: guild.iconURL() });
+                    .setFooter({ text: `Miembro #${guild.memberCount}`, iconURL: guild.iconURL() })
+                    .setTimestamp();
+
+                if (config.Welcome1Config.image) embed.setImage(config.Welcome1Config.image);
 
                 channelB1.send({ embeds: [embed] }).catch(() => {});
             }
         }
 
-        // --- 🔵 BIENVENIDA 2 (Texto Simple / Chat General) ---
-        if (config.welcome_2?.channelId) {
-            const channelB2 = guild.channels.cache.get(config.welcome_2.channelId);
+        // --- 🔵 BIENVENIDA 2 (Saludo Corto / Chat General) ---
+        if (config.Welcome2Config?.channelId) {
+            const channelB2 = guild.channels.cache.get(config.Welcome2Config.channelId);
             if (channelB2) {
-                let msgB2 = config.welcome_2.desc || `✨ ¡Bienvenida {taguser}! Pásala lindo en **{server}**. 🌸`;
+                let msgB2 = config.Welcome2Config.desc || `✨ ¡Bienvenida {taguser}! Pásala lindo en **{server}**. 🌸`;
                 
-                // Reemplazos dinámicos
                 msgB2 = msgB2
-                    .replace(/{taguser}/g, `<@${member.id}>`)
+                    .replace(/{taguser}/g, member.toString())
+                    .replace(/{user}/g, member.toString())
                     .replace(/{server}/g, guild.name)
                     .replace(/{membercount}/g, guild.memberCount.toString());
 
                 channelB2.send(msgB2).catch(() => {});
             }
-        }
-
-        // --- 🎭 AUTOROLE ---
-        try {
-            if (member.user.bot && config.botRoleId) {
-                await member.roles.add(config.botRoleId);
-            } else if (!member.user.bot && config.userRoleId) {
-                await member.roles.add(config.userRoleId);
-            }
-        } catch (err) {
-            console.log("⚠️ No pude dar el rol de entrada (Revisa jerarquía).");
         }
     }
 };
