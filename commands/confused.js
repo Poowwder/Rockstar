@@ -1,12 +1,8 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runReaction } = require('../utils/reactionHandler.js');
 module.exports = {
-    name: 'confused',
-    description: 'No entiendes nada de lo que pasa 🤔',
-    async execute(message) {
-        const embed = new EmbedBuilder()
-            .setDescription(`🤔 **${message.author.username}** está confundida... ¿Eh? ✨`)
-            .setImage("https://media.tenor.com/mF9mIDvN-m0AAAAC/anime-confused.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'confused', description: 'Estás confundida ❓', category: 'reacción',
+    async execute(input) {
+        const result = await runReaction(input, 'confused');
+        await input.reply(result);
     }
 };
