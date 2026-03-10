@@ -1,15 +1,8 @@
-const { EmbedBuilder } = require('discord.js');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-
+const { runReaction } = require('../utils/reactionHandler.js');
 module.exports = {
-    name: 'smug',
-    description: 'Pon una cara de presumida total 😏',
-    async execute(message) {
-        const res = await fetch('https://nekos.life/api/v2/img/smug');
-        const json = await res.json();
-        const embed = new EmbedBuilder()
-            .setDescription(`😏 **${message.author.username}** se siente muy superior hoy... ¡Esa actitud! 💍`)
-            .setImage(json.url).setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'smug', description: 'Presume un poco 😏', category: 'reacción',
+    async execute(input) {
+        const result = await runReaction(input, 'smug');
+        await input.reply(result);
     }
 };
