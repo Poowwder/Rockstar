@@ -1,14 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runAction } = require('../utils/actionHandler.js');
 module.exports = {
-    name: 'handhold',
-    description: 'Tómale la mano a alguien de forma romántica 💍',
-    async execute(message, args) {
-        const user = message.mentions.users.first();
-        if (!user) return message.reply("🌸 ¿A quién le quieres tomar la mano? ✨");
-        const embed = new EmbedBuilder()
-            .setDescription(`💍 **${message.author.username}** tomó la mano de **${user.username}**... ¡Qué momento tan lindo! 🌸`)
-            .setImage("https://media.tenor.com/9v6v9vXv9v8AAAAC/anime-hand-hold.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'handhold', description: 'Toma la mano de alguien', category: 'interacción',
+    async execute(input) {
+        const target = input.mentions.users.first();
+        if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
+        const result = await runAction(input, 'handhold', target);
+        await input.reply(result);
     }
 };
