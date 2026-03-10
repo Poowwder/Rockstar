@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, Collection, MessageFlags } = require('discord.js');
-const { getUserData, updateUserData, addItemToInventory } = require('../../economyManager.js');
+const { getUserData, updateUserData, addItemToInventory } = require('../../userManager.js');
 const fs = require('fs');
 const path = require('path');
 const ms = require('ms');
