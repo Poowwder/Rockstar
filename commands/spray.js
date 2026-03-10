@@ -1,19 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runAction } = require('../utils/actionHandler.js');
 module.exports = {
-    name: 'spray',
-    description: 'Rocía a alguien con spray (¡o perfume!) ✨',
-    async execute(message, args) {
-        const user = message.mentions.users.first();
-        const desc = user 
-            ? `✨ **${message.author.username}** roció a **${user.username}**... ¡Ahora huele delicioso! 🌸` 
-            : `✨ **${message.author.username}** está rociando un poco de aroma en el aire... ¡Qué refrescante! 🎀`;
-        
-        const embed = new EmbedBuilder()
-            .setDescription(desc)
-            .setImage("https://media.tenor.com/T-3y2vK9e84AAAAC/anime-spray.gif")
-            .setColor('#FFB7C5');
-
-        await message.reply({ embeds: [embed] });
+    name: 'spray', description: 'Rocía a alguien', category: 'interacción',
+    async execute(input) {
+        const target = input.mentions.users.first();
+        if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
+        const result = await runAction(input, 'spray', target);
+        await input.reply(result);
     }
 };
