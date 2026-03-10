@@ -1,14 +1,10 @@
-const { EmbedBuilder } = require('discord.js');
-
+const { runAction } = require('../utils/actionHandler.js');
 module.exports = {
-    name: 'clap',
-    description: '¡Dale un aplauso a alguien por su gran trabajo! 👏',
-    async execute(message, args) {
-        const user = message.mentions.users.first();
-        const desc = user ? `👏 **${message.author.username}** le aplaude a **${user.username}**... ¡Bravo, bravo! ✨` : `👏 **${message.author.username}** está aplaudiendo... ✨`;
-        const embed = new EmbedBuilder()
-            .setDescription(desc)
-            .setImage("https://media.tenor.com/S6M_H9N_p6oAAAAC/anime-clap.gif").setColor('#FFB7C5');
-        await message.reply({ embeds: [embed] });
+    name: 'clap', description: 'Apláudele a alguien', category: 'interacción',
+    async execute(input) {
+        const target = input.mentions.users.first();
+        if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
+        const result = await runAction(input, 'clap', target);
+        await input.reply(result);
     }
 };
