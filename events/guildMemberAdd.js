@@ -1,58 +1,67 @@
-const { createWelcomeFarewellEmbed } = require('../embedBuilder.js');
-const { getGuildData } = require('../userManager.js');
+const { EmbedBuilder } = require('discord.js');
+const mongoose = require('mongoose');
+
+// Usamos el mismo modelo de configuración que el setup
+const GuildConfig = mongoose.models.GuildConfig || mongoose.model('GuildConfig', new mongoose.Schema({
+    GuildID: String,
+    welcome_1: Object, // { channelId: String, title: String, desc: String, ... }
+    welcome_2: Object, // { channelId: String, desc: String }
+    userRoleId: String,
+    botRoleId: String
+}));
 
 module.exports = {
     name: 'guildMemberAdd',
     async execute(member) {
-        const guildId = member.guild.id;
+        const { guild } = member;
         
-        // 1. Obtener la configuración del servidor desde la DB
-        const data = await getGuildData(guildId);
-        const config = data.welcomeConfig;
+        // 1. Buscamos la configuración en MongoDB
+        const config = await GuildConfig.findOne({ GuildID: guild.id });
         if (!config) return;
 
-        // --- 🟢 BIENVENIDA 1 (Embed Principal) ---
+        // --- 🟢 BIENVENIDA 1 (Embed Estético) ---
         if (config.welcome_1?.channelId) {
-            const channelB1 = member.guild.channels.cache.get(config.welcome_1.channelId);
+            const channelB1 = guild.channels.cache.get(config.welcome_1.channelId);
             if (channelB1) {
-                // Usamos tu constructor del embedBuilder.js
-                const { embed, content } = createWelcomeFarewellEmbed(member, config.welcome_1);
-                
-                channelB1.send({ 
-                    content: content || null, 
-                    embeds: [embed] 
-                }).catch(err => console.log("Error enviando B1:", err));
+                const guildEmojis = guild.emojis.cache.filter(e => e.available);
+                const rndEmoji = guildEmojis.size > 0 ? guildEmojis.random().toString() : '🌸';
+
+                const embed = new EmbedBuilder()
+                    .setTitle(config.welcome_1.title || `${rndEmoji} ¡Nueva Estrella!`)
+                    .setDescription(config.welcome_1.desc?.replace(/{user}/g, member) || `¡Bienvenid@ ${member} a **${guild.name}**! ✨`)
+                    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+                    .setColor('#FFB6C1')
+                    .setFooter({ text: `Miembro #${guild.memberCount}`, iconURL: guild.iconURL() });
+
+                channelB1.send({ embeds: [embed] }).catch(() => {});
             }
         }
 
-        // --- 🔵 BIENVENIDA 2 (Solo Texto / Chat General) ---
+        // --- 🔵 BIENVENIDA 2 (Texto Simple / Chat General) ---
         if (config.welcome_2?.channelId) {
-            const channelB2 = member.guild.channels.cache.get(config.welcome_2.channelId);
+            const channelB2 = guild.channels.cache.get(config.welcome_2.channelId);
             if (channelB2) {
-                // Para B2, procesamos un mensaje simple si existe
-                const realCount = member.guild.members.cache.filter(m => !m.user.bot).size;
-                let msgB2 = config.welcome_2.desc || `✨ ¡Bienvenida {taguser}! Pásala lindo en **{serveruser}**. Eres nuestra persona nº{membercount}. 🌸`;
+                let msgB2 = config.welcome_2.desc || `✨ ¡Bienvenida {taguser}! Pásala lindo en **{server}**. 🌸`;
                 
-                // Reemplazo rápido para mensaje simple
+                // Reemplazos dinámicos
                 msgB2 = msgB2
                     .replace(/{taguser}/g, `<@${member.id}>`)
-                    .replace(/{serveruser}/g, member.guild.name)
-                    .replace(/{membercount}/g, realCount.toString())
-                    .replace(/{username}/g, member.user.username);
+                    .replace(/{server}/g, guild.name)
+                    .replace(/{membercount}/g, guild.memberCount.toString());
 
-                channelB2.send(msgB2).catch(err => console.log("Error enviando B2:", err));
+                channelB2.send(msgB2).catch(() => {});
             }
         }
 
-        // --- 🎭 AUTOROLE (Opcional) ---
-        // Si tienes guardados IDs de roles en tu config, el bot los asignará aquí
-        const userRoleId = config.userRoleId; // ID de rol para humanos
-        const botRoleId = config.botRoleId;   // ID de rol para bots
-
-        if (member.user.bot && botRoleId) {
-            member.roles.add(botRoleId).catch(() => {});
-        } else if (!member.user.bot && userRoleId) {
-            member.roles.add(userRoleId).catch(() => {});
+        // --- 🎭 AUTOROLE ---
+        try {
+            if (member.user.bot && config.botRoleId) {
+                await member.roles.add(config.botRoleId);
+            } else if (!member.user.bot && config.userRoleId) {
+                await member.roles.add(config.userRoleId);
+            }
+        } catch (err) {
+            console.log("⚠️ No pude dar el rol de entrada (Revisa jerarquía).");
         }
     }
 };

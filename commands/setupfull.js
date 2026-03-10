@@ -3,29 +3,25 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = {
-    // --- IMPORTANTE: Sin guion para que coincida con el nombre del archivo si prefieres ---
-    name: 'setupfull', 
-    description: '👑 Configuración total de canales y roles Rockstar',
+    name: 'setupfull',
+    description: '👑 Despliegue total: Categorías, Canales y Roles de Identidad.',
     category: 'utilidad',
 
-    // Configuración para el menú de Slash Commands /
     data: new SlashCommandBuilder()
         .setName('setupfull')
-        .setDescription('👑 Configuración total de servidor')
+        .setDescription('👑 Configuración total de servidor (Rockstar Edition)')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
-    // Ejecución con prefijo !!setupfull
     async execute(message, args) {
         if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return message.reply("❌ Necesitas permisos de Administrador para usar esto.");
+            return message.reply("❌ Necesitas ser Administrador.");
         }
-        await message.reply("🚀 **Iniciando el despliegue del imperio Rockstar...**");
+        await message.reply("✨ **Diseñando el imperio... Esto tomará un momento para evitar bloqueos.**");
         return this.runSetup(message);
     },
 
-    // Ejecución con Slash /setupfull
     async executeSlash(interaction) {
-        await interaction.reply("🚀 **Iniciando el despliegue del imperio Rockstar...**");
+        await interaction.reply("✨ **Diseñando el imperio... Esto tomará un momento para evitar bloqueos.**");
         return this.runSetup(interaction);
     },
 
@@ -34,21 +30,46 @@ module.exports = {
         const configPath = path.join(process.cwd(), 'welcomeConfig.json');
 
         try {
-            // Función para crear roles con pausa (evita que Discord bloquee al bot)
+            // --- ⏱️ FUNCIONES DE APOYO ---
+            const wait = (ms) => new Promise(r => setTimeout(r, ms));
+            
             const createRole = async (name, color) => {
-                await new Promise(r => setTimeout(r, 800)); 
+                await wait(800);
                 return guild.roles.create({ name, color, reason: 'Setup Rockstar' });
             };
 
-            // --- 1. CREACIÓN DE ROLES (ORDENADOS) ---
+            const createChan = async (name, type, parent = null) => {
+                await wait(1000); // 1 segundo para canales
+                return guild.channels.create({ name, type, parent });
+            };
+
+            // --- 1. CATEGORÍAS Y CANALES ---
+            // Información
+            const catInfo = await createChan('🌸 ‧ Informacion', ChannelType.GuildCategory);
+            const welcome = await createChan('🎀-│-bienvenidas', ChannelType.GuildText, catInfo.id);
+            await createChan('📜-│-reglas', ChannelType.GuildText, catInfo.id);
+            await createChan('📢-│-anuncios', ChannelType.GuildText, catInfo.id);
+
+            // Social
+            const catSocial = await createChan('💬 ‧ Social', ChannelType.GuildCategory);
+            await createChan('🍵-│-chat-general', ChannelType.GuildText, catSocial.id);
+            await createChan('📸-│-galeria', ChannelType.GuildText, catSocial.id);
+            await createChan('🧸-│-comandos', ChannelType.GuildText, catSocial.id);
+
+            // Voz
+            const catVoz = await createChan('🔊 ‧ Canales de Voz', ChannelType.GuildCategory);
+            await createChan('☁️ Chat de Voz', ChannelType.GuildVoice, catVoz.id);
+            await createChan('🎵 Música', ChannelType.GuildVoice, catVoz.id);
+
+            // --- 2. ROLES DE IDENTIDAD ---
             await createRole('━━━━━ GÉNEROS ━━━━━', '#000000');
-            await createRole('He/Him ♂️', '#89CFF0');
-            await createRole('She/Her ♀️', '#F4C2C2');
-            await createRole('They/Them ⚧', '#E0BBE4');
+            const roleMasc = await createRole('He/Him ♂️', '#89CFF0');
+            const roleFem = await createRole('She/Her ♀️', '#F4C2C2');
+            const roleNon = await createRole('They/Them ⚧', '#E0BBE4');
 
             await createRole('━━━━━ EDADES ━━━━━', '#000000');
-            await createRole('-18', '#FFD1DC');
-            await createRole('+18', '#FF6961');
+            const roleMinor = await createRole('-18', '#FFD1DC');
+            const roleAdult = await createRole('+18', '#FF6961');
 
             await createRole('━━━━━ SIGNOS ━━━━━', '#000000');
             const signos = ['Aries ♈', 'Tauro ♉', 'Géminis ♊', 'Cáncer ♋', 'Leo ♌', 'Virgo ♍', 'Libra ♎', 'Escorpio ♏', 'Sagitario ♐', 'Capricornio ♑', 'Acuario ♒', 'Piscis ♓'];
@@ -57,43 +78,33 @@ module.exports = {
             const roleUser = await createRole('🌸 Miembro', '#FFB6C1');
             const roleBot = await createRole('🤖 Bot Rockstar', '#A2D2FF');
 
-            // --- 2. CREACIÓN DE CANALES ---
-            const category = await guild.channels.create({ 
-                name: '🌸 Rockstar System', 
-                type: ChannelType.GuildCategory 
-            });
-
-            const welcomeChannel = await guild.channels.create({ 
-                name: '🎀-bienvenidas', 
-                type: ChannelType.GuildText, 
-                parent: category.id 
-            });
-
             // --- 3. GUARDADO DE CONFIGURACIÓN ---
-            let config = {};
+            let allConfigs = {};
             if (fs.existsSync(configPath)) {
-                config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                allConfigs = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             }
-            config[guild.id] = { 
-                welcomeChannel: welcomeChannel.id, 
-                memberRole: roleUser.id 
+
+            allConfigs[guild.id] = {
+                welcomeChannel: welcome.id,
+                memberRole: roleUser.id,
+                botRole: roleBot.id
             };
-            fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
+
+            fs.writeFileSync(configPath, JSON.stringify(allConfigs, null, 4));
 
             const successEmbed = new EmbedBuilder()
-                .setTitle("✅ ¡Setup Rockstar Finalizado!")
-                .setColor("#B5EAD7")
-                .setDescription("Se han creado todos los roles y el canal de bienvenidas.\n\n⚠️ **Nota:** Sube el rol del bot al principio de la lista de roles.");
+                .setTitle('👑 ¡Configuración Rockstar Completada!')
+                .setColor('#FFB6C1')
+                .setDescription(`Se han creado:\n• **3 Categorías**\n• **9 Canales**\n• **Más de 20 Roles**\n\n📌 **Acción requerida:** Mueve el rol del bot arriba de todo en la lista de roles.`);
 
-            // Responder según el tipo de contexto (Slash o Mensaje)
             if (ctx.editReply) await ctx.editReply({ content: ' ', embeds: [successEmbed] });
             else await ctx.channel.send({ embeds: [successEmbed] });
 
         } catch (error) {
             console.error(error);
-            const errorMsg = "❌ Hubo un error al crear los roles. Verifica que tenga permisos de Administrador.";
-            if (ctx.editReply) await ctx.editReply(errorMsg);
-            else await ctx.channel.send(errorMsg);
+            const errMsg = "❌ Ocurrió un error. Revisa que el bot sea Administrador.";
+            if (ctx.editReply) await ctx.editReply(errMsg);
+            else await ctx.channel.send(errMsg);
         }
     }
 };
