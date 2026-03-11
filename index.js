@@ -5,7 +5,7 @@ const http = require('http');
 const { connectDB } = require('./data/mongodb.js');
 const { checkNekos } = require('./functions/checkNekos.js');
 // 🚀 NUEVO: Importamos el motor de experiencia
-const { addXP } = require('./userManager.js'); 
+const { addXP, getUserData } = require('./userManager.js'); 
 require('dotenv').config();
 
 // --- 🌐 SERVIDOR PARA RENDER ---
