@@ -26,7 +26,7 @@ module.exports = {
         
         let data = await getUserData(user.id);
         
-        // --- 🏥 VERIFICACIÓN DE SALUD ---
+        // --- 🏥 VERIFICACIÓN DE SALUD PREVIA ---
         if ((data.health || 0) <= 0) {
             const deadEmbed = new EmbedBuilder()
                 .setColor('#1a1a1a')
@@ -35,7 +35,7 @@ module.exports = {
             return input.reply({ embeds: [deadEmbed], ephemeral: true });
         }
 
-        // --- ⚙️ SISTEMA VIP (AHORA CON GANANCIAS ESCALADAS) ---
+        // --- ⚙️ SISTEMA VIP (COOLDOWN, VIDAS Y GANANCIAS) ---
         // Valores por defecto (Usuario Normal)
         let cooldown = 300000; // 5 minutos
         let prob = 0.45;       // 45% de éxito
@@ -84,12 +84,14 @@ module.exports = {
             let failThumbnail = "";
 
             if (data.health <= 0) {
+                // 💀 MUERTE: Pierde absolutamente todo el dinero de la billetera
                 data.health = 0;
                 lostMoney = data.wallet || 0;
                 data.wallet = 0; 
                 outcomeText = `\n\n╰┈➤ 💀 **HAS CAÍDO EN EL INTENTO.**\nLas heridas fueron fatales. Las autoridades han confiscado absolutamente todas las flores de tus bolsillos: \`-${lostMoney.toLocaleString()} 🌸\`.`;
                 failThumbnail = 'https://i.pinimg.com/originals/27/a3/9a/27a39a0b9a84a6b1dc92690d297a7ea6.gif';
             } else {
+                // 💸 MULTA POLICIAL: Sigue vivo, pero paga una multa de hasta 1200
                 lostMoney = Math.min(data.wallet || 0, 1200); 
                 data.wallet -= lostMoney;
                 outcomeText = `\n\n╰┈➤ 💸 **Multa Policial:** \`-${lostMoney.toLocaleString()} 🌸\`\n╰┈➤ ❤️ **Vidas restantes:** \`${data.health}\``;
