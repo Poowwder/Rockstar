@@ -1,82 +1,51 @@
 const { REST, Routes, EmbedBuilder } = require('discord.js');
-const fs = require('fs');
 require('dotenv').config();
-
-// --- ✨ EMOJIS AL AZAR DEL SERVIDOR ---
-const getE = (guild) => {
-    const emojis = guild?.emojis.cache.filter(e => e.available);
-    return (emojis && emojis.size > 0) ? emojis.random().toString() : '⚡';
-};
 
 module.exports = {
     name: 'deploy',
-    description: 'Sincroniza los Slash Commands (Solo Owner).',
-    category: 'oculto',
+    description: '🚀 Registra los Slash Commands en Discord.',
     async execute(message) {
-        // --- 🛡️ SEGURIDAD NIVEL ROCKSTAR ---
-        const OWNER_ID = '1428164600091902055'; 
-        if (message.author.id !== OWNER_ID) return; 
+        // Solo el dueño o admins deberían usar esto
+        if (!message.member.permissions.has('Administrator')) return;
 
-        const e = () => getE(message.guild);
-        const msg = await message.reply(`> ${e()} *Iniciando protocolo de inyección en las sombras...*`);
+        const commands = [];
+        const commandFiles = message.client.commands.filter(cmd => cmd.data);
+
+        for (const [name, command] of commandFiles) {
+            commands.push(command.data.toJSON());
+        }
+
+        // Usamos el ID del archivo .env O el ID del bot actual para evitar el error "undefined"
+        const clientId = process.env.CLIENT_ID || message.client.user.id;
+        const token = process.env.TOKEN;
+
+        const rest = new REST({ version: '10' }).setToken(token);
 
         try {
-            const commands = [];
-            const commandsPath = __dirname; 
-            const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+            await message.reply('⏳ **Iniciando sincronización de comandos...**');
 
-            for (const file of commandFiles) {
-                // Forzamos la lectura de los nuevos archivos de GitHub borrando el caché
-                const filePath = require.resolve(`./${file}`);
-                delete require.cache[filePath];
-                
-                const command = require(`./${file}`);
-
-                if (command.data) {
-                    commands.push(command.data.toJSON());
-                }
-            }
-
-            // --- 🌐 CONEXIÓN E INYECCIÓN A DISCORD ---
-            const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
-
-            // Limpiamos los comandos antiguos para evitar duplicados o errores
+            // Registramos de forma global
             await rest.put(
-                Routes.applicationCommands(process.env.CLIENT_ID),
-                { body: [] }
+                Routes.applicationCommands(clientId),
+                { body: commands },
             );
 
-            // Inyectamos la nueva lista de comandos actualizados
-            await rest.put(
-                Routes.applicationCommands(process.env.CLIENT_ID),
-                { body: commands }
-            );
-
-            // --- 📄 RESULTADO ESTÉTICO ---
             const embed = new EmbedBuilder()
+                .setTitle('🚀 DEPLOY EXITOSO')
                 .setColor('#1a1a1a')
-                .setTitle(`${e()} ⟢ PROTOCOLO DEPLOY FINALIZADO ${e()}`)
-                .setThumbnail('https://i.pinimg.com/originals/de/13/8d/de138d68962534575975d4f7c975a5c5.gif')
-                .setDescription(
-                    `> *“El sistema ha sido reescrito bajo las nuevas órdenes.”*\n\n` +
-                    `**─── ✦ STATUS ✦ ───**\n` +
-                    `╰┈➤ **Comandos Inyectados:** \`${commands.length}\` \n` +
-                    `╰┈➤ **Estado:** \`Sincronización Global Exitosa\`\n` +
-                    `**─────────────────**\n\n` +
-                    `╰┈➤ Los Slash Commands ( \`/\` ) ya están listos en todos los servidores.`
-                )
-                .setFooter({ text: 'Rockstar Operations System • Acceso Owner' });
+                .setDescription(`Se han sincronizado **${commands.length}** comandos correctamente.\n\n> *Ya puedes usar los comandos de barra (/).*`)
+                .setTimestamp();
 
-            await msg.edit({ content: null, embeds: [embed] });
+            await message.channel.send({ embeds: [embed] });
 
         } catch (error) {
-            console.error('❌ Error en el despliegue:', error);
+            console.error(error);
             const errorEmbed = new EmbedBuilder()
-                .setColor('#ff0000')
                 .setTitle('❌ ERROR EN EL DEPLOY')
+                .setColor('#ff0000')
                 .setDescription(`\`\`\`js\n${error.message}\n\`\`\``);
             
-            await msg.edit({ content: null, embeds: [errorEmbed] });
+            await message.channel.send({ embeds: [errorEmbed] });
         }
-    }
+    },
 };
