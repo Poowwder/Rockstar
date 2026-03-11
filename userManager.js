@@ -14,6 +14,7 @@ const UserSchema = new mongoose.Schema({
     job: { type: String, default: null },
     jobExperience: { type: Number, default: 0 },
     lastWork: { type: Number, default: 0 },
+    dailyStreak: { type: Number, default: 0 }, // Añade esta línea a tu UserSchema
     workWarnings: { type: Number, default: 0 },
     inventory: { type: Object, default: {} }, 
     durabilidades: { type: Object, default: {} },
