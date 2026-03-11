@@ -11,7 +11,7 @@ const UserSchema = new mongoose.Schema({
     premiumType: { type: String, default: 'none' }, 
     premiumUntil: { type: Date, default: null },
     
-    // 💍 Vínculos (Agregado para que tus matrimonios funcionen)
+    // 💍 Vínculos y Harén
     harem: { type: Array, default: [] }, 
     
     // Trabajo y Cooldowns
@@ -33,36 +33,25 @@ const UserSchema = new mongoose.Schema({
     }
 });
 
-// --- 🛒 ESQUEMA DE LA TIENDA (Lo que faltaba) ---
+// --- 🛒 ESQUEMA DE LA TIENDA ---
 const ShopItemSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     emoji: { type: String, default: '📦' },
     price: { type: Number, required: true },
     tipo: { type: String, default: 'fijo' },
-    categoria: { type: String, default: 'VARIOS' } // Se guarda la sección (HERRAMIENTAS, etc)
+    categoria: { type: String, default: 'VARIOS' }
 });
 
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
 const ShopItem = mongoose.models.ShopItem || mongoose.model('ShopItem', ShopItemSchema);
 
-// --- 📉 FUNCIONES DE USUARIO ---
+// --- 📉 FUNCIONES DE USUARIO Y EXPERIENCIA ---
+
 async function getUserData(userId) {
     let user = await User.findOne({ userId });
     if (!user) user = await User.create({ userId });
     return user;
-}
-
-async function updateUserData(userId, data) {
-    try {
-        if (data.health <= 0) {
-            let oldData = await User.findOne({ userId });
-            if (oldData && oldData.health > 0) data.deadCount = (data.deadCount || 0) + 1;
-            data.wallet = 0;
-        }
-        await User.findOneAndUpdate({ userId }, { $set: data }, { upsert: true });
-        return true;
-    } catch (err) { return false; }
 }
 
 async function addXP(userId, amount, client) {
@@ -87,41 +76,95 @@ async function addXP(userId, amount, client) {
     return { leveledUp: false };
 }
 
-// --- 🛒 FUNCIONES DE LA TIENDA (Arreglado) ---
+// --- 💀 EL NÚCLEO: ACTUALIZACIÓN Y MUERTE QUIRÚRGICA ---
 
-// Obtener todos los ítems guardados
+async function updateUserData(userId, data) {
+    try {
+        let oldData = await User.findOne({ userId });
+        if (!oldData) oldData = await User.create({ userId });
+
+        // 🛡️ Lógica de Muerte (Mine/Fish) - Solo si pasa de Vivo a Muerto
+        if (data.health <= 0 && oldData.health > 0) {
+            const rank = (oldData.premiumType || 'none').toLowerCase();
+            const inv = oldData.inventory || {};
+            const newInv = { ...inv };
+
+            let lossPercentage; // Pérdida de materiales
+            let livesLoss;      // Pérdida de ítem "vida"
+
+            // Definición de tasas según el rango
+            if (rank === 'ultra' || rank === 'bimestral') {
+                lossPercentage = 0.05; // 5% de materiales
+                livesLoss = 2;         // -2 vidas fijas
+            } else if (rank === 'pro' || rank === 'mensual') {
+                lossPercentage = 0.10; // 10% de materiales
+                livesLoss = 0.35;      // 35% de vidas compradas
+            } else {
+                lossPercentage = 0.15; // 15% de materiales
+                livesLoss = 0.50;      // 50% de vidas compradas
+            }
+
+            // Aplicar la purga al inventario sin tocar dinero
+            for (let itemId in newInv) {
+                if (newInv[itemId] <= 0) continue;
+
+                if (itemId === 'vida') {
+                    // Si es Ultra, resta vidas fijas. Si no, resta porcentaje.
+                    if (rank === 'ultra' || rank === 'bimestral') {
+                        newInv[itemId] = Math.max(0, newInv[itemId] - livesLoss);
+                    } else {
+                        newInv[itemId] = Math.max(0, Math.floor(newInv[itemId] * (1 - livesLoss)));
+                    }
+                } else {
+                    // Materiales (hierro, gemas, madera, peces, etc)
+                    newInv[itemId] = Math.max(0, Math.floor(newInv[itemId] * (1 - lossPercentage)));
+                }
+            }
+
+            // Inyectamos los cambios en el objeto data para que se guarden
+            data.inventory = newInv;
+            data.deadCount = (oldData.deadCount || 0) + 1;
+            data.health = 3; // ❤️ Renacimiento automático
+            // data.wallet NO se toca (Mine/Fish no quita dinero)
+        }
+
+        await User.findOneAndUpdate({ userId }, { $set: data }, { upsert: true });
+        return true;
+    } catch (err) { 
+        console.error("Error al actualizar datos de usuario:", err);
+        return false; 
+    }
+}
+
+// --- 🛒 GESTIÓN DE LA TIENDA ---
+
 async function getShopItemsDB() {
     try {
         return await ShopItem.find({});
     } catch (e) {
-        console.error("Error al obtener ítems:", e);
         return [];
     }
 }
 
-// Guardar o actualizar un ítem
 async function updateShopItemDB(id, itemData) {
     try {
         await ShopItem.findOneAndUpdate({ id }, { $set: itemData }, { upsert: true });
         return true;
     } catch (err) {
-        console.error("Error en updateShopItemDB:", err);
         return false;
     }
 }
 
-// Eliminar un ítem
 async function deleteShopItemDB(id) {
     try {
         await ShopItem.findOneAndDelete({ id });
         return true;
     } catch (err) {
-        console.error("Error en deleteShopItemDB:", err);
         return false;
     }
 }
 
-// 🚀 EXPORTACIONES COMPLETAS
+// 🚀 EXPORTACIONES
 module.exports = { 
     User, 
     ShopItem,
