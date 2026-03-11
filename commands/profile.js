@@ -1,128 +1,72 @@
-const { 
-    EmbedBuilder, SlashCommandBuilder, ActionRowBuilder, 
-    ButtonBuilder, ButtonStyle, ComponentType 
-} = require('discord.js');
-const { getUserData } = require('../userManager.js'); 
-const { UserProfile } = require('../data/mongodb.js'); 
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { getUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'profile',
-    category: 'información',
+    description: 'Muestra tu expediente clasificado y estado vital.',
+    category: 'economía',
+    // ⚔️ SOPORTE PARA SLASH COMMANDS
     data: new SlashCommandBuilder()
         .setName('profile')
-        .setDescription('🎀 Mira tu perfil detallado o el de otra persona')
-        .addUserOption(opt => opt.setName('u').setDescription('Usuario a consultar')),
+        .setDescription('Muestra tu expediente clasificado')
+        .addUserOption(option => 
+            option.setName('usuario')
+                .setDescription('El usuario del que quieres ver el perfil')
+                .setRequired(false)),
 
     async execute(input) {
+        // Detectamos si es Slash o Mensaje de prefijo
         const isSlash = !!input.user;
-        const authorId = isSlash ? input.user.id : input.author.id;
-        const target = isSlash ? (input.options.getUser('u') || input.user) : (input.mentions.users.first() || input.author);
-        const member = input.guild.members.cache.get(target.id) || { displayName: target.username };
+        const author = isSlash ? input.user : input.author;
         
-        // --- ✨ EMOJIS ALEATORIOS DEL SERVIDOR ---
-        const guildEmojis = input.guild.emojis.cache.filter(e => e.available);
-        const rnd = () => guildEmojis.size > 0 ? guildEmojis.random().toString() : '✨';
-        
-        // --- 📂 EXTRACCIÓN DE DATOS ---
-        const data = await getUserData(target.id);
-        const profileDB = await UserProfile.findOne({ UserID: target.id, GuildID: input.guild.id });
+        // Buscamos al objetivo (mencionado, opción de slash, o el autor)
+        let target;
+        if (isSlash) {
+            target = input.options.getUser('usuario') || author;
+        } else {
+            target = input.mentions.users.first() || author;
+        }
 
-        const OWNER_ID = '1428164600091902055'; 
-        const isOwner = (target.id === OWNER_ID);
-        
-        let rankTitle = data.premiumType ? data.premiumType.toUpperCase() : "CIUDADANO REGULAR";
-        if (isOwner) rankTitle = "𝕽☆𝖈𝖐𝖘𝖙𝖆𝖗 𝕹𝖔𝖛𝖆";
-
-        // --- 🐱 COLECCIÓN DE NEKOS ---
-        const hasNeko = (imgPart) => profileDB?.Nekos?.some(url => url.toLowerCase().includes(imgPart.toLowerCase())) || false;
-
-        const collection = [
-            { name: 'Solas', icon: '☁️', check: hasNeko('SOLAS') },
-            { name: 'Nyx', icon: '🌑', check: hasNeko('NYX') },
-            { name: 'Mizuki', icon: '🌸', check: hasNeko('MIZUKI') },
-            { name: 'Astra', icon: '👑', check: hasNeko('ASTRA') },
-            { name: 'Koko', icon: '🍓', check: hasNeko('KOKO') }
-        ];
-
-        const visibleNekos = collection
-            .filter(n => n.check === true)
-            .map(n => `\`${n.icon} ${n.name}\``)
-            .join(' ⊹ '); 
-
-        // --- ❤️ SISTEMA DE SALUD ---
-        const vMax = 3;
-        const vActual = data.health ?? 3;
-        const filled = Math.round((Math.min(vActual / vMax, 1)) * 10);
-        const barraSalud = "🌸".repeat(filled) + "🖤".repeat(10 - filled); 
-
-        // --- 🔘 INTERFAZ DE BOTONES ---
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('main').setEmoji(rnd()).setLabel('Expediente').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('harem').setEmoji(rnd()).setLabel('Vínculos').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('exit').setEmoji('✖️').setStyle(ButtonStyle.Danger)
-        );
-
-        // --- 📄 PÁGINA 1: EXPEDIENTE PRINCIPAL ---
-        const carismaReal = data.carisma || data.rep || 0; 
-
-        const mainEmbed = () => new EmbedBuilder()
-            .setColor('#1a1a1a')
-            .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-            .setDescription(
-                `> ${rnd()} **Expediente Clasificado: ${member.displayName}**\n` +
-                `> *“${data.mood || "Navegando entre las sombras..."}”*\n\n` +
-                `╰┈➤ 💠 **Rango:** \`${rankTitle}\`\n` +
-                `╰┈➤ ✨ **Carisma:** \`${carismaReal} Pts\`\n` +
-                `╰┈➤ 💀 **Muertes:** \`${data.deadCount || 0}\`\n\n` +
-                `**Estado Vital**\n` +
-                `> ❤️ \`${vActual.toFixed(1)} / ${vMax}\`\n` +
-                `> ${barraSalud}\n\n` +
-                (visibleNekos ? `**Mascotas Acompañantes**\n> ${visibleNekos}\n` : "")
-            )
-            .setFooter({ text: `Base de Datos ⊹ Rockstar`, iconURL: target.displayAvatarURL() });
-
-        // --- 📄 PÁGINA 2: VÍNCULOS (HAREM) ---
-        const haremEmbed = () => {
-            const maxSlots = data.maxHaremSlots || 5; 
+        try {
+            const data = await getUserData(target.id);
             
-            let list = "> *Caminando en soledad...* ☁️";
-            if (data.harem && data.harem.length > 0) {
-                list = data.harem.map((m, i) => {
-                    const hId = typeof m === 'string' ? m : m.id;
-                    const hUser = input.client.users.cache.get(hId);
-                    const hName = hUser ? hUser.username : 'Usuario Desconocido';
-                    return `╰┈➤ **${i+1}.** \`${hName}\``;
-                }).join('\n');
-            }
+            // 🆔 TU ID REAL para el rango exclusivo
+            const OWNER_ID = '1428164600091902055'; 
+            let rango = (data.premiumType || 'USER').toUpperCase();
+            if (target.id === OWNER_ID) rango = '𝕽☆𝖈𝖐𝖘𝖙𝖆𝖗 𝕹𝖔𝖛𝖆';
 
-            return new EmbedBuilder()
+            // 🌸 BARRA DE VIDA
+            const hp = data.health || 0;
+            const maxHp = 3;
+            const filled = "🌸".repeat(Math.max(0, Math.floor(hp)));
+            const empty = "🖤".repeat(Math.max(0, maxHp - Math.floor(hp)));
+
+            const embed = new EmbedBuilder()
                 .setColor('#1a1a1a')
-                .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-                .setDescription(
-                    `> ${rnd()} **Red de Vínculos de ${member.displayName}**\n\n` +
-                    `${list}\n\n` +
-                    `**Espacios Ocupados:** \`${data.harem?.length || 0} / ${maxSlots}\``
+                .setAuthor({ 
+                    name: `⊹ Expediente Clasificado: ${target.username}`, 
+                    iconURL: target.displayAvatarURL({ dynamic: true }) 
+                })
+                .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 1024 }))
+                .setDescription(`*“Navegando entre las sombras...”*`)
+                .addFields(
+                    { name: ' ', value: 
+                        `╰┈➤ 💠 **Rango:** \`${rango}\`\n` +
+                        `╰┈➤ ✨ **Carisma:** \`${data.rep || 0}\` Pts\n` +
+                        `╰┈➤ 💀 **Muertes:** ${data.deadCount || 0}` // ✅ Sin paréntesis (mina/pesca)
+                    },
+                    { name: 'Estado Vital', value: `❤️ \`${hp.toFixed(1)} / 3\`\n${filled}${empty}` }
                 )
-                .setFooter({ text: `Sistema de Harem ⊹ Rockstar`, iconURL: target.displayAvatarURL() });
-        };
+                .setFooter({ text: 'Rockstar Database ⊹ Sistema de Identidad' })
+                .setTimestamp();
 
-        const response = await input.reply({ embeds: [mainEmbed()], components: [row], fetchReply: true });
+            return input.reply({ embeds: [embed] });
 
-        const collector = response.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
-
-        collector.on('collect', async i => {
-            if (i.user.id !== authorId) return i.reply({ content: `❌ Este expediente no te pertenece.`, ephemeral: true });
-            
-            if (i.customId === 'main') await i.update({ embeds: [mainEmbed()] });
-            if (i.customId === 'harem') await i.update({ embeds: [haremEmbed()] });
-            if (i.customId === 'exit') {
-                await i.update({ content: `> ${rnd()} *Cerrando expediente de ${member.displayName}...*`, embeds: [], components: [] });
-                setTimeout(() => response.delete().catch(() => {}), 2500);
-            }
-        });
-
-        collector.on('end', () => {
-            response.edit({ components: [] }).catch(() => {});
-        });
+        } catch (error) {
+            console.error("Error en Profile:", error);
+            const errorMsg = "❌ Hubo un error al leer los archivos del sistema.";
+            if (isSlash) return input.reply({ content: errorMsg, ephemeral: true });
+            return input.reply(errorMsg);
+        }
     }
 };
