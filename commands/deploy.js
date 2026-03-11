@@ -49,7 +49,8 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setColor('#1a1a1a')
                 .setTitle('✨ ⟢ ₊˚ Sincronización Exitosa ˚₊ ⟣ ✨')
-                .setDescription(`Se han inyectado \`${commands.length}\` comandos híbridos en la API.\n\n╰┈➤ Los Slash Commands ( \`/` ) ya están actualizados en el servidor.`)
+                // 🔥 AQUÍ ESTÁ LA LÍNEA ARREGLADA (Escapamos ambos backticks con \ )
+                .setDescription(`Se han inyectado \`${commands.length}\` comandos híbridos en la API.\n\n╰┈➤ Los Slash Commands ( \`/\` ) ya están actualizados en el servidor.`)
                 .setFooter({ text: 'Rockstar Deploy System' });
 
             await msg.edit({ content: null, embeds: [embed] });
