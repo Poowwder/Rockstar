@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const { getUserData, updateUserData } = require('../userManager.js');
 
 const getE = (guild) => {
@@ -40,11 +40,8 @@ module.exports = {
         let riesgo = 0.15, daño = 1, cooldown = 300000;
         const premium = (data.premiumType || 'none').toLowerCase();
 
-        if (premium === 'pro' || premium === 'mensual') { 
-            riesgo = 0.10; daño = 0.5; cooldown = 120000; 
-        } else if (premium === 'ultra' || premium === 'bimestral') { 
-            riesgo = 0.05; daño = 0.2; cooldown = 0; 
-        }
+        if (premium === 'pro' || premium === 'mensual') { riesgo = 0.10; daño = 0.5; cooldown = 120000; } 
+        else if (premium === 'ultra' || premium === 'bimestral') { riesgo = 0.05; daño = 0.2; cooldown = 0; }
 
         const lastMine = data.lastMine ? new Date(data.lastMine).getTime() : 0;
         if (cooldown > 0 && Date.now() - lastMine < cooldown) {
@@ -52,56 +49,87 @@ module.exports = {
             return input.reply({ content: `⏳ El polvo no se ha asentado. Reintenta en \`${espera}s\`.`, ephemeral: true });
         }
 
-        // --- 🚀 3. LÓGICA DE BOOSTS ---
-        const now = Date.now();
-        data.activeBoosts = (data.activeBoosts || []).filter(b => b.expiresAt > now);
-        const hasMoneyBoost = data.activeBoosts.some(b => b.id === 'boost_flores');
-        const multiplier = hasMoneyBoost ? 2 : 1;
+        // --- 🗺️ 3. SISTEMA DE EXPLORACIÓN Y MENÚ ---
+        const discoveredKey = `zona_mine_${mejorPico.id}`;
+        const isFirstTime = !(inv[discoveredKey] >= 1);
+        const thumb = mejorPico.secret ? 'https://i.pinimg.com/originals/7b/0a/61/7b0a61833503b414f6b0f1a91e3e7f91.gif' : 'https://i.pinimg.com/originals/30/85/6a/30856a9080b06b0b009e86749fcb186b.gif';
 
-        // --- 💀 4. LÓGICA DE RIESGO (DERRUMBE) ---
-        if (Math.random() < riesgo) {
-            data.health -= daño;
-            data.lastMine = now;
+        let descripcion = isFirstTime 
+            ? `> *Has encontrado una nueva zona para minar oculta entre las sombras...*\n\n╰┈➤ Te adentras por primera vez en **${mejorPico.zona}**. ¿Estás listo para picar la piedra?`
+            : `> *El silencio de la piedra te da la bienvenida de nuevo.*\n\n╰┈➤ Te encuentras en **${mejorPico.zona}**. Las profundidades aguardan.`;
 
-            // updateUserData procesará la purga de inventario si la vida llega a 0
-            await updateUserData(user.id, data);
+        const embedZona = new EmbedBuilder()
+            .setTitle(`${e()} ZONA: ${mejorPico.zona} ${e()}`)
+            .setColor('#1a1a1a')
+            .setThumbnail(thumb)
+            .setDescription(descripcion)
+            .setFooter({ text: `Equipado: ${mejorPico.id.replace(/_/g, ' ')}` });
 
-            if (data.health <= 0) {
-                const deathEmbed = new EmbedBuilder()
-                    .setTitle(`${e()} 💀 Derrumbe Fatal`)
-                    .setColor('#000000')
-                    .setThumbnail('https://i.pinimg.com/originals/8a/cc/b0/8accb071720d2d3129807b1cc1ec3f1e.gif')
-                    .setDescription(`> *La montaña ha reclamado tu esencia.*\n\n╰┈➤ 🎒 Parte de tus materiales se han perdido bajo las rocas.\n╰┈➤ ❤️ Has sido rescatado y tu salud vuelve a **3 corazones**.`)
-                    .setFooter({ text: 'Ten más cuidado en las profundidades.' });
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('btn_minar').setLabel('⛏️ Minar').setStyle(ButtonStyle.Secondary)
+        );
 
-                return input.reply({ embeds: [deathEmbed] });
+        const response = await input.reply({ embeds: [embedZona], components: [row], fetchReply: true });
+        const collector = response.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
+
+        collector.on('collect', async i => {
+            if (i.user.id !== user.id) return i.reply({ content: "❌ Esta no es tu expedición.", ephemeral: true });
+            collector.stop();
+
+            // Guardamos que ya descubrió la zona
+            if (isFirstTime) {
+                if (!data.inventory) data.inventory = {};
+                data.inventory[discoveredKey] = 1;
             }
 
-            return input.reply(`⚠️ **Derrumbe:** Las piedras te han golpeado. Perdiste \`${daño}\` de vida. ❤️ Vitalidad: \`${Math.floor(data.health)}/3\``);
-        }
+            // --- 🚀 LÓGICA DE BOOSTS ---
+            const now = Date.now();
+            data.activeBoosts = (data.activeBoosts || []).filter(b => b.expiresAt > now);
+            const hasMoneyBoost = data.activeBoosts.some(b => b.id === 'boost_flores');
+            const multiplier = hasMoneyBoost ? 2 : 1;
 
-        // --- 💰 5. CÁLCULO DE GANANCIAS ---
-        const floresBase = Math.floor(Math.random() * 500 + 500) * mejorPico.multis;
-        const floresFinales = floresBase * multiplier;
+            // --- 💀 LÓGICA DE RIESGO (DERRUMBE) ---
+            if (Math.random() < riesgo) {
+                data.health -= daño;
+                data.lastMine = now;
+                await updateUserData(user.id, data);
 
-        data.wallet = (data.wallet || 0) + floresFinales;
-        data.lastMine = now;
+                if (data.health <= 0) {
+                    const deathEmbed = new EmbedBuilder()
+                        .setTitle(`${e()} 💀 Derrumbe Fatal`)
+                        .setColor('#000000')
+                        .setThumbnail('https://i.pinimg.com/originals/8a/cc/b0/8accb071720d2d3129807b1cc1ec3f1e.gif')
+                        .setDescription(`> *La montaña ha reclamado tu esencia.*\n\n╰┈➤ 🎒 Parte de tus materiales se han perdido bajo las rocas.\n╰┈➤ ❤️ Has sido rescatado y tu salud vuelve a **3 corazones**.`)
+                        .setFooter({ text: 'Ten más cuidado en las profundidades.' });
+                    return i.update({ embeds: [deathEmbed], components: [] });
+                }
+                return i.update({ content: `⚠️ **Derrumbe:** Las piedras te han golpeado. Perdiste \`${daño}\` de vida. ❤️ Vitalidad: \`${Math.floor(data.health)}/3\``, embeds: [], components: [] });
+            }
 
-        await updateUserData(user.id, data);
+            // --- 💰 CÁLCULO DE GANANCIAS ---
+            const floresBase = Math.floor(Math.random() * 500 + 500) * mejorPico.multis;
+            const floresFinales = floresBase * multiplier;
+            data.wallet = (data.wallet || 0) + floresFinales;
+            data.lastMine = now;
+            await updateUserData(user.id, data);
 
-        let boostMsg = hasMoneyBoost ? `\n╰┈➤ 🚀 **Boost:** ¡Multiplicador x2 aplicado!` : "";
+            let boostMsg = hasMoneyBoost ? `\n╰┈➤ 🚀 **Boost:** ¡Multiplicador x2 aplicado!` : "";
+            const embedExito = new EmbedBuilder()
+                .setColor('#1a1a1a')
+                .setAuthor({ name: `Minería: ${mejorPico.zona}`, iconURL: user.displayAvatarURL() })
+                .setThumbnail(thumb)
+                .setDescription(
+                    `> *“El abismo recompensa a los audaces.”*\n\n` +
+                    `💰 **Ganancia:** \`+${floresFinales.toLocaleString()} 🌸\`${boostMsg}\n` +
+                    `❤️ **Vitalidad:** \`${Math.floor(data.health)}/3\``
+                )
+                .setFooter({ text: `Equipo: ${mejorPico.id.replace(/_/g, ' ')}` });
 
-        const embed = new EmbedBuilder()
-            .setColor('#1a1a1a')
-            .setAuthor({ name: `Minería: ${mejorPico.zona}`, iconURL: user.displayAvatarURL() })
-            .setThumbnail(mejorPico.secret ? 'https://i.pinimg.com/originals/7b/0a/61/7b0a61833503b414f6b0f1a91e3e7f91.gif' : 'https://i.pinimg.com/originals/30/85/6a/30856a9080b06b0b009e86749fcb186b.gif')
-            .setDescription(
-                `> *“El silencio de la piedra es tu único aliado.”*\n\n` +
-                `💰 **Ganancia:** \`+${floresFinales.toLocaleString()} 🌸\`${boostMsg}\n` +
-                `❤️ **Vitalidad:** \`${Math.floor(data.health)}/3\``
-            )
-            .setFooter({ text: `Equipo: ${mejorPico.id.replace(/_/g, ' ')}` });
+            return i.update({ content: null, embeds: [embedExito], components: [] });
+        });
 
-        return input.reply({ embeds: [embed] });
+        collector.on('end', collected => {
+            if (collected.size === 0) input.editReply({ components: [] }).catch(()=>{});
+        });
     }
 };
