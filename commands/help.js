@@ -23,8 +23,6 @@ module.exports = {
 
         // --- ✨ MOTOR DE EMOJIS INTELIGENTE ---
         const getE = (isDM = false) => {
-            // Si es DM, busca en todos los emojis que el bot puede ver (sus propios emojis)
-            // Si es Servidor, prioriza los del servidor actual.
             const source = (isDM || !guild) ? client.emojis.cache : guild.emojis.cache;
             const available = source.filter(e => e.available);
             return available.size > 0 ? available.random().toString() : '✨';
@@ -42,7 +40,7 @@ module.exports = {
             const cmd = allCommands.find(c => c.name === query.toLowerCase() || (c.aliases && c.aliases.includes(query.toLowerCase())));
             
             if (cmd) {
-                const isDM = !isSlash; // Si no es slash, va para el DM
+                const isDM = !isSlash; 
                 let finalDesc = cmd.description;
                 if (cmd.name === 'work') finalDesc = 'Ficha tu entrada y cumple con tu jornada laboral para recibir flores.';
 
@@ -75,15 +73,28 @@ module.exports = {
             }
         }
 
-        // --- 📑 2. SISTEMA DE NAVEGACIÓN ---
+        // --- 📑 2. SISTEMA DE NAVEGACIÓN Y COLUMNAS ---
         let page = 0;
-        const pages = ['home', ...categories];
+        const pages = ['home'];
+
+        // Lógica automática: Divide las categorías que tengan más de 10 comandos en varias páginas
+        categories.forEach(cat => {
+            const catCmds = allCommands.filter(c => (c.category || 'general') === cat);
+            for (let i = 0; i < catCmds.length; i += 10) {
+                pages.push({
+                    cat: cat,
+                    cmds: catCmds.slice(i, i + 10),
+                    current: Math.floor(i / 10) + 1,
+                    total: Math.ceil(catCmds.length / 10)
+                });
+            }
+        });
 
         const generarEmbed = (p) => {
             const embed = new EmbedBuilder().setColor('#1a1a1a');
-            const cat = pages[p];
+            const pageData = pages[p];
 
-            if (cat === 'home') {
+            if (pageData === 'home') {
                 embed.setTitle(`${getE()} ⟢ ₊˚ Rockstar Archive ˚₊ ⟣ ${getE()}`)
                     .setThumbnail(client.user.displayAvatarURL())
                     .setDescription(
@@ -93,25 +104,34 @@ module.exports = {
                         `${getE()} **Tip:** Usa \`!!help [comando]\` para un manual en tu DM.`
                     );
             } else {
-                const filtered = allCommands.filter(c => (c.category || 'general') === cat);
-                let desc = filtered.map(c => {
-                    let d = (c.name === 'work') ? 'Ficha tu entrada y cumple con tu jornada laboral.' : c.description;
-                    return `${getE()} **${c.name}**\n╰ \`${d || 'Sin descripción.'}\``;
-                }).join('\n\n');
-
-                embed.setTitle(`${getE()} Sección: ${cat.toUpperCase()} ${getE()}`)
-                    .setDescription(`${getE()} **Comandos de esta categoría:**\n\n${desc}`)
+                // Título dinámico si hay partes (ej: Sección: ACCIÓN (Pt. 1))
+                const extraTitle = pageData.total > 1 ? ` (Pt. ${pageData.current})` : '';
+                
+                embed.setTitle(`${getE()} Sección: ${pageData.cat.toUpperCase()}${extraTitle} ${getE()}`)
+                    .setDescription(`${getE()} **Comandos de esta categoría:**\n*Los comandos están distribuidos en columnas para tu comodidad.*`)
                     .setFooter({ text: `Página ${p} de ${pages.length - 1} ⊹ ${user.username}`, iconURL: user.displayAvatarURL() });
+
+                // Esto crea las columnas automáticamente usando "inline: true"
+                const fields = pageData.cmds.map(c => {
+                    let d = (c.name === 'work') ? 'Ficha tu entrada y cumple con tu jornada laboral.' : c.description;
+                    return {
+                        name: `✦ ${c.name}`,
+                        value: `\`${d || 'Sin descripción.'}\``,
+                        inline: true 
+                    };
+                });
+
+                embed.addFields(fields);
             }
             return embed;
         };
 
         const generarBotones = () => {
             return new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('home').setLabel('INICIO').setStyle(ButtonStyle.Secondary).setEmoji(getE()),
-                new ButtonBuilder().setCustomId('prev').setLabel('ATRÁS').setStyle(ButtonStyle.Primary).setEmoji(getE()),
-                new ButtonBuilder().setCustomId('next').setLabel('ADELANTE').setStyle(ButtonStyle.Primary).setEmoji(getE()),
-                new ButtonBuilder().setCustomId('exit').setLabel('SALIR').setStyle(ButtonStyle.Danger).setEmoji('✖️')
+                new ButtonBuilder().setCustomId('home').setLabel('Inicio').setStyle(ButtonStyle.Secondary).setEmoji(getE()),
+                new ButtonBuilder().setCustomId('prev').setLabel('Atrás').setStyle(ButtonStyle.Primary).setEmoji(getE()),
+                new ButtonBuilder().setCustomId('next').setLabel('Adelante').setStyle(ButtonStyle.Primary).setEmoji(getE()),
+                new ButtonBuilder().setCustomId('exit').setLabel('Salir').setStyle(ButtonStyle.Danger).setEmoji('✖️')
             );
         };
 
