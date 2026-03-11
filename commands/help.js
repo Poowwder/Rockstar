@@ -28,7 +28,6 @@ module.exports = {
             return available.size > 0 ? available.random().toString() : '✨';
         };
 
-        // Función para quitar las mayúsculas feas y dejar solo la primera letra mayúscula
         const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 
         // --- 📂 FILTRADO DE COMANDOS ---
@@ -61,7 +60,7 @@ module.exports = {
                         { name: `${getE(isDM)} Aliases ${getE(isDM)}`, value: `-# ${cmd.aliases ? cmd.aliases.join(', ') : 'Ninguno'}`, inline: true },
                         { name: `${getE(isDM)} Categoría ${getE(isDM)}`, value: `-# ${capitalize(cmd.category || 'general')}`, inline: true }
                     )
-                    .setFooter({ text: `${getE(isDM)} Rockstar Nova ⊹ Manual Detallado ${getE(isDM)}`, iconURL: user.displayAvatarURL() });
+                    .setFooter({ text: `Rockstar Nova ⊹ Manual Detallado`, iconURL: user.displayAvatarURL() }); // ✅ Sin emojis
 
                 if (isSlash) {
                     return input.reply({ embeds: [detailEmbed], ephemeral: true });
@@ -103,14 +102,12 @@ module.exports = {
                         `${getE()} Navega por las secciones usando los botones inferiores.\n\n` +
                         `${getE()} **Tip:** Usa \`!!help [comando]\` para un manual en tu DM.`
                     )
-                    .setFooter({ text: `${getE()} Página de Inicio ⊹ ${user.username} ${getE()}`, iconURL: user.displayAvatarURL() });
+                    .setFooter({ text: `Página de Inicio ⊹ ${user.username}`, iconURL: user.displayAvatarURL() }); // ✅ Sin emojis
             } else {
-                // Título sin la Parte 1, Parte 2, etc.
                 embed.setTitle(`${getE()} Sección: ${capitalize(pageData.cat)} ${getE()}`)
                     .setDescription(`${getE()} **Comandos de esta categoría:**\n-# Los comandos están distribuidos en columnas para tu comodidad.`)
-                    .setFooter({ text: `${getE()} Página ${p} de ${pages.length - 1} ⊹ ${user.username} ${getE()}`, iconURL: user.displayAvatarURL() });
+                    .setFooter({ text: `Página ${p} de ${pages.length - 1} ⊹ ${user.username}`, iconURL: user.displayAvatarURL() }); // ✅ Sin emojis
 
-                // Campos en columnas con letra miniatura (-#) y sin fondo negro
                 const fields = pageData.cmds.map(c => {
                     let d = (c.name === 'work') ? 'Ficha tu entrada y cumple con tu jornada laboral.' : c.description;
                     return {
@@ -140,7 +137,8 @@ module.exports = {
             fetchReply: true 
         });
 
-        const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 120000 });
+        // ✅ Tiempo de los botones subido a 5 minutos (300,000 ms)
+        const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
 
         collector.on('collect', async i => {
             if (i.user.id !== user.id) return i.reply({ content: '❌ No puedes usar este menú.', ephemeral: true });
