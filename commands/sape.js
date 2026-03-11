@@ -4,7 +4,9 @@ module.exports = {
     async execute(input) {
         const target = input.mentions.users.first();
         if (!target) return input.reply({ content: "❌ Las sombras exigen que menciones a un objetivo.", ephemeral: true });
-        const result = await runAction(input, 'bully', target);
+        
+        // ✅ Corregido: ahora dice 'sape' y no 'bully'
+        const result = await runAction(input, 'sape', target);
         await input.reply(result);
     }
 };
