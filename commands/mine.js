@@ -8,7 +8,7 @@ const getE = (guild) => {
 
 module.exports = {
     name: 'mine',
-    description: 'Extrae materiales de las profundidades de la tierra ⛏️',
+    description: '⛏️ Extrae materiales de las profundidades de la tierra.',
     category: 'economía',
     async execute(input) {
         const isSlash = !!input.user;
@@ -19,29 +19,57 @@ module.exports = {
         const inv = data.inventory || {};
         const e = () => getE(guild);
 
-        // --- ⛏️ 1. VERIFICACIÓN DE HERRAMIENTAS ---
-        const zonas = [
+        // --- ⚙️ IDENTIFICADOR DE RANGOS ---
+        const premium = (data.premiumType || 'none').toLowerCase();
+        const isPro = premium === 'pro' || premium === 'mensual' || premium === 'ultra' || premium === 'bimestral';
+        const isUltra = premium === 'ultra' || premium === 'bimestral';
+
+        // --- 🗺️ ZONAS Y PICOS ---
+        let zonas = [
+            // ESTÁNDAR (Todos)
             { id: 'pico_mitico', zona: 'Abismo Eterno', multis: 4 },
+            { id: 'pico_diamante', zona: 'Fosa de Cristal', multis: 3 },
             { id: 'pico_hierro', zona: 'Venas de Acero', multis: 2 },
-            { id: 'pico_madera', zona: 'Gruta Superficial', multis: 1 }
+            { id: 'pico_piedra', zona: 'Caverna de Cuarzo', multis: 1.5 },
+            { id: 'pico_madera', zona: 'Gruta Superficial', multis: 1 },
+
+            // SECRETAS NIVEL 1 (Todos)
+            { id: 'pico_void', zona: '✨ Void Haven', multis: 5, secret: true },
+            { id: 'pico_astral', zona: '✨ Mina Astral', multis: 6, secret: true },
+            { id: 'pico_runico', zona: '✨ Ruinas Rúnicas', multis: 7, secret: true }
         ];
-        
-        if (data.premiumType && data.premiumType !== 'none') {
-            zonas.unshift({ id: 'pico_void', zona: '✨ Void Haven', multis: 6, secret: true });
+
+        // SECRETAS NIVEL 2 (Solo Pro y Ultra)
+        if (isPro) {
+            zonas.push(
+                { id: 'pico_sangre', zona: '✨ Fosa de Sangre', multis: 8, secret: true },
+                { id: 'pico_sombra', zona: '✨ Eco de las Sombras', multis: 9, secret: true },
+                { id: 'pico_espectral', zona: '✨ Cueva Espectral', multis: 10, secret: true }
+            );
         }
+
+        // SECRETAS NIVEL 3 (Solo Ultra)
+        if (isUltra) {
+            zonas.push(
+                { id: 'pico_caos', zona: '✨ Núcleo del Caos', multis: 12, secret: true },
+                { id: 'pico_abismal', zona: '✨ Falla Abismal', multis: 14, secret: true },
+                { id: 'pico_infinito', zona: '✨ Horizonte Infinito', multis: 16, secret: true }
+            );
+        }
+
+        // Ordenar de mejor a peor para equipar siempre el más fuerte
+        zonas.sort((a, b) => b.multis - a.multis);
 
         const mejorPico = zonas.find(z => (inv[z.id] || 0) > 0 || (inv[`${z.id}_repaired`] || 0) > 0);
 
         if (!mejorPico) {
-            return input.reply({ content: `╰┈➤ ❌ No puedes minar sin herramientas. Compra un pico en la \`!!shop\`.`, ephemeral: true });
+            return input.reply({ content: `╰┈➤ ❌ No puedes minar sin herramientas. Forja un pico en el \`!!craft\` o compra uno.`, ephemeral: true });
         }
 
-        // --- ⚙️ 2. CONFIGURACIÓN DE RANGOS Y COOLDOWN ---
+        // --- ⚙️ RIESGO Y COOLDOWN ---
         let riesgo = 0.15, daño = 1, cooldown = 300000;
-        const premium = (data.premiumType || 'none').toLowerCase();
-
-        if (premium === 'pro' || premium === 'mensual') { riesgo = 0.10; daño = 0.5; cooldown = 120000; } 
-        else if (premium === 'ultra' || premium === 'bimestral') { riesgo = 0.05; daño = 0.2; cooldown = 0; }
+        if (isPro) { riesgo = 0.10; daño = 0.5; cooldown = 120000; } 
+        if (isUltra) { riesgo = 0.05; daño = 0.2; cooldown = 0; }
 
         const lastMine = data.lastMine ? new Date(data.lastMine).getTime() : 0;
         if (cooldown > 0 && Date.now() - lastMine < cooldown) {
@@ -49,13 +77,13 @@ module.exports = {
             return input.reply({ content: `⏳ El polvo no se ha asentado. Reintenta en \`${espera}s\`.`, ephemeral: true });
         }
 
-        // --- 🗺️ 3. SISTEMA DE EXPLORACIÓN Y MENÚ ---
+        // --- 🗺️ SISTEMA DE EXPLORACIÓN Y MENÚ ---
         const discoveredKey = `zona_mine_${mejorPico.id}`;
         const isFirstTime = !(inv[discoveredKey] >= 1);
         const thumb = mejorPico.secret ? 'https://i.pinimg.com/originals/7b/0a/61/7b0a61833503b414f6b0f1a91e3e7f91.gif' : 'https://i.pinimg.com/originals/30/85/6a/30856a9080b06b0b009e86749fcb186b.gif';
 
         let descripcion = isFirstTime 
-            ? `> *Has encontrado una nueva zona para minar oculta entre las sombras...*\n\n╰┈➤ Te adentras por primera vez en **${mejorPico.zona}**. ¿Estás listo para picar la piedra?`
+            ? `> *Has descubierto una ruta inexplorada en las profundidades...*\n\n╰┈➤ Te adentras por primera vez en **${mejorPico.zona}**. ¿Estás listo?`
             : `> *El silencio de la piedra te da la bienvenida de nuevo.*\n\n╰┈➤ Te encuentras en **${mejorPico.zona}**. Las profundidades aguardan.`;
 
         const embedZona = new EmbedBuilder()
@@ -91,41 +119,32 @@ module.exports = {
                 await updateUserData(user.id, data);
 
                 if (data.health <= 0) {
-                    const deathEmbed = new EmbedBuilder()
-                        .setTitle(`${e()} 💀 Derrumbe Fatal`)
-                        .setColor('#000000')
-                        .setThumbnail('https://i.pinimg.com/originals/8a/cc/b0/8accb071720d2d3129807b1cc1ec3f1e.gif')
-                        .setDescription(`> *La montaña ha reclamado tu esencia.*\n\n╰┈➤ 🎒 Parte de tus materiales se han perdido bajo las rocas.\n╰┈➤ ❤️ Has sido rescatado y tu salud vuelve a **3 corazones**.`)
-                        .setFooter({ text: 'Ten más cuidado en las profundidades.' });
-                    return i.update({ embeds: [deathEmbed], components: [] });
+                    return i.update({ embeds: [new EmbedBuilder().setTitle(`${e()} 💀 Derrumbe Fatal`).setColor('#000000').setThumbnail('https://i.pinimg.com/originals/8a/cc/b0/8accb071720d2d3129807b1cc1ec3f1e.gif').setDescription(`> *La montaña ha reclamado tu esencia.*\n\n╰┈➤ 🎒 Parte de tus materiales se han perdido bajo las rocas.\n╰┈➤ ❤️ Has sido rescatado y tu salud vuelve a **3 corazones**.`)] , components: [] });
                 }
                 return i.update({ content: `⚠️ **Derrumbe:** Las piedras te han golpeado. Perdiste \`${daño}\` de vida. ❤️ Vitalidad: \`${Math.floor(data.health)}/3\``, embeds: [], components: [] });
             }
 
-            // --- 💎 CÁLCULO DE MATERIALES (Ya no es dinero) ---
             const minMulti = mejorPico.multis * multiplier; 
             let report = [];
-            if (!data.inventory) data.inventory = {};
+            let newInv = { ...data.inventory };
 
-            // Piedra (100% asegurada)
             const cantPiedra = Math.floor(Math.random() * 4 + 2) * minMulti;
-            data.inventory['stone'] = (data.inventory['stone'] || 0) + cantPiedra;
+            newInv['stone'] = (newInv['stone'] || 0) + cantPiedra;
             report.push(`🪨 **Piedra:** \`x${cantPiedra}\``);
 
-            // Hierro (50% probabilidad)
             if (Math.random() > 0.50) {
                 const cantHierro = Math.floor(Math.random() * 2 + 1) * minMulti;
-                data.inventory['iron_ore'] = (data.inventory['iron_ore'] || 0) + cantHierro;
+                newInv['iron_ore'] = (newInv['iron_ore'] || 0) + cantHierro;
                 report.push(`⛓️ **Mena de Hierro:** \`x${cantHierro}\``);
             }
 
-            // Diamante Rosa (5% probabilidad extrema)
             if (Math.random() > 0.95) {
                 const cantDiamante = 1 * multiplier;
-                data.inventory['diamante_rosa'] = (data.inventory['diamante_rosa'] || 0) + cantDiamante;
+                newInv['diamante_rosa'] = (newInv['diamante_rosa'] || 0) + cantDiamante;
                 report.push(`✨ **Diamante Rosa:** \`x${cantDiamante}\``);
             }
 
+            data.inventory = newInv;
             data.lastMine = now;
             await updateUserData(user.id, data);
 
@@ -135,13 +154,7 @@ module.exports = {
                 .setColor('#1a1a1a')
                 .setAuthor({ name: `Minería: ${mejorPico.zona}`, iconURL: user.displayAvatarURL() })
                 .setThumbnail(thumb)
-                .setDescription(
-                    `> *“El abismo recompensa a los audaces.”*\n\n` +
-                    `**─── ✦ MATERIALES EXTRAÍDOS ✦ ───**\n` +
-                    `${report.join('\n')}${boostMsg}\n` +
-                    `**────────────────────────**\n` +
-                    `❤️ **Vitalidad:** \`${Math.floor(data.health)}/3\``
-                )
+                .setDescription(`> *“El abismo recompensa a los audaces.”*\n\n**─── ✦ MATERIALES EXTRAÍDOS ✦ ───**\n${report.join('\n')}${boostMsg}\n**────────────────────────**\n❤️ **Vitalidad:** \`${Math.floor(data.health)}/3\``)
                 .setFooter({ text: `Equipo: ${mejorPico.id.replace(/_/g, ' ')}` });
 
             return i.update({ content: null, embeds: [embedExito], components: [] });
