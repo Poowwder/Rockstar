@@ -3,8 +3,7 @@ const {
     ButtonBuilder, 
     ButtonStyle, 
     ActionRowBuilder, 
-    PermissionFlagsBits,
-    ComponentType
+    PermissionFlagsBits 
 } = require('discord.js');
 
 module.exports = {
@@ -32,10 +31,11 @@ module.exports = {
         const emojiInput = interaction.options.getString('emoji');
         const channel = interaction.channel;
 
-        // Validar jerarquía de roles (El bot no puede dar roles superiores al suyo)
-        if (role.position >= interaction.guild.members.me.roles.highest.position) {
+        // --- 🛡️ VALIDACIÓN DE JERARQUÍA ---
+        const botMember = interaction.guild.members.me;
+        if (role.position >= botMember.roles.highest.position) {
             return interaction.reply({ 
-                content: '❌ No puedo asignar este rol porque está por encima de mi posición jerárquica.', 
+                content: '╰┈➤ ❌ **Error de Jerarquía:** No puedo asignar el rol `' + role.name + '` porque está por encima de mi posición.', 
                 ephemeral: true 
             });
         }
@@ -43,49 +43,53 @@ module.exports = {
         try {
             // Buscamos el mensaje en el canal actual
             const targetMessage = await channel.messages.fetch(messageId);
+            
             if (!targetMessage.editable) {
-                return interaction.reply({ content: '❌ No tengo permisos para editar ese mensaje.', ephemeral: true });
+                return interaction.reply({ 
+                    content: '╰┈➤ ❌ No puedo editar ese mensaje. Asegúrate de que el mensaje fue enviado por mí (Rockstar Bot).', 
+                    ephemeral: true 
+                });
             }
             
-            // Lógica de búsqueda de emoji
+            // --- 🎨 LÓGICA DE EMOJI ---
             let emoji = interaction.guild.emojis.cache.find(e => e.name === emojiInput || e.id === emojiInput) || emojiInput;
 
             const button = new ButtonBuilder()
                 .setCustomId(`rr_${role.id}`)
                 .setLabel(role.name)
                 .setEmoji(emoji)
-                .setStyle(ButtonStyle.Secondary); // Gris estético
+                .setStyle(ButtonStyle.Secondary); // Gris Rockstar
 
-            // Manejo de filas existentes
+            // --- 🧩 MANEJO DE COMPONENTES ---
             let rows = targetMessage.components.map(row => ActionRowBuilder.from(row));
             
-            // Si no hay filas, creamos la primera
             if (rows.length === 0) {
                 rows.push(new ActionRowBuilder().addComponents(button));
             } else {
-                // Buscamos la última fila que tenga espacio (< 5 botones)
                 const lastRow = rows[rows.length - 1];
                 if (lastRow.components.length < 5) {
                     lastRow.addComponents(button);
                 } else if (rows.length < 5) {
-                    // Si la última está llena pero hay menos de 5 filas, creamos una nueva
                     rows.push(new ActionRowBuilder().addComponents(button));
                 } else {
-                    return interaction.reply({ content: '❌ Este mensaje ha alcanzado el límite máximo de botones (25).', ephemeral: true });
+                    return interaction.reply({ 
+                        content: '╰┈➤ ❌ Este mensaje ya alcanzó el límite máximo de botones permitido por Discord.', 
+                        ephemeral: true 
+                    });
                 }
             }
 
             await targetMessage.edit({ components: rows });
             
             await interaction.reply({ 
-                content: `✅ Botón para el rol **${role.name}** añadido al mensaje [${messageId}].`, 
+                content: `╰┈➤ ✅ Sistema de rol **${role.name}** inyectado correctamente en el mensaje \`${messageId}\`.`, 
                 ephemeral: true 
             });
 
         } catch (error) {
             console.error("Error en ReactionRole:", error);
             await interaction.reply({ 
-                content: '❌ Error: Asegúrate de que el ID del mensaje sea correcto y esté en este canal.', 
+                content: '╰┈➤ ❌ **Error:** No encontré el mensaje. Asegúrate de estar en el mismo canal donde está el mensaje.', 
                 ephemeral: true 
             });
         }
