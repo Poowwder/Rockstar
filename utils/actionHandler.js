@@ -1,12 +1,15 @@
-const { EmbedBuilder } = require('discord.js');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 
+// --- ✨ EMOJIS AL AZAR ---
 const getRndEmoji = (guild) => {
     if (!guild) return '✨';
     const emojis = guild.emojis.cache.filter(e => e.available);
     return emojis.size > 0 ? emojis.random().toString() : '✨';
 };
 
+// --- ⚙️ HANDLER PRINCIPAL ---
 async function runAction(input, type, targetUser) {
     const isSlash = !!input.user;
     const author = isSlash ? input.user : input.author;
@@ -14,67 +17,106 @@ async function runAction(input, type, targetUser) {
 
     const authorMember = guild?.members.cache.get(author.id) || { displayName: author.username };
     const targetMember = guild?.members.cache.get(targetUser.id) || { displayName: targetUser.username };
-    const e1 = getRndEmoji(guild);
 
+    const e1 = getRndEmoji(guild);
+    const e2 = getRndEmoji(guild);
+
+    // --- 🛡️ AUTO-ACCIÓN ---
     if (author.id === targetUser.id) {
-        return { content: `╰┈➤ ${e1} Las sombras no permiten que dirijas esta acción hacia ti mismo.`, ephemeral: true };
+        return { 
+            content: `╰┈➤ ${e1} Las sombras no permiten que dirijas esta acción hacia tu propia persona.`, 
+            ephemeral: true 
+        };
     }
 
-    // --- 🖋️ DICCIONARIO DE LAS 28 ACCIONES ---
+    // --- 📜 DICCIONARIO NEUTRAL Y AESTHETIC (29 ACCIONES) ---
     const actions = {
-        bite: `le ha dado un mordisco a`,
-        cuddle: `se acurruca cariñosamente con`,
-        feed: `le da de comer un bocado a`,
-        handhold: `toma de la mano a`,
-        highfive: `choca los cinco con`,
-        hug: `envuelve en un gran abrazo a`,
-        kick: `le ha soltado una patada a`,
-        kiss: `le ha robado un beso a`,
-        pat: `acaricia suavemente la cabeza de`,
-        poke: `le da unos toquecitos a`,
-        punch: `le ha dado un puñetazo a`,
-        slap: `le ha cruzado el rostro a`,
+        bite: `ha clavado sus colmillos en`,
+        bully: `ha decidido atormentar a`,
+        clap: `celebra con aplausos la presencia de`,
+        cuddle: `comparte un momento íntimo y se acurruca con`,
+        feed: `comparte su alimento con`,
+        handhold: `entrelaza sus manos con`,
+        highfive: `choca los cinco en complicidad con`,
+        hug: `envuelve en un cálido abrazo a`,
+        kill: `ha reclamado el alma de`,
+        kiss: `ha sellado un beso con`,
+        lick: `ha pasado su lengua sobre`,
+        nom: `ha dado un mordisco juguetón a`,
+        pat: `acaricia suavemente a`,
+        poke: `ha dado un toque de atención a`,
+        punch: `ha asestado un golpe directo contra`,
+        shoot: `ha abierto fuego sin piedad contra`,
+        slap: `ha cruzado el rostro de`,
+        spank: `ha dado una palmada a`,
+        splash: `ha empapado por completo a`,
+        spray: `ha rociado sin compasión a`,
+        stare: `clava su mirada penetrante en`,
+        sue: `ha iniciado un conflicto legal contra`,
         tickle: `desata una ola de cosquillas sobre`,
         yeet: `ha mandado a volar lejos a`,
-        shoot: `le ha disparado sin piedad a`,
-        kill: `ha terminado con la existencia de`,
-        lick: `le da una lamidita a`,
-        stare: `observa fijamente a`,
-        pout: `le hace un puchero a`,
-        bully: `está molestando un poquito a`,
-        greet: `le da una bienvenida formal a`,
-        bonk: `le ha dado un golpe en la cabeza a`,
+        // ✅ LAS 5 NUEVAS INCORPORACIONES:
         paint: `está pintando un hermoso retrato de`,
         glare: `mira con desprecio y frialdad a`,
         stomp: `está pisoteando con mucha fuerza a`,
         sape: `le ha dado un tremendo sape a`,
-        bite: `le clava los colmillos a`,
-        punch: `le suelta un derechazo a`
+        greet: `le da una bienvenida formal a`
     };
 
-    const actionText = actions[type] || `interactúa con`;
-    // Mapeo de API para los que no se llaman igual
-    const apiMap = { sape: 'slap', glare: 'stare', stomp: 'kick', paint: 'smile' };
-    const apiCategory = apiMap[type] || type;
+    const actionText = actions[type] || `interactúa misteriosamente con`;
 
-    let gifUrl = '';
+    // --- 🖼️ MOTOR DE IMÁGENES SEGURO ---
+    const folderPath = path.join(__dirname, '..', 'commands', type.toLowerCase());
+    
     let animeName = 'Desconocido';
+    let attachment = null;
+    let safeFileName = 'action_image.gif';
 
     try {
-        const res = await fetch(`https://nekos.best/api/v2/${apiCategory}`);
-        const json = await res.json();
-        gifUrl = json.results[0].url;
-        animeName = json.results[0].anime_name;
-    } catch (e) { console.error(e); }
+        if (fs.existsSync(folderPath)) {
+            const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.gif') || file.endsWith('.png') || file.endsWith('.jpg'));
+            
+            if (files.length > 0) {
+                const selectedFile = files[Math.floor(Math.random() * files.length)];
+                
+                // Extrae el nombre del anime (Todo lo que esté antes del primer '_')
+                let rawName = selectedFile.split('_')[0];
+                animeName = rawName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                const ext = path.extname(selectedFile);
+                safeFileName = `action_image${ext}`;
 
+                attachment = new AttachmentBuilder(path.join(folderPath, selectedFile), { name: safeFileName });
+            }
+        } else {
+            console.log(`⚠️ La carpeta para la acción "${type}" no existe en: ${folderPath}`);
+        }
+    } catch (error) {
+        console.error(`❌ Error procesando imagen para ${type}:`, error);
+    }
+
+    // --- 📄 CONSTRUCCIÓN DEL EMBED ROCKSTAR ---
     const embed = new EmbedBuilder()
         .setColor('#1a1a1a')
-        .setDescription(`> ${e1} **${authorMember.displayName}** ${actionText} **${targetMember.displayName}**`)
-        .setImage(gifUrl)
-        .setTimestamp()
-        .setFooter({ text: `Anime: ${animeName}`, iconURL: author.displayAvatarURL({ dynamic: true }) });
+        .setDescription(`> ${e1} **${authorMember.displayName}** ${actionText} **${targetMember.displayName}** ${e2}`)
+        .setTimestamp() 
+        .setFooter({ 
+            text: `Anime: ${animeName}`, // ✅ FIX: Adiós al "Solicitado por"
+            iconURL: author.displayAvatarURL({ dynamic: true })
+        });
 
-    return { embeds: [embed] };
+    let responseObj = { embeds: [embed] };
+
+    // Si encontramos una imagen local, la adjuntamos de forma segura
+    if (attachment) {
+        embed.setImage(`attachment://${safeFileName}`);
+        responseObj.files = [attachment];
+    } else {
+        // Fallback si la carpeta no existe o está vacía
+        embed.setImage('https://i.pinimg.com/originals/c9/22/68/c92268d92cf2adc01fb14197940562dc.gif'); 
+    }
+
+    return responseObj;
 }
 
 module.exports = { runAction };
