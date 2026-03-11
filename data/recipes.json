@@ -1,17 +1,17 @@
 {
-    "pickaxe_stone": {
-        "name": "Pico de Piedra",
-        "materials": { "wood": 2, "stone": 3 },
-        "description": "Un pico más resistente hecho de piedra."
-    },
-    "pickaxe_iron": {
-        "name": "Pico de Hierro",
-        "materials": { "wood": 2, "iron_ore": 3 },
-        "description": "Pico profesional para minar diamantes."
-    },
-    "fishing_rod": {
-        "name": "Caña de Pescar",
-        "materials": { "wood": 3, "iron_ore": 1 },
-        "description": "Una caña reforzada para pescar mejores peces."
-    }
+    "pico_madera": { "name": "Púa de Corteza", "materials": { "wood": 5 }, "description": "Herramienta básica para empezar a picar." },
+    "pico_piedra": { "name": "Triturador de Granito", "materials": { "mineral_roca": 5 }, "description": "Forjado con mineral de la primera zona." },
+    "pico_hierro": { "name": "Rompealmas de Acero", "materials": { "hierro_bruto": 8 }, "description": "Pico profesional para extraer cristales." },
+    "pico_diamante": { "name": "Perforador Celestial", "materials": { "cristal_profundo": 10 }, "description": "Resiste las presiones de las foscas profundas." },
+    "pico_mitico": { "name": "Eclipse Eterno", "materials": { "gema_mitica": 15 }, "description": "Una reliquia que brilla con luz propia." },
+    "pico_void": { "name": "Pico Void Haven", "materials": { "fragmento_void": 20 }, "description": "Capaz de picar el vacío mismo." },
+    "pico_astral": { "name": "Pico Astral", "materials": { "polvo_astral": 30 }, "description": "Forjado con restos de estrellas." },
+    "pico_runico": { "name": "Pico Rúnico", "materials": { "piedra_runica": 50 }, "description": "Grabado con runas de poder antiguo." },
+    
+    "cana_basica": { "name": "Hilo de Seda", "materials": { "wood": 5 }, "description": "Una caña simple para pescar en la orilla." },
+    "cana_reforzada": { "name": "Garra de Río", "materials": { "hilo_reforzado": 8 }, "description": "Más resistente para corrientes fuertes." },
+    "cana_profesional": { "name": "Señuelo Abisal", "materials": { "cebo_profesional": 12 }, "description": "Atrae a las criaturas del fondo del lago." },
+    "cana_legendaria": { "name": "Atrapasueños Marino", "materials": { "escama_legendaria": 15 }, "description": "Una leyenda entre los pescadores." },
+    "cana_divina": { "name": "Lágrima de Neptuno", "materials": { "lagrima_divina": 20 }, "description": "Bendecida por las mareas eternas." },
+    "cana_void": { "name": "Caña Abyss of Stars", "materials": { "estrella_abismal": 30 }, "description": "Pesca en el mar de estrellas." }
 }
