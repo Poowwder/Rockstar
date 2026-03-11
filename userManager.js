@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// --- 👤 ESQUEMA DE USUARIO ---
+// --- 👤 ESQUEMA DE USUARIO ROCKSTAR ---
 const UserSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     wallet: { type: Number, default: 0 },
@@ -11,7 +11,11 @@ const UserSchema = new mongoose.Schema({
     premiumType: { type: String, default: 'none' }, 
     premiumUntil: { type: Date, default: null },
     harem: { type: Array, default: [] }, 
-    activeBoosts: { type: Array, default: [] }, // 🔥 Para multiplicadores
+    activeBoosts: { type: Array, default: [] }, 
+    job: { type: String, default: null },
+    jobExperience: { type: Number, default: 0 }, // 📈 Contador de ascensos
+    lastWork: { type: Number, default: 0 },
+    workWarnings: { type: Number, default: 0 },
     inventory: { type: Object, default: {} }, 
     durabilidades: { type: Object, default: {} },
     xp: { type: Number, default: 0 },
@@ -69,12 +73,11 @@ async function updateUserData(userId, data) {
         let user = await User.findOne({ userId });
         if (!user) user = await User.create({ userId });
 
-        // 💀 RENACIMIENTO (Al llegar a 0 vida)
+        // 💀 RENACIMIENTO AUTOMÁTICO
         if (data.health !== undefined && data.health <= 0) {
             const rank = (user.premiumType || 'none').toLowerCase();
             const inv = user.inventory || {};
             const newInv = { ...inv };
-
             let loss = rank.includes('ultra') ? 0.05 : rank.includes('pro') ? 0.10 : 0.15;
             let vLoss = rank.includes('ultra') ? 2 : rank.includes('pro') ? 0.35 : 0.50;
 
@@ -105,8 +108,4 @@ async function updateUserData(userId, data) {
     } catch (err) { return false; }
 }
 
-async function getShopItemsDB() { try { return await ShopItem.find({}); } catch (e) { return []; } }
-async function updateShopItemDB(id, itemData) { try { await ShopItem.findOneAndUpdate({ id }, { $set: itemData }, { upsert: true }); return true; } catch (err) { return false; } }
-async function deleteShopItemDB(id) { try { await ShopItem.findOneAndDelete({ id }); return true; } catch (err) { return false; } }
-
-module.exports = { User, ShopItem, getUserData, updateUserData, addXP, getShopItemsDB, updateShopItemDB, deleteShopItemDB };
+module.exports = { User, ShopItem, getUserData, updateUserData, addXP };
