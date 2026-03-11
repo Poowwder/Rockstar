@@ -8,7 +8,6 @@ const getRndEmoji = (guild) => {
     return emojis.size > 0 ? emojis.random().toString() : '✨';
 };
 
-// --- 📋 BASE DE DATOS DE TRABAJOS ---
 const JOBS = {
     'jardinero': { nombre: 'Jardinero de Cerezos', min: 500, max: 800, emoji: '🎋' },
     'chef': { nombre: 'Chef de Ramen', min: 1000, max: 1500, emoji: '🍜' },
@@ -19,11 +18,11 @@ const JOBS = {
 
 module.exports = {
     name: 'work',
-    description: '💼 Gánate la vida... o piérdela intentándolo.',
+    description: 'Ficha tu turno y gana flores por tu labor.', // ✅ DESCRIPCIÓN CORREGIDA
     category: 'economía',
     data: new SlashCommandBuilder()
         .setName('work')
-        .setDescription('Elige un empleo para ganar flores 🌸')
+        .setDescription('Ficha tu turno y gana flores por tu labor.') // ✅ DESCRIPCIÓN CORREGIDA
         .addSubcommand(sub => sub.setName('list').setDescription('📋 Mira los trabajos disponibles'))
         .addSubcommand(sub => sub.setName('apply').setDescription('📝 Postúlate a un trabajo')
             .addStringOption(opt => opt.setName('trabajo').setDescription('Elige tu oficio de la lista').setRequired(true)
@@ -42,240 +41,126 @@ module.exports = {
         const user = isSlash ? input.user : input.author;
         const guild = input.guild;
         const userId = user.id;
-
         const member = guild ? (guild.members.cache.get(userId) || { displayName: user.username }) : { displayName: user.username };
         const rndEmj = getRndEmoji(guild);
         
         let data = await getUserData(userId);
         const now = Date.now();
         
-        // --- 💎 CONFIGURACIÓN VIP Y CASTIGOS ---
+        // --- 💎 CONFIGURACIÓN VIP ---
         let cooldown = 3600000; 
         let multi = 1;  
         let probFail = 0.25;    
-        let firePenalty = 0.15;   // Despido Normal: 15%
-        let resignPenalty = 0.10; // Renuncia Normal: 10%
+        let firePenalty = 0.15;
+        let resignPenalty = 0.10;
         let statusEmoji = "🌸";
 
-        if (data.premiumType === 'mensual') {
-            cooldown = 1800000; multi = 1.2; probFail = 0.15; firePenalty = 0.10; resignPenalty = 0.05; statusEmoji = "💎"; // PRO
-        } else if (data.premiumType === 'bimestral') {
-            cooldown = 0; multi = 1.5; probFail = 0.05; firePenalty = 0.05; resignPenalty = 0.03; statusEmoji = "👑"; // ULTRA
+        const prem = (data.premiumType || 'none').toLowerCase();
+        if (prem === 'pro' || prem === 'mensual') {
+            cooldown = 1800000; multi = 1.2; probFail = 0.15; firePenalty = 0.10; resignPenalty = 0.05; statusEmoji = "💎";
+        } else if (prem === 'ultra' || prem === 'bimestral') {
+            cooldown = 0; multi = 1.5; probFail = 0.05; firePenalty = 0.05; resignPenalty = 0.03; statusEmoji = "👑";
         }
 
         // =========================================================
-        // 🧠 NÚCLEO LÓGICO (Reutilizable para Slash y Botones)
+        // 🧠 NÚCLEO LÓGICO
         // =========================================================
-        const processResign = async (interactionToReply) => {
-            if (!data.job) return interactionToReply.reply({ content: `❌ No tienes empleo del cual renunciar, ${member.displayName}.`, ephemeral: true });
-
-            const oldJob = JOBS[data.job].nombre;
-            const penalty = Math.floor((data.wallet || 0) * resignPenalty);
-            
-            data.wallet = Math.max(0, data.wallet - penalty);
-            data.jobResigned = data.job; 
-            data.jobResignedTime = now; 
-            data.job = null;
-            data.workWarnings = 0;
-            await updateUserData(userId, data);
-
-            const embed = new EmbedBuilder().setColor('#1a1a1a')
-                .setDescription(`> 🚪 **Has decidido abandonar tu puesto de ${oldJob}.**\n\n╰┈➤ 💸 **Liquidación perdida (${resignPenalty * 100}%):** \`-${penalty.toLocaleString()} 🌸\`\n╰┈➤ ⏳ **Restricción:** No podrás volver a este oficio durante 3 días.`);
-            return interactionToReply.reply({ embeds: [embed] });
-        };
-
         const processShift = async (interactionToReply) => {
-            if (!data.job) return interactionToReply.reply({ content: `❌ No tienes empleo. Usa el menú para conseguir uno.`, ephemeral: true });
-
+            if (!data.job) return interactionToReply.reply({ content: `❌ No tienes empleo.`, ephemeral: true });
             const currentJob = JOBS[data.job];
-            const timeSinceLastWork = now - (data.lastWork || now);
-            let extraMessage = "";
+            const timeSinceLastWork = now - (data.lastWork || 0);
 
-            // --- 🚨 CONTROL DE AUSENCIAS (48h Despido / 24h Advertencia) ---
-            if (timeSinceLastWork > 172800000) { 
-                const penalty = Math.floor((data.wallet || 0) * firePenalty);
-                data.wallet = Math.max(0, data.wallet - penalty);
-                data.job = null;
-                data.workWarnings = 0;
-                await updateUserData(userId, data);
-                const embed = new EmbedBuilder().setColor('#8b0000')
-                    .setDescription(`> 🚨 **DESPIDO POR ABANDONO**\n\nNo te presentaste a trabajar por más de 2 días. Fuiste despedido de **${currentJob.nombre}**.\n\n╰┈➤ 💸 **Multa (${firePenalty * 100}%):** \`-${penalty.toLocaleString()} 🌸\``);
-                return interactionToReply.reply({ embeds: [embed] });
-            }
-
-            if (timeSinceLastWork > 86400000 && !data.absenceWarned) { 
-                data.workWarnings = (data.workWarnings || 0) + 1;
-                data.absenceWarned = true;
-                extraMessage = `\n\n⚠️ **ADVERTENCIA:** Has faltado a tu turno ayer. Acumulas \`[${data.workWarnings}/2]\` advertencias.`;
-                if (data.workWarnings >= 2) {
-                    const penalty = Math.floor((data.wallet || 0) * firePenalty);
-                    data.wallet = Math.max(0, data.wallet - penalty);
-                    data.job = null;
-                    data.workWarnings = 0;
-                    await updateUserData(userId, data);
-                    const embed = new EmbedBuilder().setColor('#8b0000')
-                        .setDescription(`> 🚨 **DESPIDO DEFINITIVO**\n\nAcumulaste 2 advertencias. El sindicato te ha echado.\n\n╰┈➤ 💸 **Multa (${firePenalty * 100}%):** \`-${penalty.toLocaleString()} 🌸\``);
-                    return interactionToReply.reply({ embeds: [embed] });
-                }
-            }
-
-            // --- ⏳ COOLDOWN REGULAR ---
-            if (cooldown > 0 && cooldown - timeSinceLastWork > 0 && !data.absenceWarned) {
-                const restanteMs = cooldown - timeSinceLastWork;
-                const min = Math.floor(restanteMs / 60000);
-                const seg = Math.floor((restanteMs % 60000) / 1000);
-                return interactionToReply.reply({ content: `⏳ El turno no empieza aún. Vuelve en **${min}m ${seg}s**.`, ephemeral: true });
-            }
-
-            // --- 🎲 RESOLUCIÓN DEL TRABAJO ---
+            // 🎲 RESOLUCIÓN
             if (Math.random() < probFail) {
                 data.workWarnings = (data.workWarnings || 0) + 1;
                 data.lastWork = now;
-                data.absenceWarned = false; 
                 if (data.workWarnings >= 2) {
                     const penalty = Math.floor((data.wallet || 0) * firePenalty);
                     data.wallet = Math.max(0, data.wallet - penalty);
-                    data.job = null;
-                    data.workWarnings = 0;
+                    data.job = null; data.workWarnings = 0;
                     await updateUserData(userId, data);
-                    const embed = new EmbedBuilder().setColor('#8b0000')
-                        .setDescription(`> 🚨 **DESPIDO POR INCOMPETENCIA**\n\nHas arruinado tu trabajo nuevamente. Estás fuera.\n\n╰┈➤ 💸 **Multa (${firePenalty * 100}%):** \`-${penalty.toLocaleString()} 🌸\``);
-                    return interactionToReply.reply({ embeds: [embed] });
-                } else {
-                    await updateUserData(userId, data);
-                    return interactionToReply.reply(`> ⚠️ **Hiciste un desastre en tu turno, ${member.displayName}.**\n> Tienes una advertencia \`[${data.workWarnings}/2]\`. Hoy no hay pago.${extraMessage}`);
+                    return interactionToReply.reply({ embeds: [new EmbedBuilder().setColor('#8b0000').setDescription(`🚨 **DESPIDO:** Acumulaste 2 advertencias. Pierdes \`-${penalty.toLocaleString()} 🌸\`.`)] });
                 }
-            } else {
-                let gananciaBase = Math.floor(Math.random() * (currentJob.max - currentJob.min + 1)) + currentJob.min;
-                const gananciaFinal = Math.floor(gananciaBase * multi);
-                data.wallet = (data.wallet || 0) + gananciaFinal;
-                data.lastWork = now;
-                data.absenceWarned = false; 
                 await updateUserData(userId, data);
-                const embed = new EmbedBuilder().setColor('#1a1a1a')
-                    .setThumbnail('https://i.pinimg.com/originals/33/c2/f7/33c2f7034f40d0263309a96e987c9f8a.gif')
-                    .setDescription(`> ${currentJob.emoji} **Jornada de ${currentJob.nombre} Terminada**\n\n╰┈➤ 💰 **Paga recibida:** \`+${gananciaFinal.toLocaleString()} 🌸\`\n╰┈➤ 🏦 **Total:** \`${data.wallet.toLocaleString()} 🌸\`${extraMessage}`)
-                    .setFooter({ text: `VIP: ${data.premiumType.toUpperCase()} ⊹ Trabajadora: ${member.displayName}` });
-                return interactionToReply.reply({ embeds: [embed] });
+                return interactionToReply.reply(`⚠️ **Mal desempeño:** Advertencia \`[${data.workWarnings}/2]\`. Hoy no hay paga.`);
+            } else {
+                let ganancia = Math.floor((Math.random() * (currentJob.max - currentJob.min + 1)) + currentJob.min) * multi;
+                data.wallet = (data.wallet || 0) + ganancia;
+                data.lastWork = now;
+                data.workWarnings = 0; // Se resetean advertencias si trabaja bien
+                await updateUserData(userId, data);
+                return interactionToReply.reply({ embeds: [new EmbedBuilder().setColor('#1a1a1a').setThumbnail('https://i.pinimg.com/originals/33/c2/f7/33c2f7034f40d0263309a96e987c9f8a.gif').setDescription(`> ${currentJob.emoji} **Jornada Terminada**\n\n╰┈➤ 💰 **Paga:** \`+${ganancia.toFixed(0)} 🌸\``)] });
             }
         };
-
-        // =========================================================
-        // 🔀 ENRUTADOR (SLASH COMMANDS)
-        // =========================================================
-        if (isSlash) {
-            const sub = input.options.getSubcommand();
-            if (sub === 'list') {
-                const listEmbed = new EmbedBuilder().setColor('#1a1a1a')
-                    .setDescription(`> ${rndEmj} **Oficios disponibles actualmente:**\n\n╰┈➤ ` + Object.values(JOBS).map(j => `\`${j.nombre}\``).join(', '));
-                return input.reply({ embeds: [listEmbed] });
-            }
-            if (sub === 'apply') {
-                const seleccion = input.options.getString('trabajo');
-                if (data.job) return input.reply({ content: `❌ Ya eres **${JOBS[data.job].nombre}**. Usa \`/work resign\` primero.`, ephemeral: true });
-                if (data.jobResigned === seleccion && now - (data.jobResignedTime || 0) < 259200000) {
-                    return input.reply({ content: `⏳ El sindicato te bloqueó. Espera 3 días para volver a ser **${JOBS[seleccion].nombre}**.`, ephemeral: true });
-                }
-                data.job = seleccion;
-                data.workWarnings = 0;
-                data.lastWork = now; 
-                data.absenceWarned = false;
-                await updateUserData(userId, data);
-                return input.reply({ embeds: [new EmbedBuilder().setColor('#1a1a1a').setDescription(`> 🤝 **Contrato firmado.** ${rndEmj}\n> Ahora trabajas como **${JOBS[seleccion].nombre}**.`)] });
-            }
-            if (sub === 'shift') return processShift(input);
-            if (sub === 'resign') return processResign(input);
-        }
 
         // =========================================================
         // 🎮 MODO INTERACTIVO (PREFIJO !!work)
         // =========================================================
         if (!isSlash) {
-            // SI NO TIENE TRABAJO: MENÚ DESPLEGABLE
+            // 1. SI NO TIENE TRABAJO
             if (!data.job) {
                 const menu = new ActionRowBuilder().addComponents(
-                    new StringSelectMenuBuilder().setCustomId('select_work').setPlaceholder('🌸 Elige tu oficio de hoy...').addOptions(
-                        Object.keys(JOBS).map(k => ({ label: JOBS[k].nombre, description: `Ganas entre ${JOBS[k].min} y ${JOBS[k].max}`, value: k, emoji: JOBS[k].emoji }))
+                    new StringSelectMenuBuilder().setCustomId('select_work').setPlaceholder('🌸 Elige tu oficio...').addOptions(
+                        Object.keys(JOBS).map(k => ({ label: JOBS[k].nombre, value: k, emoji: JOBS[k].emoji }))
                     )
                 );
-                const response = await input.reply({ content: `> ✨ **Centro de Empleo de las Sombras** ${statusEmoji}\n> Tienes que conseguir un empleo, ${member.displayName}.`, components: [menu], fetchReply: true });
-                const collector = response.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 60000 });
-                
-                collector.on('collect', async i => {
-                    if (i.user.id !== userId) return i.reply({ content: "❌ Este contrato no está a tu nombre.", ephemeral: true });
-                    const sel = i.values[0];
-                    if (data.jobResigned === sel && now - (data.jobResignedTime || 0) < 259200000) {
-                        return i.reply({ content: `⏳ El sindicato te tiene bloqueado de este oficio por 3 días.`, ephemeral: true });
-                    }
-                    data.job = sel; data.workWarnings = 0; data.lastWork = Date.now(); data.absenceWarned = false;
-                    await updateUserData(userId, data);
-                    await i.update({ content: '', embeds: [new EmbedBuilder().setColor('#1a1a1a').setDescription(`> 🤝 **Contrato firmado.** ${rndEmj}\n> Ahora trabajas como **${JOBS[sel].nombre}**. Usa el comando de nuevo para ir a trabajar.`)], components: [] });
-                    collector.stop();
-                });
-                return;
+                return input.reply({ content: `> ✨ **Centro de Empleo**\n> Consigue un trabajo para empezar.`, components: [menu] });
             }
 
-            // SI YA TIENE TRABAJO: BOTONES CON 3 MINUTOS (180000 ms)
+            // 🔥 FIX: VERIFICAR COOLDOWN ANTES DE MOSTRAR EL MENÚ DE 3 MINUTOS
+            const timeSinceLastWork = now - (data.lastWork || 0);
+            if (cooldown > 0 && timeSinceLastWork < cooldown) {
+                const restante = cooldown - timeSinceLastWork;
+                const min = Math.floor(restante / 60000);
+                const seg = Math.floor((restante % 60000) / 1000);
+                return input.reply({ content: `⏳ El turno no empieza aún. Vuelve en **${min}m ${seg}s**.`, ephemeral: true });
+            }
+
+            // 2. SI TIENE TRABAJO Y NO HAY COOLDOWN
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('btn_shift').setLabel('💼 Ir a Trabajar').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId('btn_resign').setLabel('🚪 Renunciar').setStyle(ButtonStyle.Danger)
             );
             
-            const promptEmbed = new EmbedBuilder()
-                .setColor('#1a1a1a')
-                .setDescription(`> 🏢 **Fichaje de Turno** ${statusEmoji}\n> ${member.displayName}, el reloj está corriendo.\n\n╰┈➤ ⏳ **Tienes 3 minutos para decidir.**\nSi no presionas un botón, se tomará como falta injustificada.`);
-
-            // Aquí mandamos el mensaje principal etiquetando al usuario para asegurar que lo vea
             const response = await input.reply({ 
                 content: `<@${userId}>`,
-                embeds: [promptEmbed], 
+                embeds: [new EmbedBuilder().setColor('#1a1a1a').setDescription(`> 🏢 **Fichaje de Turno**\n> Tienes 3 minutos para fichar o será falta injustificada.`)], 
                 components: [row], 
                 fetchReply: true 
             });
 
-            // Colector fijado a 3 minutos
             const collector = response.createMessageComponentCollector({ componentType: ComponentType.Button, time: 180000 });
 
             collector.on('collect', async i => {
-                if (i.user.id !== userId) return i.reply({ content: "❌ Este no es tu turno.", ephemeral: true });
+                if (i.user.id !== userId) return i.reply({ content: "❌ No es tu turno.", ephemeral: true });
                 collector.stop('clicked');
                 if (i.customId === 'btn_shift') return processShift(i);
-                if (i.customId === 'btn_resign') return processResign(i);
-            });
-
-            // ⚠️ EL CASTIGO POR NO RESPONDER A TIEMPO (Pasan los 3 minutos)
-            collector.on('end', async (collected, reason) => {
-                if (reason === 'time') {
-                    // Refrescamos la base de datos por si acaso hizo algo en otro lado
-                    let freshData = await getUserData(userId);
-                    
-                    // Si misteriosamente ya no tiene trabajo (renunció por slash command), ignoramos
-                    if (!freshData.job) return;
-
-                    freshData.workWarnings = (freshData.workWarnings || 0) + 1;
-                    
-                    let timeMsg = `> ⏳ **El tiempo se agotó, ${member.displayName}.**\n> Te quedaste dormida y perdiste el día de trabajo. Tienes una advertencia \`[${freshData.workWarnings}/2]\`.`;
-                    let embedColor = '#8b0000';
-                    
-                    if (freshData.workWarnings >= 2) {
-                        const penalty = Math.floor((freshData.wallet || 0) * firePenalty);
-                        freshData.wallet = Math.max(0, freshData.wallet - penalty);
-                        freshData.job = null;
-                        freshData.workWarnings = 0;
-                        timeMsg = `> 🚨 **DESPIDO POR NEGLIGENCIA**\n> El tiempo de 3 minutos se agotó. Faltaste a tu turno y acumulaste 2 advertencias.\n> Estás fuera y pierdes \`${penalty.toLocaleString()} 🌸\`.`;
-                    }
-                    
-                    await updateUserData(userId, freshData);
-
-                    const timeoutEmbed = new EmbedBuilder()
-                        .setColor(embedColor)
-                        .setDescription(timeMsg)
-                        .setFooter({ text: 'Sistema de Asistencia ⊹ Economía' });
-
-                    // Editamos el mensaje original quitando los botones para evidenciar el fracaso
-                    input.editReply({ content: `<@${userId}>`, embeds: [timeoutEmbed], components: [] }).catch(() => {});
+                if (i.customId === 'btn_resign') {
+                    data.job = null; await updateUserData(userId, data);
+                    return i.reply({ content: "🚪 Has renunciado satisfactoriamente." });
                 }
             });
+
+            collector.on('end', async (collected, reason) => {
+                if (reason === 'time') {
+                    data.workWarnings = (data.workWarnings || 0) + 1;
+                    await updateUserData(userId, data);
+                    input.editReply({ content: `> ⏳ **Tiempo agotado.** Faltaste al trabajo. Advertencia \`[${data.workWarnings}/2]\`.`, embeds: [], components: [] }).catch(() => {});
+                }
+            });
+            return;
         }
+
+        // =========================================================
+        // 🔀 SLASH COMMANDS (Enrutador)
+        // =========================================================
+        const sub = input.options.getSubcommand();
+        if (sub === 'apply') {
+            const sel = input.options.getString('trabajo');
+            data.job = sel; data.lastWork = now;
+            await updateUserData(userId, data);
+            return input.reply(`🤝 Ahora eres **${JOBS[sel].nombre}**.`);
+        }
+        if (sub === 'shift') return processShift(input);
     }
 };
