@@ -5,44 +5,64 @@ const path = require('path');
 
 module.exports = {
     name: 'crime',
-    description: '🕵️ Intenta un atraco en las calles de Rockstar.',
-    data: new SlashCommandBuilder().setName('crime').setDescription('🕵️ Cometer un crimen'),
+    description: '🕵️ Intenta un crimen para ganar flores.',
+    data: new SlashCommandBuilder()
+        .setName('crime')
+        .setDescription('🕵️ Comete un crimen bajo tu propio riesgo'),
 
     async execute(input) {
-        const user = input.user || input.author;
+        const isSlash = !!input.user;
+        const user = isSlash ? input.user : input.author;
+        const member = input.member;
         let data = await getUserData(user.id);
         const premium = (data.premiumType || 'none').toLowerCase();
 
-        // --- 🌍 EVENTO GLOBAL ---
+        // --- 🌍 INTEGRACIÓN DE EVENTOS GLOBALES ---
         let multiEvento = 1;
         const activePath = path.join(__dirname, '../data/activeEvent.json');
         if (fs.existsSync(activePath)) {
-            const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
-            if (ev.type === 'money') multiEvento = ev.multiplier;
+            try {
+                const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
+                if (ev.type === 'money') multiEvento = ev.multiplier;
+            } catch (err) {
+                console.log("Error leyendo evento activo:", err);
+            }
         }
 
-        // --- 💎 BONO POR RANGO ---
-        let bonoRango = 1.03; 
-        if (premium === 'pro') bonoRango = 1.07;
-        if (premium === 'ultra') bonoRango = 1.10;
+        // --- 💎 BONO POR RANGO PREMIUM ---
+        let bonoRango = 1.03; // Normal: 3%
+        if (premium === 'pro') bonoRango = 1.07; // Pro: 7%
+        if (premium === 'ultra') bonoRango = 1.10; // Ultra: 10%
 
-        // Probabilidad de éxito
-        if (Math.random() < 0.40) return input.reply("🚨 **¡La policía te vio!** Tuviste que huir con las manos vacías.");
+        // --- 🎲 LÓGICA DE ÉXITO/FRACASO ---
+        const exito = Math.random() > 0.50; // 50% de probabilidad
 
-        const base = Math.floor(Math.random() * 150) + 80;
+        if (!exito) {
+            return input.reply({ content: `╰┈➤ 🚨 **¡Te atraparon!** No pudiste llevarte nada esta vez, reina. Ten más cuidado.` });
+        }
+
+        // --- 💰 CÁLCULO DE RECOMPENSA ---
+        const base = Math.floor(Math.random() * 200) + 100;
         const finalReward = Math.floor((base * multiEvento) * bonoRango);
 
         data.wallet = (data.wallet || 0) + finalReward;
         await updateUserData(user.id, data);
 
+        // --- 🖼️ EMBED ORIGINAL ---
         const embed = new EmbedBuilder()
-            .setTitle('🕵️ GOLPE EXITOSO')
-            .setColor('#1a1a1a')
+            .setTitle('🕵️ ¡Golpe Maestro!')
+            .setColor('#FFB6C1')
+            .setThumbnail('https://i.pinimg.com/originals/4d/30/1e/4d301e523315f013346e9198305c5678.gif')
             .setDescription(
-                `> *“El plan salió a la perfección.”*\n\n` +
-                `╰┈➤ **Botín:** \`${finalReward.toLocaleString()} 🌸\`\n` +
-                `╰┈➤ **Tu Rango:** \`${premium.toUpperCase()}\` (\`+${((bonoRango-1)*100).toFixed(0)}%\`)`
-            );
+                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
+                `**${member.displayName}**, el plan salió a la perfección.\n\n` +
+                `╰┈➤ Conseguiste: **${finalReward.toLocaleString()} 🌸**\n` +
+                `╰┈➤ En mano: \`${data.wallet.toLocaleString()} 🌸\`\n\n` +
+                (multiEvento > 1 ? `✨ **¡Bonus de Evento x${multiEvento} aplicado!**\n` : "") +
+                `*No dejes rastro de lo que hiciste...* ✨\n\n` +
+                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`
+            )
+            .setFooter({ text: `Acción de: ${member.displayName}`, iconURL: user.displayAvatarURL() });
 
         return input.reply({ embeds: [embed] });
     }
