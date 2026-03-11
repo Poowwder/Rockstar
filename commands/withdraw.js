@@ -1,6 +1,13 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../userManager.js');
 
+// --- ✨ EMOJIS AL AZAR DEL SERVIDOR ---
+const getRndEmoji = (guild) => {
+    if (!guild) return '✨';
+    const emojis = guild.emojis.cache.filter(e => e.available);
+    return emojis.size > 0 ? emojis.random().toString() : '🏦';
+};
+
 module.exports = {
     name: 'with',
     aliases: ['withdraw', 'retirar'],
@@ -13,39 +20,49 @@ module.exports = {
     async execute(input) {
         const isSlash = !!input.user;
         const user = isSlash ? input.user : input.author;
-        const member = input.member;
+        const guild = input.guild;
+        const member = input.member || { displayName: user.username };
+        const e = () => getRndEmoji(guild);
+
+        // --- 🛠️ MANEJO DE ARGUMENTOS ---
         const args = !isSlash ? input.content.split(/ +/).slice(1) : null;
-        let amountStr = isSlash ? input.options.getString('cantidad') : args[0];
+        let amountStr = isSlash ? input.options.getString('cantidad') : args?.[0];
+
+        if (!amountStr) return input.reply(`╰┈➤ ${e()} **Uso:** \`!!with <cantidad | all>\``);
 
         let data = await getUserData(user.id);
+        const bancoActual = data.bank || 0;
 
         if (amountStr.toLowerCase() === 'all') {
-            amountStr = data.bank.toString();
+            amountStr = bancoActual.toString();
         }
 
         const amount = parseInt(amountStr);
 
-        if (isNaN(amount) || amount <= 0) return input.reply("╰┈➤ ❌ Indica una cantidad válida para retirar, linda.");
-        if (amount > data.bank) return input.reply("╰┈➤ ❌ No tienes tantas flores en el banco.");
+        // --- 🛡️ VALIDACIONES ---
+        if (isNaN(amount) || amount <= 0) return input.reply(`╰┈➤ ❌ ${e()} Indica una cantidad válida para retirar.`);
+        if (amount > bancoActual) return input.reply(`╰┈➤ ❌ ${e()} No tienes suficientes fondos en la bóveda.`);
 
+        // --- 💸 PROCESO ---
         data.bank -= amount;
-        data.wallet += amount;
+        data.wallet = (data.wallet || 0) + amount;
         await updateUserData(user.id, data);
 
         const withEmbed = new EmbedBuilder()
-            .setTitle('🏛️ Retiro Exitoso')
-            .setColor('#FFB6C1')
-            .setThumbnail('https://i.pinimg.com/originals/7e/8a/0a/7e8a0a95e0c8b6727284f67d4f9d9804.gif') // Cajero cute
+            .setTitle(`${e()} RETIRO DE BÓVEDA ${e()}`)
+            .setColor('#1a1a1a')
+            // GIF de dinero/banco con estilo oscuro
+            .setThumbnail('https://i.pinimg.com/originals/a4/09/20/a40920d321074e508a8d132b49d63c5d.gif') 
             .setDescription(
-                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
-                `**${member.displayName}**, aquí tienes tus flores.\n\n` +
-                `╰┈➤ Retiraste: **${amount.toLocaleString()} 🌸**\n` +
-                `╰┈➤ En mano: \`${data.wallet.toLocaleString()} 🌸\`\n\n` +
-                `*¡No las gastes todas en un solo lugar!* ✨\n\n` +
-                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`
+                `> *“Tus flores han sido liberadas de la seguridad del banco.”*\n\n` +
+                `**─── ✦ TRANSACCIÓN ✦ ───**\n` +
+                `${e()} **Retirado:** \`${amount.toLocaleString()} 🌸\`\n` +
+                `${e()} **En Mano:** \`${data.wallet.toLocaleString()} 🌸\`\n` +
+                `**───────────────────**\n\n` +
+                `╰┈➤ *Balance en bóveda:* \`${data.bank.toLocaleString()} 🌸\``
             )
             .setTimestamp()
-            .setFooter({ text: `Acción de: ${member.displayName}`, iconURL: user.displayAvatarURL() });
+            .setFooter({ text: `Rockstar Banking • ${member.displayName}`, iconURL: user.displayAvatarURL() });
 
         return input.reply({ embeds: [withEmbed] });
     }
