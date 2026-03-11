@@ -199,7 +199,7 @@ module.exports = {
                     )
                 );
                 const response = await input.reply({ content: `> ✨ **Centro de Empleo de las Sombras** ${statusEmoji}\n> Tienes que conseguir un empleo, ${member.displayName}.`, components: [menu], fetchReply: true });
-                const collector = response.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 40000 });
+                const collector = response.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 60000 });
                 
                 collector.on('collect', async i => {
                     if (i.user.id !== userId) return i.reply({ content: "❌ Este contrato no está a tu nombre.", ephemeral: true });
@@ -215,18 +215,26 @@ module.exports = {
                 return;
             }
 
-            // SI YA TIENE TRABAJO: BOTONES CON LÍMITE DE TIEMPO
+            // SI YA TIENE TRABAJO: BOTONES CON 3 MINUTOS (180000 ms)
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('btn_shift').setLabel('💼 Ir a Trabajar').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId('btn_resign').setLabel('🚪 Renunciar').setStyle(ButtonStyle.Danger)
             );
             
+            const promptEmbed = new EmbedBuilder()
+                .setColor('#1a1a1a')
+                .setDescription(`> 🏢 **Fichaje de Turno** ${statusEmoji}\n> ${member.displayName}, el reloj está corriendo.\n\n╰┈➤ ⏳ **Tienes 3 minutos para decidir.**\nSi no presionas un botón, se tomará como falta injustificada.`);
+
+            // Aquí mandamos el mensaje principal etiquetando al usuario para asegurar que lo vea
             const response = await input.reply({ 
-                content: `> 🏢 **Fichaje de Turno** ${statusEmoji}\n> ${member.displayName}, es hora de tomar una decisión. Tienes 15 segundos antes de perder el día.`, 
-                components: [row], fetchReply: true 
+                content: `<@${userId}>`,
+                embeds: [promptEmbed], 
+                components: [row], 
+                fetchReply: true 
             });
 
-            const collector = response.createMessageComponentCollector({ componentType: ComponentType.Button, time: 15000 });
+            // Colector fijado a 3 minutos
+            const collector = response.createMessageComponentCollector({ componentType: ComponentType.Button, time: 180000 });
 
             collector.on('collect', async i => {
                 if (i.user.id !== userId) return i.reply({ content: "❌ Este no es tu turno.", ephemeral: true });
@@ -235,25 +243,37 @@ module.exports = {
                 if (i.customId === 'btn_resign') return processResign(i);
             });
 
-            // ⚠️ EL CASTIGO POR NO RESPONDER A TIEMPO
+            // ⚠️ EL CASTIGO POR NO RESPONDER A TIEMPO (Pasan los 3 minutos)
             collector.on('end', async (collected, reason) => {
                 if (reason === 'time') {
-                    // Refrescamos la data por si acaso
+                    // Refrescamos la base de datos por si acaso hizo algo en otro lado
                     let freshData = await getUserData(userId);
+                    
+                    // Si misteriosamente ya no tiene trabajo (renunció por slash command), ignoramos
+                    if (!freshData.job) return;
+
                     freshData.workWarnings = (freshData.workWarnings || 0) + 1;
                     
                     let timeMsg = `> ⏳ **El tiempo se agotó, ${member.displayName}.**\n> Te quedaste dormida y perdiste el día de trabajo. Tienes una advertencia \`[${freshData.workWarnings}/2]\`.`;
+                    let embedColor = '#8b0000';
                     
                     if (freshData.workWarnings >= 2) {
                         const penalty = Math.floor((freshData.wallet || 0) * firePenalty);
                         freshData.wallet = Math.max(0, freshData.wallet - penalty);
                         freshData.job = null;
                         freshData.workWarnings = 0;
-                        timeMsg = `> 🚨 **DESPIDO POR NEGLIGENCIA**\n> El tiempo se agotó. Faltaste a tu turno y acumulaste 2 advertencias.\n> Estás fuera y pierdes \`${penalty} 🌸\`.`;
+                        timeMsg = `> 🚨 **DESPIDO POR NEGLIGENCIA**\n> El tiempo de 3 minutos se agotó. Faltaste a tu turno y acumulaste 2 advertencias.\n> Estás fuera y pierdes \`${penalty.toLocaleString()} 🌸\`.`;
                     }
                     
                     await updateUserData(userId, freshData);
-                    input.editReply({ content: timeMsg, components: [] }).catch(() => {});
+
+                    const timeoutEmbed = new EmbedBuilder()
+                        .setColor(embedColor)
+                        .setDescription(timeMsg)
+                        .setFooter({ text: 'Sistema de Asistencia ⊹ Economía' });
+
+                    // Editamos el mensaje original quitando los botones para evidenciar el fracaso
+                    input.editReply({ content: `<@${userId}>`, embeds: [timeoutEmbed], components: [] }).catch(() => {});
                 }
             });
         }
