@@ -1,15 +1,34 @@
-const { EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData } = require('../userManager.js');
-const { UserProfile } = require('../data/mongodb.js'); // Importamos para sincronizar Nyx
+const { UserProfile } = require('../data/mongodb.js'); 
 const { checkNekos } = require('../functions/checkNekos.js');
+
+// --- ✨ EMOJIS AL AZAR ---
+const getRndEmoji = (guild) => {
+    if (!guild) return '✨';
+    const emojis = guild.emojis.cache.filter(e => e.available);
+    return emojis.size > 0 ? emojis.random().toString() : '✨';
+};
 
 module.exports = {
     name: 'rank',
     aliases: ['lvl', 'nivel'],
     category: 'información',
-    async execute(message) {
-        const target = message.mentions.users.first() || message.author;
-        const member = message.guild.members.cache.get(target.id) || { displayName: target.username };
+    data: new SlashCommandBuilder()
+        .setName('rank')
+        .setDescription('📊 Revisa tu nivel de experiencia en las sombras')
+        .addUserOption(opt => opt.setName('usuario').setDescription('Ver el nivel de otra persona')),
+
+    async execute(input) {
+        // --- ⊹ DETECCIÓN HÍBRIDA ⊹ ---
+        const isSlash = !!input.user;
+        const author = isSlash ? input.user : input.author;
+        const target = isSlash ? (input.options.getUser('usuario') || author) : (input.mentions.users.first() || author);
+        const guild = input.guild;
+
+        const member = guild ? (guild.members.cache.get(target.id) || { displayName: target.username }) : { displayName: target.username };
+        const rndEmj = getRndEmoji(guild);
+        
         const data = await getUserData(target.id);
 
         const currentLevel = data.level || 1;
@@ -17,41 +36,40 @@ module.exports = {
         const nextLevelXP = currentLevel * 500;
         const percent = Math.min(Math.floor((currentXP / nextLevelXP) * 100), 100);
 
-        // --- Sincronización con el sistema de Nekos (Nyx) ---
-        // Actualizamos el nivel en el perfil de MongoDB para que checkNekos sepa cuando dar a Nyx
-        await UserProfile.findOneAndUpdate(
-            { UserID: target.id, GuildID: message.guild.id },
-            { Level: currentLevel },
-            { upsert: true }
-        );
+        // --- 🐱 Sincronización con el sistema de Nekos (Nyx) ---
+        try {
+            await UserProfile.findOneAndUpdate(
+                { UserID: target.id, GuildID: guild.id },
+                { Level: currentLevel },
+                { upsert: true }
+            );
 
-        // Si el usuario es quien ejecuta el comando, verificamos si desbloqueó a Nyx
-        if (target.id === message.author.id) {
-            await checkNekos(message, 'levelUp');
+            // Verificamos si desbloqueó a Nyx (solo si es el propio usuario viéndose a sí mismo)
+            if (target.id === author.id && checkNekos) {
+                await checkNekos(input, 'levelUp');
+            }
+        } catch (e) {
+            console.error("Error sincronizando Nekos en el Rank:", e);
         }
 
-        // 🌸 BARRA DE PROGRESO CUTE
-        const progress = "🌸".repeat(Math.floor(percent / 10)) + "🤍".repeat(10 - Math.floor(percent / 10));
+        // --- 📊 BARRA DE PROGRESO ROCKSTAR ---
+        const filled = Math.floor(percent / 10);
+        const progress = "🌸".repeat(filled) + "🖤".repeat(10 - filled);
 
         const rankEmbed = new EmbedBuilder()
-            .setTitle(`‧₊˚ ✨ Nivel Rockstar ✨ ˚₊‧`)
-            .setColor('#FFB6C1')
+            .setColor('#1a1a1a')
             .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 512 }))
             .setDescription(
-                `*“Cada mensaje es un destello de tu magia...”* 🎀\n\n` +
-                `**୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧**\n` +
-                `⭐ **Nivel:** \`${currentLevel}\`\n` +
-                `✨ **XP:** \`${currentXP.toLocaleString()} / ${nextLevelXP.toLocaleString()}\`\n` +
-                `📊 **Progreso:** \`${percent}%\` \n` +
-                `╰┈➤ ${progress}\n` +
-                `**୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧**\n\n` +
-                `*¡Todo el brillo para ${member.displayName}!* 🚀`
+                `> ${rndEmj} **Nivel de Prestigio: ${member.displayName}**\n` +
+                `> *“La experiencia se forja en la oscuridad...”*\n\n` +
+                `╰┈➤ 💠 **Nivel:** \`${currentLevel}\`\n` +
+                `╰┈➤ ✨ **Experiencia:** \`${currentXP.toLocaleString()} / ${nextLevelXP.toLocaleString()} XP\`\n` +
+                `╰┈➤ 📊 **Progreso:** \`${percent}%\`\n\n` +
+                `**Avance hacia el Nivel ${currentLevel + 1}**\n` +
+                `> ${progress}`
             )
-            .setFooter({ 
-                text: `Estrella: ${member.displayName} ♡`, 
-                iconURL: 'https://i.pinimg.com/originals/de/13/8d/de138d68962534575975d4f7c975a5c5.gif' 
-            });
+            .setFooter({ text: `Sistema de Niveles ⊹ Rockstar`, iconURL: target.displayAvatarURL() });
 
-        return message.reply({ embeds: [rankEmbed] });
+        return input.reply({ embeds: [rankEmbed] });
     }
 };
