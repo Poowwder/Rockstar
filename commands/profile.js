@@ -29,7 +29,7 @@ module.exports = {
         const getE = () => {
             const source = guild ? guild.emojis.cache : client.emojis.cache;
             const available = source.filter(e => e.available);
-            return available.size > 0 ? available.random().toString() : '✨';
+            return available.size > 0 ? available.random().toString() : '✨'; // Fallback por si el server no tiene emojis
         };
 
         try {
@@ -47,22 +47,19 @@ module.exports = {
             const haremCount = haremList.length;
 
             const embedFields = [
-                { name: ' ', value: 
-                    `${getE()} 💠 **Rango:** \`${rango}\`\n` +
-                    `${getE()} ✨ **Carisma:** \`${data.rep || 0}\` Pts\n` +
-                    `${getE()} 💀 **Muertes:** ${data.deadCount || 0}`
+                { name: '\u200B', value: 
+                    `${getE()} **Rango:** \`${rango}\`\n` +
+                    `${getE()} **Carisma:** \`${data.rep || 0}\` Pts\n` +
+                    `${getE()} **Muertes:** ${data.deadCount || 0}`
                 },
-                { name: `${getE()} Estado Vital ${getE()}`, value: `❤️ **${displayHp} / 3**` }
+                { name: `${getE()} Estado Vital ${getE()}`, value: `${getE()} **${displayHp} / 3**` }
             ];
 
             // --- 💍 SECCIÓN DE MATRIMONIO PURA ---
             if (haremCount > 0) {
                 const firstPartner = haremList[0];
-                // Usamos el username guardado en la DB en lugar de mención
-                embedFields.push({ 
-                    name: ' ', 
-                    value: `${getE()} **Casada/o con:** \`${firstPartner.username || 'Alguien'}\`` 
-                });
+                // Se agrega directamente al primer bloque de texto, SOLO si está casado.
+                embedFields[0].value += `\n${getE()} **Casada/o con:** \`${firstPartner.username || 'Alguien'}\``;
             }
 
             const embed = new EmbedBuilder()
@@ -74,7 +71,7 @@ module.exports = {
                 .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 1024 }))
                 .setDescription(`${getE()} *“Navegando entre las sombras...”* ${getE()}`)
                 .addFields(embedFields)
-                .setFooter({ text: `Rockstar ⊹ Nightfall` }) // ✅ Footer renovado
+                .setFooter({ text: `Rockstar ⊹ Nightfall` }) 
                 .setTimestamp();
 
             const row = new ActionRowBuilder();
@@ -83,7 +80,7 @@ module.exports = {
                 row.addComponents(
                     new ButtonBuilder()
                         .setCustomId('btn_harem')
-                        .setLabel('Harem') // Primera en mayúscula, resto minúscula
+                        .setLabel('Harem') 
                         .setStyle(ButtonStyle.Secondary)
                         .setEmoji(getE())
                 );
@@ -102,7 +99,7 @@ module.exports = {
 
             collector.on('collect', async i => {
                 if (i.customId === 'btn_close') {
-                    if (i.user.id !== author.id) return i.reply({ content: `❌ No puedes cerrar esto.`, ephemeral: true });
+                    if (i.user.id !== author.id) return i.reply({ content: `${getE()} No puedes cerrar esto.`, ephemeral: true });
                     await i.update({ content: `${getE()} *Expediente cerrado...*`, embeds: [], components: [] });
                     return setTimeout(() => msg.delete().catch(() => {}), 2000);
                 }
@@ -114,16 +111,15 @@ module.exports = {
 
                     const haremDisplay = haremList.map((m, index) => {
                         const timeStr = m.time ? ` - *Desde <t:${Math.floor(m.time / 1000)}:R>*` : '';
-                        // Usamos username en lugar de mención
                         return `${getE()} **${index + 1}.** \`${m.username || 'Desconocido'}\`${timeStr}`;
                     }).join('\n\n');
                     
                     const haremEmbed = new EmbedBuilder()
                         .setColor('#1a1a1a')
-                        .setTitle(`💍 Harem de ${target.username} 💍`)
+                        .setTitle(`${getE()} Harem de ${target.username} ${getE()}`)
                         .setDescription(`${getE()} *Espacios: \`[${haremCount} / ${maxMarriages}]\`*\n\n${haremDisplay}`)
                         .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-                        .setFooter({ text: `Rockstar ⊹ Eternal Vault` }); // ✅ Footer Harem renovado
+                        .setFooter({ text: `Rockstar ⊹ Eternal Vault` }); 
 
                     return i.reply({ embeds: [haremEmbed], ephemeral: true });
                 }
@@ -133,7 +129,7 @@ module.exports = {
 
         } catch (error) {
             console.error("Error en Profile:", error);
-            const errorMsg = "❌ Fallo en el sistema.";
+            const errorMsg = `${getE()} Fallo en el sistema.`;
             if (isSlash) return input.reply({ content: errorMsg, ephemeral: true });
             return input.reply(errorMsg);
         }
