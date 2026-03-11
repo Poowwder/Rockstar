@@ -33,18 +33,14 @@ module.exports = {
             return input.reply({ embeds: [deadEmbed], ephemeral: isSlash });
         }
 
-        // --- ⚙️ AJUSTE DE RANGOS (Valores Rockstar) ---
+        // --- ⚙️ AJUSTE DE RANGOS ---
         let cooldown = 300000, prob = 0.45, vidasP = 1, minG = 2000, maxG = 5000;
         const premium = (data.premiumType || 'none').toLowerCase();
 
         if (premium === 'pro' || premium === 'mensual') { 
-            cooldown = 120000; prob = 0.60; 
-            vidasP = 0.5; // 🩸 La mitad para Pro
-            minG = 4000; maxG = 8000;
+            cooldown = 120000; prob = 0.60; vidasP = 0.5; minG = 4000; maxG = 8000;
         } else if (premium === 'ultra' || premium === 'bimestral') { 
-            cooldown = 0; prob = 0.85; 
-            vidasP = 0.2; // 🩸 Un poco menos de la mitad para Ultra
-            minG = 7000; maxG = 15000;
+            cooldown = 0; prob = 0.85; vidasP = 0.2; minG = 7000; maxG = 15000;
         }
 
         const lastCrime = data.lastCrime ? new Date(data.lastCrime).getTime() : 0;
@@ -53,11 +49,20 @@ module.exports = {
             return input.reply({ content: `⏳ 🚨 La policía vigila. Vuelve en \`${espera}s\`.`, ephemeral: isSlash });
         }
 
-        data.lastCrime = Date.now();
+        // --- 🚀 LÓGICA DE BOOSTS ---
+        const now = Date.now();
+        // Limpiamos los boosts expirados de una vez
+        data.activeBoosts = (data.activeBoosts || []).filter(b => b.expiresAt > now);
+        
+        // Buscamos si el boost de flores está activo
+        const hasMoneyBoost = data.activeBoosts.some(b => b.id === 'boost_flores');
+        const multiplier = hasMoneyBoost ? 2 : 1;
+
+        data.lastCrime = now;
 
         // --- 🎲 RESULTADO ---
         if (Math.random() > prob) {
-            // --- FALLO ---
+            // FALLO
             data.health -= vidasP;
             let outcomeText = "";
 
@@ -81,15 +86,19 @@ module.exports = {
             return input.reply({ embeds: [failEmbed] });
 
         } else {
-            // --- ÉXITO ---
-            let gana = Math.floor(Math.random() * (maxG - minG + 1)) + minG;
-            data.wallet = (data.wallet || 0) + gana;
+            // ÉXITO
+            let ganaBase = Math.floor(Math.random() * (maxG - minG + 1)) + minG;
+            let ganaFinal = ganaBase * multiplier; // Aplicamos el multiplicador
+            
+            data.wallet = (data.wallet || 0) + ganaFinal;
             await updateUserData(user.id, data);
+
+            let boostMsg = hasMoneyBoost ? `\n╰┈➤ 🚀 **Boost Activo:** ¡Ganancia duplicada! (x2)` : "";
 
             const successEmbed = new EmbedBuilder()
                 .setColor('#1a1a1a')
                 .setThumbnail('https://i.pinimg.com/originals/7e/17/57/7e1757827e852d76f8e75dbf77c3e2e8.gif')
-                .setDescription(`> 🕶️ **Crimen perfecto, ${member.displayName}.**\n\n╰┈➤ 💰 **Botín:** \`+${gana.toLocaleString()} 🌸\`\n╰┈➤ 🏦 **Cartera:** \`${data.wallet.toLocaleString()} 🌸\``);
+                .setDescription(`> 🕶️ **Crimen perfecto, ${member.displayName}.**\n\n╰┈➤ 💰 **Botín:** \`+${ganaFinal.toLocaleString()} 🌸\`${boostMsg}\n╰┈➤ 🏦 **Cartera:** \`${data.wallet.toLocaleString()} 🌸\``);
 
             return input.reply({ embeds: [successEmbed] });
         }
