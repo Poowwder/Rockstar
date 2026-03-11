@@ -1,26 +1,46 @@
 const mongoose = require('mongoose');
 const { EmbedBuilder } = require('discord.js');
 
-// --- 👤 ESQUEMA DE USUARIO (Economía, Niveles, Nekos) ---
+// --- 👤 ESQUEMA DE USUARIO (Economía, Niveles, Nekos, Trabajo) ---
 const UserSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     wallet: { type: Number, default: 0 },
     bank: { type: Number, default: 0 },
     health: { type: Number, default: 3 }, 
     deadCount: { type: Number, default: 0 }, 
+    rep: { type: Number, default: 0 }, // Carisma para el perfil
+    
+    // 💎 VIP
     premiumType: { type: String, default: 'none' }, 
     premiumUntil: { type: Date, default: null },
+    
+    // ⏳ Cooldowns
     lastMine: { type: Date, default: null },
     lastFish: { type: Date, default: null },
     lastCrime: { type: Date, default: null },
     lastRob: { type: Date, default: null },
+    
+    // 💼 Sistema de Trabajo
+    job: { type: String, default: null },
+    lastWork: { type: Number, default: 0 },
+    workWarnings: { type: Number, default: 0 },
+    jobResigned: { type: String, default: null },
+    jobResignedTime: { type: Number, default: 0 },
+    absenceWarned: { type: Boolean, default: false },
+
+    // 🎒 Inventario y Vínculos
     harem: { type: Array, default: [] },
-    inventory: { type: Array, default: [] },
+    inventory: { type: Object, default: {} }, // 🔥 FIX CRÍTICO: Debe ser Object, no Array
+    durabilidades: { type: Object, default: {} }, // Para las cañas y picos
     marryId: { type: String, default: null },
+    
+    // 📈 Niveles
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
     interactionsCount: { type: Number, default: 0 }, 
     messageCount: { type: Number, default: 0 },
+    
+    // 🐱 Coleccionables
     nekos: {
         solas: { type: Boolean, default: false },
         nyx: { type: Boolean, default: false },
@@ -40,7 +60,6 @@ const User = mongoose.models.User || mongoose.model('User', UserSchema);
 const Guild = mongoose.models.Guild || mongoose.model('Guild', GuildSchema);
 
 // --- 🛠️ FUNCIONES DE SERVIDOR ---
-
 async function getGuildData(guildId) {
     let guild = await Guild.findOne({ guildId });
     if (!guild) guild = await Guild.create({ guildId });
@@ -55,7 +74,6 @@ async function updateGuildData(guildId, data) {
 }
 
 // --- 📈 FUNCIONES DE USUARIO ---
-
 async function addXP(userId, amount, client) {
     let user = await User.findOne({ userId });
     if (!user) user = await User.create({ userId });
@@ -128,17 +146,25 @@ async function getUserData(userId) {
 
 async function updateUserData(userId, data) {
     try {
-        // Lógica de muerte y pérdida de cartera
+        // Registro de muertes seguro (sin forzar resucitación inmediata para que funcione el Hospital)
         if (data.health <= 0) {
-            data.deadCount = (data.deadCount || 0) + 1;
-            data.health = 3; 
-            data.wallet = 0; 
+            // Solo sumamos una muerte si es la primera vez que detectamos que su salud llegó a 0
+            let oldData = await User.findOne({ userId });
+            if (oldData && oldData.health > 0) {
+                data.deadCount = (data.deadCount || 0) + 1;
+            }
+            data.wallet = 0; // Pierde el dinero en mano al morir
         }
         await User.findOneAndUpdate({ userId }, { $set: data }, { upsert: true });
         return true;
     } catch (err) { 
         return false; 
     }
+}
+
+// 🛒 Función de seguridad para la tienda (Evita que shop.js explote)
+async function getShopItemsDB() {
+    return []; // Devuelve un array vacío por ahora si no tienes un esquema de tienda custom
 }
 
 module.exports = { 
@@ -149,5 +175,6 @@ module.exports = {
     getGuildData, 
     updateGuildData, 
     grantNeko, 
-    addXP 
+    addXP,
+    getShopItemsDB // Exportado para que la tienda lo lea correctamente
 };
