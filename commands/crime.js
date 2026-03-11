@@ -29,53 +29,72 @@ module.exports = {
             const deadEmbed = new EmbedBuilder()
                 .setColor('#1a1a1a')
                 .setThumbnail('https://i.pinimg.com/originals/8a/cc/b0/8accb071720d2d3129807b1cc1ec3f1e.gif')
-                .setDescription(`> 💀 **El cuerpo de ${member.displayName} no resiste más.**\n> ${rndEmj} Estás en cuidados intensivos. Usa \`!!hospital\` antes de volver a las calles.`);
-            return input.reply({ embeds: [deadEmbed], ephemeral: true });
+                .setDescription(`> 💀 **El cuerpo de ${member.displayName} no resiste más.**\n> ${rndEmj} Estás en cuidados intensivos. Recupérate antes de volver a las calles.`);
+            
+            // ✅ FIX: Solo usamos ephemeral si es Slash Command
+            return input.reply({ embeds: [deadEmbed], ephemeral: isSlash });
         }
 
         // --- ⚙️ AJUSTE DE RANGOS ---
-        let cooldown = 300000, prob = 0.45, vidasP = 2, minG = 2000, maxG = 5000;
+        let cooldown = 300000, prob = 0.45, vidasP = 1, minG = 2000, maxG = 5000;
         const premium = (data.premiumType || 'none').toLowerCase();
 
         if (premium === 'pro' || premium === 'mensual') { 
             cooldown = 120000; prob = 0.60; vidasP = 1; minG = 4000; maxG = 8000;
         } else if (premium === 'ultra' || premium === 'bimestral') { 
-            cooldown = 0; prob = 0.85; vidasP = 0.5; minG = 7000; maxG = 15000;
+            cooldown = 0; prob = 0.85; vidasP = 1; minG = 7000; maxG = 15000;
         }
 
         const lastCrime = data.lastCrime ? new Date(data.lastCrime).getTime() : 0;
         if (cooldown > 0 && Date.now() - lastCrime < cooldown) {
             const espera = Math.ceil((cooldown - (Date.now() - lastCrime)) / 1000);
-            return input.reply({ content: `⏳ 🚨 La policía patrulla la zona. Vuelve en \`${espera}s\`.`, ephemeral: true });
+            return input.reply({ content: `⏳ 🚨 La policía patrulla la zona. Vuelve en \`${espera}s\`.`, ephemeral: isSlash });
         }
+
+        // Marcamos el tiempo del crimen DE INMEDIATO para evitar spam
+        data.lastCrime = Date.now();
 
         // --- 🎲 RESULTADO ---
         if (Math.random() > prob) {
+            // FALLO
             data.health -= vidasP;
             let lostMoney = 0;
             let outcomeText = "";
 
             if (data.health <= 0) {
-                data.health = 0;
+                // Muerte en el acto (activará el renacimiento en userManager)
                 lostMoney = data.wallet || 0;
                 data.wallet = 0; 
-                outcomeText = `\n\n╰┈➤ 💀 **FATAL:** Te atraparon y confiscaron tus \`${lostMoney.toLocaleString()} 🌸\`.`;
+                outcomeText = `\n\n╰┈➤ 💀 **FATAL:** Te atraparon y perdiste tus \`${lostMoney.toLocaleString()} 🌸\`.`;
             } else {
+                // Multa menor
                 lostMoney = Math.min(data.wallet || 0, 1500); 
                 data.wallet -= lostMoney;
-                outcomeText = `\n\n╰┈➤ 💸 **Multa:** \`-${lostMoney} 🌸\`\n╰┈➤ ❤️ **Vida:** \`${data.health.toFixed(1)}/3\``;
+                outcomeText = `\n\n╰┈➤ 💸 **Multa:** \`-${lostMoney} 🌸\`\n╰┈➤ ❤️ **Vida:** \`${Math.floor(data.health)}/3\``;
             }
 
             await updateUserData(user.id, data);
-            return input.reply({ embeds: [new EmbedBuilder().setColor('#8b0000').setThumbnail('https://i.pinimg.com/originals/27/a3/9a/27a39a0b9a84a6b1dc92690d297a7ea6.gif').setDescription(`> 🚫 **Atraco fallido, ${member.displayName}.**\n╰┈➤ 🩸 **Daño:** \`-${vidasP}\` vidas ${outcomeText}`)] });
+            
+            const failEmbed = new EmbedBuilder()
+                .setColor('#8b0000')
+                .setThumbnail('https://i.pinimg.com/originals/27/a3/9a/27a39a0b9a84a6b1dc92690d297a7ea6.gif')
+                .setDescription(`> 🚫 **Atraco fallido, ${member.displayName}.**\n╰┈➤ 🩸 **Daño:** \`-${vidasP}\` corazón ${outcomeText}`);
+
+            return input.reply({ embeds: [failEmbed] });
 
         } else {
+            // ÉXITO
             let gana = Math.floor(Math.random() * (maxG - minG + 1)) + minG;
             data.wallet = (data.wallet || 0) + gana;
-            data.lastCrime = Date.now(); 
+            
             await updateUserData(user.id, data);
 
-            return input.reply({ embeds: [new EmbedBuilder().setColor('#1a1a1a').setThumbnail('https://i.pinimg.com/originals/7e/17/57/7e1757827e852d76f8e75dbf77c3e2e8.gif').setDescription(`> 🕶️ **Crimen perfecto, ${member.displayName}.**\n\n╰┈➤ 💰 **Botín:** \`+${gana.toLocaleString()} 🌸\`\n╰┈➤ 🏦 **Cartera:** \`${data.wallet.toLocaleString()} 🌸\``)] });
+            const successEmbed = new EmbedBuilder()
+                .setColor('#1a1a1a')
+                .setThumbnail('https://i.pinimg.com/originals/7e/17/57/7e1757827e852d76f8e75dbf77c3e2e8.gif')
+                .setDescription(`> 🕶️ **Crimen perfecto, ${member.displayName}.**\n\n╰┈➤ 💰 **Botín:** \`+${gana.toLocaleString()} 🌸\`\n╰┈➤ 🏦 **Cartera:** \`${data.wallet.toLocaleString()} 🌸\``);
+
+            return input.reply({ embeds: [successEmbed] });
         }
     }
 };
