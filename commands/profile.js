@@ -42,18 +42,15 @@ module.exports = {
             let rango = (data.premiumType || 'USER').toUpperCase();
             if (target.id === OWNER_ID) rango = '𝕽☆𝖈𝖐𝖘𝖙𝖆𝖗 𝕹𝖔𝖛𝖆';
 
-            // --- 🌸 BARRA DE VIDA ---
+            // --- 🌸 BARRA DE VIDA (SIN CORAZONES VISUALES) ---
             const hp = data.health || 0;
-            const maxHp = 3;
-            const filled = "🌸".repeat(Math.max(0, Math.floor(hp)));
-            const empty = "🖤".repeat(Math.max(0, maxHp - Math.floor(hp)));
+            const displayHp = Math.max(0, hp); // Vida nunca será negativa
 
-            // --- 💍 SISTEMA DE MATRIMONIOS (CONECTADO A 'HAREM') ---
+            // --- 💍 SISTEMA DE MATRIMONIOS ---
             let maxMarriages = 10;
             if (premium === 'pro' || premium === 'mensual') maxMarriages = 15;
             if (premium === 'ultra' || premium === 'bimestral') maxMarriages = 20;
 
-            // ⚠️ FIX: Ahora lee la propiedad 'harem' en lugar de 'marriages'
             const haremList = data.harem || [];
             const haremCount = haremList.length;
 
@@ -62,16 +59,14 @@ module.exports = {
                 { name: ' ', value: 
                     `${getE()} 💠 **Rango:** \`${rango}\`\n` +
                     `${getE()} ✨ **Carisma:** \`${data.rep || 0}\` Pts\n` +
-                    `${getE()} 💀 **Muertes:** ${data.deadCount || 0}` // Sin (mina/pesca)
+                    `${getE()} 💀 **Muertes:** ${data.deadCount || 0}`
                 },
-                { name: `${getE()} Estado Vital ${getE()}`, value: `❤️ \`${hp.toFixed(1)} / 3\`\n${filled}${empty}` }
+                // Muestra solo los números, limpio y estético
+                { name: `${getE()} Estado Vital ${getE()}`, value: `❤️ \`${displayHp.toFixed(1)} / 3\`` }
             ];
 
-            // Vínculos solo si tiene alguien en el harén
             if (haremCount > 0) {
-                // Sacamos la ID del primer objeto en el array harem
                 const firstPartnerId = haremList[0].id;
-                
                 embedFields.push({ 
                     name: `${getE()} 💍 Vínculos y Alianzas ${getE()}`, 
                     value: `${getE()} **Pareja Principal:** <@${firstPartnerId}>\n${getE()} *Espacios:* \`[${haremCount} / ${maxMarriages}]\`` 
@@ -87,23 +82,20 @@ module.exports = {
                 .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 1024 }))
                 .setDescription(`${getE()} *“Navegando entre las sombras...”* ${getE()}`)
                 .addFields(embedFields)
-                .setFooter({ text: `${getE()} Rockstar Database ⊹ Sistema de Identidad ${getE()}` })
+                .setFooter({ text: `Rockstar Database ⊹ Sistema de Identidad` }) // ✅ Sin emojis aquí
                 .setTimestamp();
 
             // --- 🔘 BOTONES DEL PERFIL ---
             const row = new ActionRowBuilder();
             
-            // Botón Harén solo si está casado
             if (haremCount > 0) {
                 row.addComponents(new ButtonBuilder().setCustomId('btn_harem').setLabel('Harén').setStyle(ButtonStyle.Secondary).setEmoji(getE()));
             }
             
-            // Botón de cerrar
             row.addComponents(new ButtonBuilder().setCustomId('btn_close').setLabel('Cerrar').setStyle(ButtonStyle.Danger).setEmoji('✖️'));
 
             const msg = await input.reply({ embeds: [embed], components: [row], fetchReply: true });
 
-            // --- 🖱️ COLECTOR PARA BOTONES ---
             const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
 
             collector.on('collect', async i => {
@@ -114,19 +106,17 @@ module.exports = {
                 }
                 
                 if (i.customId === 'btn_harem') {
-                    // Armamos la lista del harén leyendo la fecha exacta que guarda tu marry.js
                     const haremDisplay = haremList.map((m, index) => {
-                        // m.time es el Date.now() que guarda el comando marry
                         const timeStr = m.time ? ` - *Desde <t:${Math.floor(m.time / 1000)}:R>*` : '';
                         return `${getE()} **${index + 1}.** <@${m.id}>${timeStr}`;
                     }).join('\n\n');
                     
                     const haremEmbed = new EmbedBuilder()
                         .setColor('#1a1a1a')
-                        .setTitle(`${getE()} 💍 Harén de ${target.username} ${getE()}`)
+                        .setTitle(`💍 Harén de ${target.username} 💍`)
                         .setDescription(`${getE()} *Límite de expansión: \`[${haremCount} / ${maxMarriages}]\`*\n\n${haremDisplay}`)
                         .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-                        .setFooter({ text: `${getE()} Rockstar Database ${getE()}`, iconURL: i.user.displayAvatarURL() });
+                        .setFooter({ text: `Rockstar Database`, iconURL: i.user.displayAvatarURL() }); // ✅ Sin emojis aquí
 
                     return i.reply({ embeds: [haremEmbed], ephemeral: true });
                 }
