@@ -209,7 +209,12 @@ module.exports = {
         });
 
         collector.on('end', () => {
-            input.editReply({ components: [] }).catch(() => null);
+            // Lógica híbrida para limpiar componentes al terminar el tiempo
+            if (isSlash) {
+                input.editReply({ components: [] }).catch(() => null);
+            } else {
+                response.edit({ components: [] }).catch(() => null);
+            }
         });
     }
 };
