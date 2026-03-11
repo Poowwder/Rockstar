@@ -1,89 +1,31 @@
-const mongoose = require('mongoose');
-const { EmbedBuilder } = require('discord.js');
-
-// --- 👤 ESQUEMA DE USUARIO (Economía, Niveles, Nekos, Trabajo) ---
-const UserSchema = new mongoose.Schema({
-    userId: { type: String, required: true, unique: true },
-    wallet: { type: Number, default: 0 },
-    bank: { type: Number, default: 0 },
-    health: { type: Number, default: 3 }, 
-    deadCount: { type: Number, default: 0 }, 
-    rep: { type: Number, default: 0 }, // Carisma para el perfil
-    
-    // 💎 VIP
-    premiumType: { type: String, default: 'none' }, 
-    premiumUntil: { type: Date, default: null },
-    
-    // ⏳ Cooldowns
-    lastMine: { type: Date, default: null },
-    lastFish: { type: Date, default: null },
-    lastCrime: { type: Date, default: null },
-    lastRob: { type: Date, default: null },
-    
-    // 💼 Sistema de Trabajo
-    job: { type: String, default: null },
-    lastWork: { type: Number, default: 0 },
-    workWarnings: { type: Number, default: 0 },
-    jobResigned: { type: String, default: null },
-    jobResignedTime: { type: Number, default: 0 },
-    absenceWarned: { type: Boolean, default: false },
-
-    // 🎒 Inventario y Vínculos
-    harem: { type: Array, default: [] },
-    inventory: { type: Object, default: {} }, // 🔥 FIX CRÍTICO: Debe ser Object, no Array
-    durabilidades: { type: Object, default: {} }, // Para las cañas y picos
-    marryId: { type: String, default: null },
-    
-    // 📈 Niveles
-    xp: { type: Number, default: 0 },
-    level: { type: Number, default: 1 },
-    interactionsCount: { type: Number, default: 0 }, 
-    messageCount: { type: Number, default: 0 },
-    
-    // 🐱 Coleccionables
-    nekos: {
-        solas: { type: Boolean, default: false },
-        nyx: { type: Boolean, default: false },
-        mizuki: { type: Boolean, default: false },
-        astra: { type: Boolean, default: false },
-        koko: { type: Boolean, default: false }
-    }
-});
-
-// --- 🏠 ESQUEMA DE SERVIDOR ---
-const GuildSchema = new mongoose.Schema({
-    guildId: { type: String, required: true, unique: true },
-    welcomeConfig: { type: Object, default: {} } 
-});
-
-const User = mongoose.models.User || mongoose.model('User', UserSchema);
-const Guild = mongoose.models.Guild || mongoose.model('Guild', GuildSchema);
-
-// --- 🛠️ FUNCIONES DE SERVIDOR ---
-async function getGuildData(guildId) {
-    let guild = await Guild.findOne({ guildId });
-    if (!guild) guild = await Guild.create({ guildId });
-    return guild;
-}
-
-async function updateGuildData(guildId, data) {
-    try {
-        await Guild.findOneAndUpdate({ guildId }, { $set: data }, { upsert: true });
-        return true;
-    } catch (err) { return false; }
-}
-
-// --- 📈 FUNCIONES DE USUARIO ---
 async function addXP(userId, amount, client) {
     let user = await User.findOne({ userId });
     if (!user) user = await User.create({ userId });
 
-    user.xp += amount;
+    // --- 💎 SISTEMA DE MULTIPLICADORES VIP ---
+    let multiplicador = 1; // Base para usuarios normales
+    
+    // Convertimos a minúsculas por seguridad
+    const rango = (user.premiumType || 'none').toLowerCase();
+
+    if (rango === 'pro' || rango === 'mensual') {
+        multiplicador = 1.5; // 50% extra de XP
+    } else if (rango === 'ultra' || rango === 'bimestral') {
+        multiplicador = 2.0; // Doble XP
+    }
+
+    // Calculamos la XP final y la sumamos
+    const xpFinal = Math.floor(amount * multiplicador);
+    user.xp += xpFinal;
+
     const nextLevelXP = user.level * 500;
 
     if (user.xp >= nextLevelXP) {
         user.level += 1;
-        user.xp = 0;
+        // Restamos lo que costó el nivel en lugar de ponerlo en 0, 
+        // así no pierden la XP sobrante del último mensaje.
+        user.xp -= nextLevelXP; 
+        
         // Si llega a nivel 10, desbloquea a Nyx automáticamente
         if (user.level === 10 && !user.nekos.nyx) {
             await grantNeko(userId, 'nyx', client);
@@ -91,90 +33,7 @@ async function addXP(userId, amount, client) {
         await user.save();
         return { leveledUp: true, level: user.level };
     }
+    
     await user.save();
     return { leveledUp: false };
 }
-
-async function grantNeko(userId, nekoId, client) {
-    const user = await User.findOne({ userId });
-    if (!user || user.nekos[nekoId]) return;
-
-    user.nekos[nekoId] = true;
-    await user.save();
-
-    try {
-        const discordUser = await client.users.fetch(userId);
-        const names = { 
-            solas: 'Solas ☁️', 
-            nyx: 'Nyx 🌑', 
-            mizuki: 'Mizuki 🌸', 
-            astra: 'Astra 👑', 
-            koko: 'Koko 🍓' 
-        };
-        const desc = {
-            solas: 'tu carisma social (100 interacciones)',
-            nyx: 'tu gran dedicación (Nivel 10)',
-            mizuki: 'tu increíble actividad (+5,000 mensajes)',
-            astra: 'tu estatus de élite (Premium)',
-            koko: 'tu buen gusto en la Boutique'
-        };
-
-        const embed = new EmbedBuilder()
-            .setTitle('✨ ¡𝕽☆𝖈𝖐𝖘𝖙𝖆𝖗 𝕹𝖊𝖐𝖔 𝕬𝖑𝖊𝖗𝖙! ✨')
-            .setColor('#E6E6FA')
-            .setThumbnail(discordUser.displayAvatarURL())
-            .setDescription(`*“Un destello de luz ha aparecido en tu perfil...”*\n\nHas desbloqueado a **${names[nekoId]}**.\nSe ha unido a ti por **${desc[nekoId]}**.\n\n🐾 *Ya puedes presumirlo en tu \`/profile\`*`);
-
-        await discordUser.send({ embeds: [embed] });
-    } catch (e) { 
-        console.log(`DM bloqueado para ${userId}, no se pudo enviar la notificación del Neko.`); 
-    }
-}
-
-async function getUserData(userId) {
-    let user = await User.findOne({ userId });
-    if (!user) user = await User.create({ userId });
-
-    // Verificar si el Premium expiró
-    if (user.premiumType !== 'none' && user.premiumUntil && new Date() > user.premiumUntil) {
-        user.premiumType = 'none';
-        user.premiumUntil = null;
-        await user.save();
-    }
-    return user;
-}
-
-async function updateUserData(userId, data) {
-    try {
-        // Registro de muertes seguro (sin forzar resucitación inmediata para que funcione el Hospital)
-        if (data.health <= 0) {
-            // Solo sumamos una muerte si es la primera vez que detectamos que su salud llegó a 0
-            let oldData = await User.findOne({ userId });
-            if (oldData && oldData.health > 0) {
-                data.deadCount = (data.deadCount || 0) + 1;
-            }
-            data.wallet = 0; // Pierde el dinero en mano al morir
-        }
-        await User.findOneAndUpdate({ userId }, { $set: data }, { upsert: true });
-        return true;
-    } catch (err) { 
-        return false; 
-    }
-}
-
-// 🛒 Función de seguridad para la tienda (Evita que shop.js explote)
-async function getShopItemsDB() {
-    return []; // Devuelve un array vacío por ahora si no tienes un esquema de tienda custom
-}
-
-module.exports = { 
-    User, 
-    Guild, 
-    getUserData, 
-    updateUserData, 
-    getGuildData, 
-    updateGuildData, 
-    grantNeko, 
-    addXP,
-    getShopItemsDB // Exportado para que la tienda lo lea correctamente
-};
