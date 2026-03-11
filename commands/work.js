@@ -1,76 +1,91 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const { getUserData, updateUserData } = require('../userManager.js'); 
 
-// --- ✨ EMOJIS AL AZAR ---
 const getRndEmoji = (guild) => {
     if (!guild) return '✨';
     const emojis = guild.emojis.cache.filter(e => e.available);
     return emojis.size > 0 ? emojis.random().toString() : '✨';
 };
 
+// --- 💼 DICCIONARIO DE EMPLEOS EXPANDIDO ---
 const JOBS = {
-    'jardinero': { nombre: 'Jardinero de Cerezos', min: 500, max: 800, emoji: '🎋' },
-    'chef': { nombre: 'Chef de Ramen', min: 1000, max: 1500, emoji: '🍜' },
-    'idol': { nombre: 'Ídolo de K-Pop', min: 2000, max: 4000, emoji: '🎤' },
-    'hacker': { nombre: 'Hacker Clandestino', min: 1500, max: 2500, emoji: '💻' },
-    'detective': { nombre: 'Investigador Privado', min: 1200, max: 2000, emoji: '🕵️' }
+    'jardinero': { nombre: 'Jardinero de Cerezos', min: 600, max: 900, emoji: '🎋' },
+    'chef': { nombre: 'Chef de Ramen', min: 1100, max: 1600, emoji: '🍜' },
+    'idol': { nombre: 'Ídolo de K-Pop', min: 2500, max: 4500, emoji: '🎤' },
+    'programador': { nombre: 'Desarrollador de Bots', min: 1800, max: 3000, emoji: '💻' },
+    'detective': { nombre: 'Investigador Privado', min: 1300, max: 2200, emoji: '🕵️' },
+    'bartender': { nombre: 'Bartender Nightfall', min: 1000, max: 1800, emoji: '🍸' },
+    'seguridad': { nombre: 'Guardia VIP', min: 1400, max: 2400, emoji: '🛡️' },
+    'tatuador': { nombre: 'Artista del Tatuaje', min: 2200, max: 3800, emoji: '🖋️' },
+    'fotografo': { nombre: 'Paparazzi de Élite', min: 1200, max: 2100, emoji: '📸' },
+    // --- NUEVOS TRABAJOS ---
+    'dj': { nombre: 'DJ de Underground', min: 1600, max: 2800, emoji: '🎧' },
+    'corredor': { nombre: 'Piloto de Carreras Ilegales', min: 3000, max: 5500, emoji: '🏎️' },
+    'mercenario': { nombre: 'Mercenario a Sueldo', min: 3500, max: 6000, emoji: '⚔️' },
+    'estilista': { nombre: 'Estilista de Estrellas', min: 1400, max: 2500, emoji: '✂️' },
+    'disenador': { nombre: 'Diseñador Gótico', min: 1900, max: 3200, emoji: '🧥' },
+    'musico': { nombre: 'Guitarrista Callejero', min: 700, max: 1200, emoji: '🎸' }
 };
 
 module.exports = {
     name: 'work',
-    description: 'Ficha tu turno y gana flores por tu labor.', // ✅ DESCRIPCIÓN CORREGIDA
+    description: 'Ficha tu turno y gana flores por tu labor.',
     category: 'economía',
     data: new SlashCommandBuilder()
         .setName('work')
-        .setDescription('Ficha tu turno y gana flores por tu labor.') // ✅ DESCRIPCIÓN CORREGIDA
+        .setDescription('Ficha tu turno y gana flores por tu labor.')
         .addSubcommand(sub => sub.setName('list').setDescription('📋 Mira los trabajos disponibles'))
         .addSubcommand(sub => sub.setName('apply').setDescription('📝 Postúlate a un trabajo')
             .addStringOption(opt => opt.setName('trabajo').setDescription('Elige tu oficio de la lista').setRequired(true)
                 .addChoices(
-                    { name: 'Jardinero de Cerezos 🎋', value: 'jardinero' },
+                    { name: 'Jardinero 🎋', value: 'jardinero' },
                     { name: 'Chef de Ramen 🍜', value: 'chef' },
-                    { name: 'Ídolo de K-Pop 🎤', value: 'idol' },
-                    { name: 'Hacker Clandestino 💻', value: 'hacker' },
-                    { name: 'Investigador Privado 🕵️', value: 'detective' }
+                    { name: 'Ídolo K-Pop 🎤', value: 'idol' },
+                    { name: 'Programador 💻', value: 'programador' },
+                    { name: 'Detective 🕵️', value: 'detective' },
+                    { name: 'Bartender 🍸', value: 'bartender' },
+                    { name: 'Guardia VIP 🛡️', value: 'seguridad' },
+                    { name: 'Tatuador 🖋️', value: 'tatuador' },
+                    { name: 'Paparazzi 📸', value: 'fotografo' },
+                    { name: 'DJ Underground 🎧', value: 'dj' },
+                    { name: 'Piloto Ilegal 🏎️', value: 'corredor' },
+                    { name: 'Mercenario ⚔️', value: 'mercenario' },
+                    { name: 'Estilista ✂️', value: 'estilista' },
+                    { name: 'Diseñador Gótico 🧥', value: 'disenador' },
+                    { name: 'Guitarrista 🎸', value: 'musico' }
                 )))
-        .addSubcommand(sub => sub.setName('shift').setDescription('⌚ Cumple tu turno (Slash Command)'))
-        .addSubcommand(sub => sub.setName('resign').setDescription('🚪 Renuncia a tu trabajo (Slash Command)')),
+        .addSubcommand(sub => sub.setName('shift').setDescription('⌚ Cumple tu turno'))
+        .addSubcommand(sub => sub.setName('resign').setDescription('🚪 Renuncia a tu trabajo')),
 
     async execute(input) {
         const isSlash = !!input.user;
         const user = isSlash ? input.user : input.author;
         const guild = input.guild;
         const userId = user.id;
-        const member = guild ? (guild.members.cache.get(userId) || { displayName: user.username }) : { displayName: user.username };
-        const rndEmj = getRndEmoji(guild);
         
         let data = await getUserData(userId);
         const now = Date.now();
         
-        // --- 💎 CONFIGURACIÓN VIP ---
+        // --- 💎 CONFIGURACIÓN VIP Y BOOSTS ---
         let cooldown = 3600000; 
-        let multi = 1;  
-        let probFail = 0.25;    
-        let firePenalty = 0.15;
-        let resignPenalty = 0.10;
-        let statusEmoji = "🌸";
+        let multiRango = 1, probFail = 0.25, firePenalty = 0.15;
 
         const prem = (data.premiumType || 'none').toLowerCase();
         if (prem === 'pro' || prem === 'mensual') {
-            cooldown = 1800000; multi = 1.2; probFail = 0.15; firePenalty = 0.10; resignPenalty = 0.05; statusEmoji = "💎";
+            cooldown = 1800000; multiRango = 1.2; probFail = 0.15; firePenalty = 0.10;
         } else if (prem === 'ultra' || prem === 'bimestral') {
-            cooldown = 0; multi = 1.5; probFail = 0.05; firePenalty = 0.05; resignPenalty = 0.03; statusEmoji = "👑";
+            cooldown = 0; multiRango = 1.5; probFail = 0.05; firePenalty = 0.05;
         }
 
-        // =========================================================
-        // 🧠 NÚCLEO LÓGICO
-        // =========================================================
-        const processShift = async (interactionToReply) => {
-            if (!data.job) return interactionToReply.reply({ content: `❌ No tienes empleo.`, ephemeral: true });
-            const currentJob = JOBS[data.job];
-            const timeSinceLastWork = now - (data.lastWork || 0);
+        // Lógica de Boosts
+        data.activeBoosts = (data.activeBoosts || []).filter(b => b.expiresAt > now);
+        const hasMoneyBoost = data.activeBoosts.some(b => b.id === 'boost_flores');
+        const multiBoost = hasMoneyBoost ? 2 : 1;
 
-            // 🎲 RESOLUCIÓN
+        const processShift = async (interactionToReply) => {
+            if (!data.job) return interactionToReply.reply({ content: `╰┈➤ ❌ No tienes empleo. Usa \`!!work apply <trabajo>\`.`, ephemeral: true });
+            const currentJob = JOBS[data.job];
+
             if (Math.random() < probFail) {
                 data.workWarnings = (data.workWarnings || 0) + 1;
                 data.lastWork = now;
@@ -79,54 +94,50 @@ module.exports = {
                     data.wallet = Math.max(0, data.wallet - penalty);
                     data.job = null; data.workWarnings = 0;
                     await updateUserData(userId, data);
-                    return interactionToReply.reply({ embeds: [new EmbedBuilder().setColor('#8b0000').setDescription(`🚨 **DESPIDO:** Acumulaste 2 advertencias. Pierdes \`-${penalty.toLocaleString()} 🌸\`.`)] });
+                    return interactionToReply.reply({ embeds: [new EmbedBuilder().setColor('#8b0000').setDescription(`🚨 **DESPIDO:** Tu bajo rendimiento causó pérdidas. Perdiste \`-${penalty.toLocaleString()} 🌸\` y tu empleo.`)] });
                 }
                 await updateUserData(userId, data);
-                return interactionToReply.reply(`⚠️ **Mal desempeño:** Advertencia \`[${data.workWarnings}/2]\`. Hoy no hay paga.`);
+                return interactionToReply.reply(`⚠️ **Mal desempeño:** Tu jefe te dio una advertencia \`[${data.workWarnings}/2]\`.`);
             } else {
-                let ganancia = Math.floor((Math.random() * (currentJob.max - currentJob.min + 1)) + currentJob.min) * multi;
-                data.wallet = (data.wallet || 0) + ganancia;
+                let ganaBase = Math.floor((Math.random() * (currentJob.max - currentJob.min + 1)) + currentJob.min);
+                let ganaFinal = Math.floor(ganaBase * multiRango * multiBoost);
+                
+                data.wallet = (data.wallet || 0) + ganaFinal;
                 data.lastWork = now;
-                data.workWarnings = 0; // Se resetean advertencias si trabaja bien
+                data.workWarnings = 0; 
                 await updateUserData(userId, data);
-                return interactionToReply.reply({ embeds: [new EmbedBuilder().setColor('#1a1a1a').setThumbnail('https://i.pinimg.com/originals/33/c2/f7/33c2f7034f40d0263309a96e987c9f8a.gif').setDescription(`> ${currentJob.emoji} **Jornada Terminada**\n\n╰┈➤ 💰 **Paga:** \`+${ganancia.toFixed(0)} 🌸\``)] });
+
+                let boostMsg = hasMoneyBoost ? `\n╰┈➤ 🚀 **Boost Activo:** Pago duplicado x2` : "";
+                
+                return interactionToReply.reply({ embeds: [new EmbedBuilder().setColor('#1a1a1a').setThumbnail('https://i.pinimg.com/originals/33/c2/f7/33c2f7034f40d0263309a96e987c9f8a.gif').setDescription(`> ${currentJob.emoji} **Turno Finalizado**\n> Trabajaste duro como **${currentJob.nombre}**.\n\n╰┈➤ 💰 **Paga:** \`+${ganaFinal.toLocaleString()} 🌸\`${boostMsg}`)] });
             }
         };
 
-        // =========================================================
-        // 🎮 MODO INTERACTIVO (PREFIJO !!work)
-        // =========================================================
         if (!isSlash) {
-            // 1. SI NO TIENE TRABAJO
             if (!data.job) {
                 const menu = new ActionRowBuilder().addComponents(
-                    new StringSelectMenuBuilder().setCustomId('select_work').setPlaceholder('🌸 Elige tu oficio...').addOptions(
-                        Object.keys(JOBS).map(k => ({ label: JOBS[k].nombre, value: k, emoji: JOBS[k].emoji }))
+                    new StringSelectMenuBuilder().setCustomId('select_work').setPlaceholder('🌸 Selecciona un empleo...').addOptions(
+                        Object.keys(JOBS).slice(0, 25).map(k => ({ label: JOBS[k].nombre, value: k, emoji: JOBS[k].emoji }))
                     )
                 );
-                return input.reply({ content: `> ✨ **Centro de Empleo**\n> Consigue un trabajo para empezar.`, components: [menu] });
+                return input.reply({ content: `> ✨ **Bolsa de Empleo Rockstar**\n> Escoge tu camino profesional.`, components: [menu] });
             }
 
-            // 🔥 FIX: VERIFICAR COOLDOWN ANTES DE MOSTRAR EL MENÚ DE 3 MINUTOS
-            const timeSinceLastWork = now - (data.lastWork || 0);
-            if (cooldown > 0 && timeSinceLastWork < cooldown) {
-                const restante = cooldown - timeSinceLastWork;
-                const min = Math.floor(restante / 60000);
-                const seg = Math.floor((restante % 60000) / 1000);
-                return input.reply({ content: `⏳ El turno no empieza aún. Vuelve en **${min}m ${seg}s**.`, ephemeral: true });
+            const timeSince = now - (data.lastWork || 0);
+            if (cooldown > 0 && timeSince < cooldown) {
+                const rest = cooldown - timeSince;
+                return input.reply({ content: `⏳ Estás agotado. Vuelve en **${Math.floor(rest/60000)}m ${Math.floor((rest%60000)/1000)}s**.`, ephemeral: true });
             }
 
-            // 2. SI TIENE TRABAJO Y NO HAY COOLDOWN
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('btn_shift').setLabel('💼 Ir a Trabajar').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('btn_shift').setLabel('💼 Fichar').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId('btn_resign').setLabel('🚪 Renunciar').setStyle(ButtonStyle.Danger)
             );
             
             const response = await input.reply({ 
                 content: `<@${userId}>`,
-                embeds: [new EmbedBuilder().setColor('#1a1a1a').setDescription(`> 🏢 **Fichaje de Turno**\n> Tienes 3 minutos para fichar o será falta injustificada.`)], 
-                components: [row], 
-                fetchReply: true 
+                embeds: [new EmbedBuilder().setColor('#1a1a1a').setDescription(`> 🏢 **Fichaje de Turno**\n> ¿Listo para trabajar como **${JOBS[data.job].nombre}**?`)], 
+                components: [row], fetchReply: true 
             });
 
             const collector = response.createMessageComponentCollector({ componentType: ComponentType.Button, time: 180000 });
@@ -137,30 +148,31 @@ module.exports = {
                 if (i.customId === 'btn_shift') return processShift(i);
                 if (i.customId === 'btn_resign') {
                     data.job = null; await updateUserData(userId, data);
-                    return i.reply({ content: "🚪 Has renunciado satisfactoriamente." });
+                    return i.reply({ content: "🚪 Has renunciado a tu empleo." });
                 }
             });
 
-            collector.on('end', async (collected, reason) => {
+            collector.on('end', async (c, reason) => {
                 if (reason === 'time') {
                     data.workWarnings = (data.workWarnings || 0) + 1;
                     await updateUserData(userId, data);
-                    input.editReply({ content: `> ⏳ **Tiempo agotado.** Faltaste al trabajo. Advertencia \`[${data.workWarnings}/2]\`.`, embeds: [], components: [] }).catch(() => {});
+                    input.editReply({ content: `> ⏳ **Inasistencia.** Advertencia \`[${data.workWarnings}/2]\`.`, embeds: [], components: [] }).catch(() => {});
                 }
             });
             return;
         }
 
-        // =========================================================
-        // 🔀 SLASH COMMANDS (Enrutador)
-        // =========================================================
         const sub = input.options.getSubcommand();
         if (sub === 'apply') {
             const sel = input.options.getString('trabajo');
-            data.job = sel; data.lastWork = now;
+            data.job = sel; data.workWarnings = 0;
             await updateUserData(userId, data);
-            return input.reply(`🤝 Ahora eres **${JOBS[sel].nombre}**.`);
+            return input.reply(`🤝 Bienvenido. Ahora eres **${JOBS[sel].nombre}**.`);
         }
         if (sub === 'shift') return processShift(input);
+        if (sub === 'list') {
+            const list = Object.keys(JOBS).map(k => `${JOBS[k].emoji} **${JOBS[k].nombre}**: \`${JOBS[k].min}-${JOBS[k].max} 🌸\``).join('\n');
+            return input.reply({ embeds: [new EmbedBuilder().setTitle('📋 Empleos Rockstar').setColor('#1a1a1a').setDescription(list)] });
+        }
     }
 };
