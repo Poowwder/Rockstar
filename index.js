@@ -4,6 +4,8 @@ const path = require('path');
 const http = require('http');
 const { connectDB } = require('./data/mongodb.js');
 const { checkNekos } = require('./functions/checkNekos.js');
+// 🚀 NUEVO: Importamos el motor de experiencia
+const { addXP } = require('./userManager.js'); 
 require('dotenv').config();
 
 // --- 🌐 SERVIDOR PARA RENDER ---
@@ -55,15 +57,25 @@ for (const file of commandFiles) {
     }
 }
 
-// --- ⚡ EVENTO: CLIENTREADY (Limpio de Deploy) ---
+// --- ⚡ EVENTO: CLIENTREADY ---
 client.once(Events.ClientReady, (c) => { 
     console.log(`✅ Rockstar logueado como ${c.user.tag}`);
     console.log('🚀 Bot listo para recibir interacciones.');
 });
 
-// --- 💬 EVENTO: MESSAGE (Prefijo !! y Actividad) ---
+// --- 💬 EVENTO: MESSAGE (Prefijo !!, Actividad y EXPERIENCIA) ---
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
+
+    // --- 📈 SISTEMA DE EXPERIENCIA PASIVA ---
+    // Da entre 15 y 25 XP por cada mensaje enviado en el servidor
+    const xpGained = Math.floor(Math.random() * 11) + 15; 
+    const levelStatus = await addXP(message.author.id, xpGained, client);
+    
+    // Si subió de nivel, lo anunciamos en el canal
+    if (levelStatus.leveledUp) {
+        message.channel.send(`> ✨ Las sombras reconocen tu esfuerzo, <@${message.author.id}>. Has ascendido al **Nivel ${levelStatus.level}**.`);
+    }
 
     if (message.content.startsWith(prefix)) {
         const args = message.content.slice(prefix.length).trim().split(/ +/);
@@ -78,11 +90,26 @@ client.on('messageCreate', async message => {
             return;
         }
     }
+    
     await checkNekos(message, 'message');
 });
 
-// --- ⚡ EVENTO: INTERACTION (Comandos /) ---
+// --- ⚡ EVENTO: INTERACTION (Comandos / y Autocompletado) ---
 client.on('interactionCreate', async interaction => {
+    
+    // --- 🔍 NUEVO: MANEJADOR DE AUTOCOMPLETADO (Para /reaction) ---
+    if (interaction.isAutocomplete()) {
+        const cmd = client.commands.get(interaction.commandName);
+        if (!cmd || !cmd.autocomplete) return;
+        try {
+            await cmd.autocomplete(interaction);
+        } catch (error) {
+            console.error("Error en autocompletado:", error);
+        }
+        return; // Terminamos aquí para que no siga leyendo
+    }
+
+    // --- 💬 MANEJADOR DE SLASH COMMANDS ---
     if (!interaction.isChatInputCommand()) return;
 
     const cmd = client.commands.get(interaction.commandName);
@@ -99,7 +126,7 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
         console.error(error);
         if (!interaction.replied) {
-            await interaction.reply({ content: '❌ Hubo un error al ejecutar este comando.', ephemeral: true });
+            await interaction.reply({ content: '❌ Las sombras interfirieron con este comando.', ephemeral: true });
         }
     }
 });
