@@ -4,7 +4,6 @@ const path = require('path');
 const http = require('http');
 const { connectDB } = require('./data/mongodb.js');
 const { checkNekos } = require('./functions/checkNekos.js');
-// 🚀 IMPORTACIÓN CLAVE: Extraemos las funciones necesarias
 const { addXP, getUserData } = require('./userManager.js'); 
 require('dotenv').config();
 
@@ -68,18 +67,22 @@ client.on('messageCreate', async message => {
 
         if (cmd) {
             try {
+                // ✅ Solo se ejecuta el comando. Adiós al checkNekos doble.
                 await cmd.execute(message, args);
-                await checkNekos(message, 'message');
-            } catch (e) { console.error(e); }
-            return;
+            } catch (e) { 
+                console.error(e); 
+            }
+            return; // Detiene el código para que no baje al escáner pasivo
         }
     }
+    
+    // ✅ Solo se ejecuta si el usuario mandó un mensaje normal (sin prefijo !! o si el comando no existe)
     await checkNekos(message, 'message');
 });
 
 // --- ⚡ EVENTO: INTERACTION (Slash y Autocomplete) ---
 client.on('interactionCreate', async interaction => {
-    // 🔍 MANEJADOR DE AUTOCOMPLETADO (Para /reaction)
+    // 🔍 MANEJADOR DE AUTOCOMPLETADO
     if (interaction.isAutocomplete()) {
         const cmd = client.commands.get(interaction.commandName);
         if (cmd && cmd.autocomplete) {
@@ -93,13 +96,8 @@ client.on('interactionCreate', async interaction => {
     if (!cmd) return;
 
     try {
+        // ✅ Solo ejecuta el Slash Command. Limpiamos toda la basura duplicada.
         await cmd.execute(interaction);
-        await checkNekos(interaction, 'message');
-
-        const acciones = ['kiss', 'hug', 'pat', 'slap', 'kill', 'cuddle', 'punch', 'feed', 'bite'];
-        if (acciones.includes(interaction.commandName)) {
-            await checkNekos(interaction, 'action');
-        }
     } catch (error) {
         console.error(error);
         if (!interaction.replied) {
