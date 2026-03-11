@@ -1,82 +1,89 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { getUserData, updateUserData, addItemToInventory, removeItemFromInventory } = require('../userManager.js');
 const fs = require('fs');
 const path = require('path');
 
-const ICONS = {
-    boost: '🚀',
-    money: '🌸',
-    error: '❌',
-    event: '🎉',
+// --- ⚙️ RUTAS DE DATOS ---
+const eventsPath = path.join(__dirname, '../data/events.json');
+const activeEventPath = path.join(__dirname, '../data/activeEvent.json');
+
+const getE = (guild) => {
+    const emojis = guild?.emojis.cache.filter(e => e.available);
+    return (emojis && emojis.size > 0) ? emojis.random().toString() : '🌑';
 };
-const COLORS = {
-    primary: '#FFB6C1',
-    error: '#FF6961',
-};
-const THUMBNAILS = {
-    default: 'https://i.imgur.com/3n1CHUC.png'
-};
-
-function readJSON(filePath) {
-    if (!fs.existsSync(filePath)) {
-        fs.writeFileSync(filePath, JSON.stringify({}, null, 2));
-        return {};
-    }
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-function writeJSON(filePath, data) {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-}
-
-const getEvents = () => {
-    const p = path.join(__dirname, '..', 'data', 'events.json');
-    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
-};
-
-async function createEconomyEmbed(ctx, title, description, color, thumbnailType = 'default') {
-    const guildName = ctx.guild ? ctx.guild.name : 'R☆ckstar';
-    const guildIcon = ctx.guild ? ctx.guild.iconURL() : null;
-    const embed = new EmbedBuilder()
-        .setColor(color)
-        .setTitle(title)
-        .setDescription(description)
-        .setThumbnail(THUMBNAILS[thumbnailType] || THUMBNAILS.default)
-        .setFooter({ text: guildName, iconURL: guildIcon })
-        .setTimestamp();
-    return embed;
-}
-
 
 module.exports = {
+    name: 'evento',
+    description: '🌑 Gestión de Eventos Globales (Solo Staff)',
+    category: 'admin',
     data: new SlashCommandBuilder()
         .setName('evento')
-        .setDescription('Gestiona eventos globales.')
+        .setDescription('Gestión de eventos globales de Rockstar')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addSubcommand(sub => sub.setName('start').setDescription('Inicia un evento.').addStringOption(o => o.setName('id').setDescription('ID del evento').setRequired(true))),
-    category: 'currency',
-    description: 'Activa eventos globales.',
-    usage: '!!event <start>',
-    aliases: ['evento'],
-	async execute(message, args) {
-        message.reply('Por favor usa los comandos de barra `/event` para los eventos.');
-    },
+        .addSubcommand(sub => 
+            sub.setName('start')
+                .setDescription('Inicia un evento del catálogo.')
+                .addStringOption(o => o.setName('id').setDescription('ID del evento en events.json').setRequired(true))
+        )
+        .addSubcommand(sub => 
+            sub.setName('stop')
+                .setDescription('Finaliza el evento actual.')
+        ),
+
     async executeSlash(interaction) {
-        const { options, user } = interaction;
         const sub = interaction.options.getSubcommand();
+        const guild = interaction.guild;
+        const e = () => getE(guild);
 
-        if (sub === 'start') {
-            const eventId = options.getString('id');
-            const events = getEvents();
-
-            const eventToStart = events[eventId];
-            if (!eventToStart) return interaction.reply({ content: `${ICONS.error} Evento no encontrado.`, ephemeral: true });
-
-            // Aquí se guardaría el evento activo globalmente, quizás en un archivo `data/activeEvents.json`
-            // Por ahora, solo se anuncia.
-            console.log(`Evento ${eventToStart.name} iniciado por ${user.tag}`);
-
-            await interaction.reply(`✅ Evento **${eventToStart.name}** iniciado para todo el bot.`);
+        // 1. Verificar existencia del catálogo
+        if (!fs.existsSync(eventsPath)) {
+            return interaction.reply({ content: "❌ Error: No se encontró el archivo `data/events.json`.", ephemeral: true });
         }
-    },
+        
+        const events = JSON.parse(fs.readFileSync(eventsPath, 'utf8'));
+
+        // --- 🚀 INICIAR EVENTO ---
+        if (sub === 'start') {
+            const eventId = interaction.options.getString('id');
+            const eventToStart = events[eventId];
+
+            if (!eventToStart) {
+                return interaction.reply({ content: `❌ El ID \`${eventId}\` no existe en el catálogo de eventos.`, ephemeral: true });
+            }
+
+            // Guardamos el evento como activo en un archivo JSON
+            const activeData = { 
+                ...eventToStart, 
+                id: eventId, 
+                startTime: Date.now() 
+            };
+            
+            fs.writeFileSync(activeEventPath, JSON.stringify(activeData, null, 2));
+
+            const eventEmbed = new EmbedBuilder()
+                .setTitle(`${e()} EVENTO GLOBAL ACTIVADO ${e()}`)
+                .setColor('#1a1a1a')
+                .setThumbnail('https://i.pinimg.com/originals/de/13/8d/de138d68962534575975d4f7c975a5c5.gif')
+                .setDescription(
+                    `> *“Las reglas han cambiado en las sombras de la ciudad.”*\n\n` +
+                    `**─── ✦ ${eventToStart.name.toUpperCase()} ✦ ───**\n` +
+                    `╰┈➤ **Efecto:** ${eventToStart.description}\n` +
+                    `╰┈➤ **Multiplicador:** \`x${eventToStart.multiplier}\` global.\n` +
+                    `**─────────────────────**\n\n` +
+                    `📢 **¡Atención!** El bonus ya se aplica en \`work\`, \`mine\`, \`fish\` y \`crime\`.`
+                )
+                .setFooter({ text: `Protocolo iniciado por: ${interaction.user.username} ⊹ Nightfall Ops` });
+
+            return interaction.reply({ embeds: [eventEmbed] });
+        }
+
+        // --- 🛑 DETENER EVENTO ---
+        if (sub === 'stop') {
+            if (fs.existsSync(activeEventPath)) {
+                fs.unlinkSync(activeEventPath);
+                return interaction.reply({ content: `╰┈➤ ${e()} El evento global ha sido finalizado. Los multiplicadores vuelven a la normalidad.`, ephemeral: true });
+            } else {
+                return interaction.reply({ content: `❌ No hay ningún evento activo para detener en este momento.`, ephemeral: true });
+            }
+        }
+    }
 };
