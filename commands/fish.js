@@ -8,7 +8,7 @@ const getE = (guild) => {
 
 module.exports = {
     name: 'fish',
-    description: '🎣 Pesca criaturas y objetos en las aguas de las sombras.',
+    description: '🎣 Pesca materiales en las aguas de las sombras.',
     category: 'economía',
     async execute(input) {
         const isSlash = !!input.user;
@@ -23,46 +23,43 @@ module.exports = {
         const isPro = premium === 'pro' || premium === 'mensual' || premium === 'ultra' || premium === 'bimestral';
         const isUltra = premium === 'ultra' || premium === 'bimestral';
 
-        // --- 🗺️ ZONAS Y CAÑAS ---
+        // --- 🗺️ ZONAS Y DROPS PROGRESIVOS ---
         let zonas = [
             // ESTÁNDAR (Todos)
-            { id: 'cana_divina', zona: 'Océano Celestial', multis: 4 },
-            { id: 'cana_legendaria', zona: 'Arrecife Olvidado', multis: 3 },
-            { id: 'cana_profesional', zona: 'Lago del Silencio', multis: 2 },
-            { id: 'cana_reforzada', zona: 'Río Corriente', multis: 1.5 },
-            { id: 'cana_basica', zona: 'Orilla Tranquila', multis: 1 },
+            { id: 'cana_divina', zona: 'Océano Celestial', multis: 5, drop: 'estrella_abismal', emj: '⭐' },
+            { id: 'cana_legendaria', zona: 'Arrecife Olvidado', multis: 4, drop: 'lagrima_divina', emj: '💧' },
+            { id: 'cana_profesional', zona: 'Lago del Silencio', multis: 3, drop: 'escama_legendaria', emj: '🧜‍♀️' },
+            { id: 'cana_reforzada', zona: 'Río Corriente', multis: 2, drop: 'cebo_profesional', emj: '🪱' },
+            { id: 'cana_basica', zona: 'Orilla Tranquila', multis: 1, drop: 'hilo_reforzado', emj: '🧵' },
 
             // SECRETAS NIVEL 1 (Todos)
-            { id: 'cana_void', zona: '✨ Abyss of Stars', multis: 5, secret: true },
-            { id: 'cana_espejismo', zona: '✨ Lago Espejismo', multis: 6, secret: true },
-            { id: 'cana_aurora', zona: '✨ Costa de la Aurora', multis: 7, secret: true }
+            { id: 'cana_void', zona: '✨ Abyss of Stars', multis: 6, drop: 'agua_espejismo', emj: '🌫️', secret: true },
+            { id: 'cana_espejismo', zona: '✨ Lago Espejismo', multis: 7, drop: 'luz_aurora', emj: '🌅', secret: true },
+            { id: 'cana_aurora', zona: '✨ Costa de la Aurora', multis: 8, drop: 'coral_carmesi', emj: '🪸', secret: true }
         ];
 
         // SECRETAS NIVEL 2 (Solo Pro y Ultra)
         if (isPro) {
             zonas.push(
-                { id: 'cana_carmesi', zona: '✨ Marea Carmesí', multis: 8, secret: true },
-                { id: 'cana_estigia', zona: '✨ Aguas Estigias', multis: 9, secret: true },
-                { id: 'cana_leviatan', zona: '✨ Fosa del Leviatán', multis: 10, secret: true }
+                { id: 'cana_carmesi', zona: '✨ Marea Carmesí', multis: 10, drop: 'agua_estigia', emj: '☠️', secret: true },
+                { id: 'cana_estigia', zona: '✨ Aguas Estigias', multis: 12, drop: 'hueso_leviatan', emj: '🦴', secret: true },
+                { id: 'cana_leviatan', zona: '✨ Fosa del Leviatán', multis: 14, drop: 'polvo_cosmico', emj: '☄️', secret: true }
             );
         }
 
         // SECRETAS NIVEL 3 (Solo Ultra)
         if (isUltra) {
             zonas.push(
-                { id: 'cana_cosmos', zona: '✨ Mar Cósmico', multis: 12, secret: true },
-                { id: 'cana_paradoja', zona: '✨ Corriente Paradoja', multis: 14, secret: true },
-                { id: 'cana_eterna', zona: '✨ Cascada Eterna', multis: 16, secret: true }
+                { id: 'cana_cosmos', zona: '✨ Mar Cósmico', multis: 16, drop: 'escama_paradoja', emj: '🌀', secret: true },
+                { id: 'cana_paradoja', zona: '✨ Corriente Paradoja', multis: 18, drop: 'gota_eterna', emj: '⏳', secret: true },
+                { id: 'cana_eterna', zona: '✨ Cascada Eterna', multis: 22, drop: 'esencia_primordial', emj: '🌊', secret: true }
             );
         }
 
         zonas.sort((a, b) => b.multis - a.multis);
-
         const mejorCana = zonas.find(z => (inv[z.id] || 0) > 0 || (inv[`${z.id}_repaired`] || 0) > 0);
 
-        if (!mejorCana) {
-            return input.reply({ content: `╰┈➤ ❌ No puedes pescar sin herramientas. Forja una caña en el \`!!craft\` o compra una.`, ephemeral: true });
-        }
+        if (!mejorCana) return input.reply({ content: `╰┈➤ ❌ No puedes pescar sin herramientas. Forja una caña en el \`!!craft\` o compra una.`, ephemeral: true });
 
         let riesgo = 0.15, daño = 1, cooldown = 300000;
         if (isPro) { riesgo = 0.10; daño = 0.5; cooldown = 120000; } 
@@ -89,10 +86,7 @@ module.exports = {
             .setDescription(descripcion)
             .setFooter({ text: `Equipado: ${mejorCana.id.replace(/_/g, ' ')}` });
 
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('btn_pescar').setLabel('🎣 Pescar').setStyle(ButtonStyle.Primary)
-        );
-
+        const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('btn_pescar').setLabel('🎣 Pescar').setStyle(ButtonStyle.Primary));
         const response = await input.reply({ embeds: [embedZona], components: [row], fetchReply: true });
         const collector = response.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
 
@@ -113,25 +107,26 @@ module.exports = {
                 data.health -= daño;
                 data.lastFish = now;
                 await updateUserData(user.id, data);
-
                 if (data.health <= 0) {
-                    return i.update({ embeds: [new EmbedBuilder().setTitle(`${e()} 💀 Naufragio Fatal`).setColor('#000000').setThumbnail('https://i.pinimg.com/originals/8a/cc/b0/8accb071720d2d3129807b1cc1ec3f1e.gif').setDescription(`> *Te has hundido en las profundidades del olvido.*\n\n╰┈➤ 🎒 Tu inventario ha sido saqueado por las mareas.\n╰┈➤ ❤️ Has renacido en la orilla con **3 corazones**.`)] , components: [] });
+                    return i.update({ embeds: [new EmbedBuilder().setTitle(`${e()} 💀 Naufragio Fatal`).setColor('#000000').setThumbnail('https://i.pinimg.com/originals/8a/cc/b0/8accb071720d2d3129807b1cc1ec3f1e.gif').setDescription(`> *Te has hundido en las profundidades.*\n\n╰┈➤ 🎒 Tu inventario ha sido saqueado por las mareas.\n╰┈➤ ❤️ Has renacido en la orilla con **3 corazones**.`)] , components: [] });
                 }
                 return i.update({ content: `🌊 **Ola Gigante:** Casi te arrastra el mar. Perdiste \`${daño}\` de vida. ❤️ Vitalidad: \`${Math.floor(data.health)}/3\``, embeds: [], components: [] });
             }
 
             const fishMulti = mejorCana.multis * multiplier;
-            let report = [];
             let newInv = { ...data.inventory };
+            let report = [];
 
-            const cantPez = Math.floor(Math.random() * 3 + 1) * fishMulti;
-            newInv['common_fish'] = (newInv['common_fish'] || 0) + cantPez;
-            report.push(`🐟 **Pescado Común:** \`x${cantPez}\``);
+            // Drop de progresión asegurado
+            const cantDrop = Math.floor(Math.random() * 3 + 2) * fishMulti;
+            newInv[mejorCana.drop] = (newInv[mejorCana.drop] || 0) + cantDrop;
+            report.push(`${mejorCana.emj} **${mejorCana.drop.replace(/_/g, ' ').toUpperCase()}**: \`x${cantDrop}\``);
 
-            if (Math.random() > 0.90) {
-                const floresTesoro = Math.floor(Math.random() * 1000 + 500) * multiplier;
-                data.wallet = (data.wallet || 0) + floresTesoro;
-                report.push(`🏺 **Cofre Hundido:** \`+${floresTesoro} 🌸\``);
+            // Extras al azar
+            if (Math.random() > 0.85) {
+                const oro = 600 * fishMulti;
+                data.wallet = (data.wallet || 0) + oro;
+                report.push(`🏺 **Cofre Hundido:** \`+${oro} 🌸\``);
             }
 
             data.inventory = newInv;
@@ -139,7 +134,6 @@ module.exports = {
             await updateUserData(user.id, data);
 
             let boostMsg = multiplier === 2 ? `\n╰┈➤ 🚀 **Boost Activo:** ¡Doble pesca!` : "";
-            
             const embedExito = new EmbedBuilder()
                 .setColor('#1a1a1a')
                 .setAuthor({ name: `Pesca: ${mejorCana.zona}`, iconURL: user.displayAvatarURL() })
@@ -149,9 +143,6 @@ module.exports = {
 
             return i.update({ content: null, embeds: [embedExito], components: [] });
         });
-
-        collector.on('end', collected => {
-            if (collected.size === 0) input.editReply({ components: [] }).catch(()=>{});
-        });
+        collector.on('end', collected => { if (collected.size === 0) input.editReply({ components: [] }).catch(()=>{}); });
     }
 };
