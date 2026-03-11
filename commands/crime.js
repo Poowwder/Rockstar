@@ -18,16 +18,15 @@ module.exports = {
         const premium = (data.premiumType || 'none').toLowerCase();
 
         // --- 🌍 INTEGRACIÓN DE EVENTOS GLOBALES ---
-        let multiEvento = 1;
-        const activePath = path.join(__dirname, '../data/activeEvent.json');
-        if (fs.existsSync(activePath)) {
-            try {
-                const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
-                if (ev.type === 'money') multiEvento = ev.multiplier;
-            } catch (err) {
-                console.log("Error leyendo evento activo:", err);
-            }
-        }
+        // Dentro de work.js, crime.js y daily.js
+const activePath = path.join(__dirname, '../data/activeEvent.json');
+let multiEvento = 1;
+
+if (fs.existsSync(activePath)) {
+    const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
+    // Estos comandos solo dan bonus si el evento es de dinero.
+    if (ev.type === 'money') multiEvento = ev.multiplier;
+}
 
         // --- 💎 BONO POR RANGO PREMIUM ---
         let bonoRango = 1.03; // Normal: 3%
