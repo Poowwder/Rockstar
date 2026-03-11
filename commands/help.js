@@ -4,15 +4,15 @@ const {
 
 module.exports = {
     name: 'help',
-    description: 'Archivo automático de funciones del sistema.',
-    category: 'info',
+    description: 'Manual de operaciones y lista de comandos del sistema.',
+    category: 'información',
     usage: '!!help [comando]',
     data: new SlashCommandBuilder()
         .setName('help')
         .setDescription('Muestra la lista de comandos disponibles.')
         .addStringOption(option => 
             option.setName('comando')
-                .setDescription('Ver detalles de un comando específico')
+                .setDescription('Ver funcionamiento detallado de un comando')
                 .setRequired(false)),
 
     async execute(input, args) {
@@ -21,143 +21,123 @@ module.exports = {
         const client = input.client;
         const guild = input.guild;
 
-        // --- ✨ EMOJIS ALEATORIOS DEL SERVIDOR ---
-        const guildEmojis = guild ? guild.emojis.cache.filter(e => e.available) : null;
-        const rnd = () => (guildEmojis && guildEmojis.size > 0) ? guildEmojis.random().toString() : '✨';
+        // --- ✨ MOTOR DE EMOJIS INTELIGENTE ---
+        const getE = (isDM = false) => {
+            // Si es DM, busca en todos los emojis que el bot puede ver (sus propios emojis)
+            // Si es Servidor, prioriza los del servidor actual.
+            const source = (isDM || !guild) ? client.emojis.cache : guild.emojis.cache;
+            const available = source.filter(e => e.available);
+            return available.size > 0 ? available.random().toString() : '✨';
+        };
 
-        // --- ⚙️ LÓGICA DE BÚSQUEDA ESPECÍFICA ---
-        const commands = client.commands;
+        // --- 📂 FILTRADO DE COMANDOS ---
+        const allCommands = [...new Map(client.commands.map(cmd => [cmd.name, cmd])).values()];
+        const categories = [...new Set(allCommands.map(cmd => cmd.category || 'general'))]
+            .filter(cat => cat !== 'oculto');
+
         const query = isSlash ? input.options.getString('comando') : args?.[0];
-        
+
+        // --- 🔍 1. MODO MANUAL (Slash: Ephemeral / Prefix: DM) ---
         if (query) {
-            const cmd = commands.get(query.toLowerCase()) || commands.find(c => c.aliases && c.aliases.includes(query.toLowerCase()));
+            const cmd = allCommands.find(c => c.name === query.toLowerCase() || (c.aliases && c.aliases.includes(query.toLowerCase())));
+            
             if (cmd) {
+                const isDM = !isSlash; // Si no es slash, va para el DM
+                let finalDesc = cmd.description;
+                if (cmd.name === 'work') finalDesc = 'Ficha tu entrada y cumple con tu jornada laboral para recibir flores.';
+
                 const detailEmbed = new EmbedBuilder()
                     .setColor('#1a1a1a')
-                    .setTitle(`${rnd()} ‧₊˚ Comando: ${cmd.name.toUpperCase()} ˚₊‧ ${rnd()}`)
-                    .addFields(
-                        { name: '✦ Descripción', value: `\`${cmd.description || 'Sin descripción.'}\`` },
-                        { name: '✦ Categoría', value: `\`${cmd.category || 'General'}\``, inline: true },
-                        { name: '✦ Uso', value: `\`${cmd.usage || '!!' + cmd.name}\``, inline: true }
+                    .setTitle(`${getE(isDM)} Manual: ${cmd.name.toUpperCase()} ${getE(isDM)}`)
+                    .setThumbnail(client.user.displayAvatarURL())
+                    .setDescription(
+                        `${getE(isDM)} **¿Para qué sirve?**\n> ${finalDesc || 'Sin descripción disponible.'}\n\n` +
+                        `${getE(isDM)} **Funcionamiento & Uso:**\n> Se ejecuta usando el comando \`${cmd.usage || '!!' + cmd.name}\`.\n` +
+                        `> Pertenece a la sección de **${cmd.category?.toUpperCase() || 'GENERAL'}**.\n\n` +
+                        `${getE(isDM)} *Explora más comandos usando el menú principal del sistema.*`
                     )
-                    .setFooter({ text: `Aliases: ${cmd.aliases ? cmd.aliases.join(', ') : 'Ninguno'}` });
-                return input.reply({ embeds: [detailEmbed] });
+                    .addFields(
+                        { name: `${getE(isDM)} Aliases`, value: `\`${cmd.aliases ? cmd.aliases.join(', ') : 'Ninguno'}\``, inline: true },
+                        { name: `${getE(isDM)} Categoría`, value: `\`${cmd.category || 'General'}\``, inline: true }
+                    )
+                    .setFooter({ text: `Rockstar Nova ⊹ Manual Detallado`, iconURL: user.displayAvatarURL() });
+
+                if (isSlash) {
+                    return input.reply({ embeds: [detailEmbed], ephemeral: true });
+                } else {
+                    try {
+                        await user.send({ embeds: [detailEmbed] });
+                        return input.reply(`╰┈➤ ${getE()} **${user.username}**, he enviado el manual detallado a tus mensajes directos.`);
+                    } catch (e) {
+                        return input.reply(`╰┈➤ ❌ **${user.username}**, no pude enviarte el manual. ¿Tienes los DMs cerrados?`);
+                    }
+                }
             }
         }
 
-        // --- 📂 SISTEMA DE NAVEGACIÓN (BOTONES) ---
-        const rawCategories = [...new Set(commands.map(cmd => cmd.category || 'otros'))];
-        const categories = rawCategories.filter(c => c !== 'oculto'); 
+        // --- 📑 2. SISTEMA DE NAVEGACIÓN ---
+        let page = 0;
+        const pages = ['home', ...categories];
 
-        let currentCategory = 'home';
+        const generarEmbed = (p) => {
+            const embed = new EmbedBuilder().setColor('#1a1a1a');
+            const cat = pages[p];
 
-        // Renderizador de Interfaz
-        const generarInterfaz = () => {
-            const embed = new EmbedBuilder()
-                .setColor('#1a1a1a')
-                .setFooter({ text: `✦ ${user.username} ⊹ Rockstar System`, iconURL: user.displayAvatarURL() });
-
-            const rows = [];
-
-            if (currentCategory === 'home') {
-                embed.setTitle(`${rnd()} ⟢ ₊˚ Rockstar Archive ˚₊ ⟣ ${rnd()}`)
-                    .setDescription(`> *“El conocimiento es poder, y el poder está en las sombras.”*\n\n` +
-                                    `He detectado **${commands.size}** archivos en mi núcleo.\n` +
-                                    `Selecciona una categoría para explorar su funcionamiento.`);
-
-                // Grupos de 3 botones máximo por fila para que se vea estético y no rompa Discord
-                const chunkArray = (arr, size) => arr.length ? [arr.slice(0, size), ...chunkArray(arr.slice(size), size)] : [];
-                const catChunks = chunkArray(categories, 3);
-
-                catChunks.forEach(chunk => {
-                    const row = new ActionRowBuilder();
-                    chunk.forEach(cat => {
-                        row.addComponents(
-                            new ButtonBuilder()
-                                .setCustomId(`cat_${cat}`)
-                                .setLabel(cat.toUpperCase())
-                                .setEmoji(rnd()) // Emoji al azar para cada categoría
-                                .setStyle(ButtonStyle.Secondary) // Gris oscuro para todos
-                        );
-                    });
-                    rows.push(row);
-                });
-
-                // Botón de cerrar aislado abajo
-                rows.push(new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('close')
-                        .setEmoji('✖️')
-                        .setStyle(ButtonStyle.Danger)
-                ));
-
+            if (cat === 'home') {
+                embed.setTitle(`${getE()} ⟢ ₊˚ Rockstar Archive ˚₊ ⟣ ${getE()}`)
+                    .setThumbnail(client.user.displayAvatarURL())
+                    .setDescription(
+                        `${getE()} *“El conocimiento es poder, y el poder está en las sombras.”*\n\n` +
+                        `${getE()} He detectado **${allCommands.length}** funciones en mi núcleo.\n` +
+                        `${getE()} Navega por las secciones usando los botones inferiores.\n\n` +
+                        `${getE()} **Tip:** Usa \`!!help [comando]\` para un manual en tu DM.`
+                    );
             } else {
-                const filtered = commands.filter(cmd => (cmd.category || 'otros') === currentCategory);
+                const filtered = allCommands.filter(c => (c.category || 'general') === cat);
+                let desc = filtered.map(c => {
+                    let d = (c.name === 'work') ? 'Ficha tu entrada y cumple con tu jornada laboral.' : c.description;
+                    return `${getE()} **${c.name}**\n╰ \`${d || 'Sin descripción.'}\``;
+                }).join('\n\n');
 
-                // Armamos la lista de comandos y la cortamos si es muy larga para evitar el crasheo
-                let cmdsString = filtered.map(cmd => 
-                    `**${cmd.name}** ⊹ \`${cmd.usage || '!!' + cmd.name}\`\n╰ \`${cmd.description || 'Sin descripción.'}\``
-                ).join('\n\n');
-
-                if (cmdsString.length > 4000) {
-                    cmdsString = cmdsString.substring(0, 4000) + '...\n\n*Demasiados comandos para mostrar.*';
-                }
-
-                embed.setTitle(`${rnd()} ⊹ Sección: ${currentCategory.toUpperCase()} ⊹ ${rnd()}`)
-                    .setDescription(cmdsString);
-
-                rows.push(new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('go_home')
-                        .setLabel('VOLVER')
-                        .setEmoji(rnd())
-                        .setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder()
-                        .setCustomId('close')
-                        .setEmoji('✖️')
-                        .setStyle(ButtonStyle.Danger)
-                ));
+                embed.setTitle(`${getE()} Sección: ${cat.toUpperCase()} ${getE()}`)
+                    .setDescription(`${getE()} **Comandos de esta categoría:**\n\n${desc}`)
+                    .setFooter({ text: `Página ${p} de ${pages.length - 1} ⊹ ${user.username}`, iconURL: user.displayAvatarURL() });
             }
-
-            return { embeds: [embed], components: rows };
+            return embed;
         };
 
-        // --- 🚀 EJECUCIÓN Y RECOLECTOR ---
-        const response = await input.reply({ ...generarInterfaz(), fetchReply: true });
+        const generarBotones = () => {
+            return new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('home').setLabel('INICIO').setStyle(ButtonStyle.Secondary).setEmoji(getE()),
+                new ButtonBuilder().setCustomId('prev').setLabel('ATRÁS').setStyle(ButtonStyle.Primary).setEmoji(getE()),
+                new ButtonBuilder().setCustomId('next').setLabel('ADELANTE').setStyle(ButtonStyle.Primary).setEmoji(getE()),
+                new ButtonBuilder().setCustomId('exit').setLabel('SALIR').setStyle(ButtonStyle.Danger).setEmoji('✖️')
+            );
+        };
 
-        const collector = response.createMessageComponentCollector({ 
-            componentType: ComponentType.Button,
-            time: 60000 
+        const msg = await input.reply({ 
+            embeds: [generarEmbed(0)], 
+            components: [generarBotones()], 
+            fetchReply: true 
         });
+
+        const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 120000 });
 
         collector.on('collect', async i => {
-            if (i.user.id !== user.id) {
-                return i.reply({ content: `❌ Esos archivos no te pertenecen.`, ephemeral: true });
+            if (i.user.id !== user.id) return i.reply({ content: '❌ No puedes usar este menú.', ephemeral: true });
+
+            if (i.customId === 'exit') {
+                await i.update({ content: `${getE()} *Archivos cerrados con éxito...*`, embeds: [], components: [] });
+                return setTimeout(() => msg.delete().catch(() => {}), 2000);
             }
 
-            if (i.customId === 'close') {
-                await i.update({ content: `${rnd()} *Archivos cerrados...*`, embeds: [], components: [] });
-                setTimeout(() => response.delete().catch(() => {}), 2000);
-                return collector.stop();
-            }
+            if (i.customId === 'home') page = 0;
+            if (i.customId === 'prev') page = page > 0 ? page - 1 : pages.length - 1;
+            if (i.customId === 'next') page = page < pages.length - 1 ? page + 1 : 0;
 
-            if (i.customId === 'go_home') {
-                currentCategory = 'home';
-            } else if (i.customId.startsWith('cat_')) {
-                currentCategory = i.customId.replace('cat_', '');
-            }
-
-            try {
-                // Actualizamos la interfaz. El try-catch evita que el comando colapse
-                await i.update(generarInterfaz());
-            } catch (error) {
-                console.error("❌ Fallo crítico al actualizar los botones del Help:", error);
-            }
+            await i.update({ embeds: [generarEmbed(page)], components: [generarBotones()] });
         });
-        
-        collector.on('end', () => {
-            // Quitamos los botones cuando el tiempo expira
-            response.edit({ components: [] }).catch(() => null);
-        });
+
+        collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
     }
 };
