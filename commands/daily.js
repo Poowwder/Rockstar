@@ -1,9 +1,9 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData } = require('../userManager.js');
+const { getUserData, updateUserData } = require('../userManager.js'); 
 const fs = require('fs');
 const path = require('path');
 
-// ⏳ Tiempos de ciclo
+// ⏳ Tiempos
 const COOLDOWN_MS = 86400000;
 const GRACE_PERIOD_MS = 172800000; 
 
@@ -53,7 +53,6 @@ module.exports = {
             const timeLeftMS = COOLDOWN_MS - timePassed;
             const hours = Math.floor(timeLeftMS / (1000 * 60 * 60));
             const minutes = Math.floor((timeLeftMS % (1000 * 60 * 60)) / (1000 * 60));
-
             return input.reply({ embeds: [new EmbedBuilder().setTitle(`${e()} CICLO INCOMPLETO ${e()}`).setColor('#1a1a1a').setThumbnail('https://i.pinimg.com/originals/91/9a/84/919a8421c970477e6f987c805a9603e8.gif').setDescription(`> *“El abismo requiere paciencia, mortal.”*\n\n╰┈➤ Regresa cuando el ciclo se reinicie en **${hours}h ${minutes}m**.`)] });
         }
 
@@ -73,5 +72,86 @@ module.exports = {
 
         const isWeeklyBonus = (streak % 7 === 0);
         let premium = (data.premiumType || 'none').toLowerCase();
-        
-        // --- 💎 VAL
+
+        // --- 💎 BONO POR RANGO PREMIUM (Dinero: 3%, 7%, 10%) ---
+        let bonoMoney = 1.03; 
+        let minMoney = 2000, maxMoney = 3000, boxPulls = 1, boostChance = 0.10, rangoNombre = 'Usuario Normal';
+
+        if (premium === 'pro' || premium === 'mensual') { 
+            minMoney = 4000; maxMoney = 6000; boxPulls = 2; boostChance = 0.35; bonoMoney = 1.07; rangoNombre = 'Premium Pro'; 
+        } 
+        else if (premium === 'ultra' || premium === 'bimestral') { 
+            minMoney = 7000; maxMoney = 10000; boxPulls = 3; boostChance = 0.70; bonoMoney = 1.10; rangoNombre = 'Premium Ultra'; 
+        }
+
+        let weeklyMessage = "";
+        if (isWeeklyBonus) {
+            minMoney = Math.floor(minMoney * 1.5); maxMoney = Math.floor(maxMoney * 1.5);
+            if (rangoNombre === 'Usuario Normal') boxPulls = 2;
+            else if (rangoNombre === 'Premium Pro') boxPulls = 4;
+            else if (rangoNombre === 'Premium Ultra') boxPulls = 6;
+            weeklyMessage = `\n> 🎊 **¡BONIFICACIÓN SEMANAL!** Has sido bendecido con botín extra.\n`;
+        }
+
+        // --- 💰 CÁLCULO FINAL DE DINERO (Base * Evento * Bono Rango) ---
+        const baseMoney = Math.floor(Math.random() * (maxMoney - minMoney + 1)) + minMoney;
+        const moneyReward = Math.floor((baseMoney * multiEvento) * bonoMoney);
+        data.wallet = (data.wallet || 0) + moneyReward;
+
+        // --- 🎁 APERTURA DE LA CAJA ---
+        if (!data.inventory) data.inventory = {};
+        const totalWeight = ITEM_POOL.reduce((sum, item) => sum + item.weight, 0);
+        let lootReport = [];
+        let aggregatedLoot = {};
+
+        for (let i = 0; i < boxPulls; i++) {
+            let random = Math.random() * totalWeight;
+            let current = 0;
+            for (const item of ITEM_POOL) {
+                current += item.weight;
+                if (random < current) {
+                    const cant = Math.floor(Math.random() * (item.max - item.min + 1) + item.min);
+                    aggregatedLoot[item.id] = { name: item.name, amount: (aggregatedLoot[item.id]?.amount || 0) + cant };
+                    break;
+                }
+            }
+        }
+
+        for (const id in aggregatedLoot) {
+            data.inventory[id] = (data.inventory[id] || 0) + aggregatedLoot[id].amount;
+            if (id.includes('pico') || id.includes('cana')) {
+                lootReport.push(`🏆 **¡RELIQUIA!** \`x${aggregatedLoot[id].amount}\` ${aggregatedLoot[id].name}`);
+            } else {
+                lootReport.push(`📦 **Suministros:** \`x${aggregatedLoot[id].amount}\` ${aggregatedLoot[id].name}`);
+            }
+        }
+
+        if (Math.random() < boostChance) {
+            data.inventory['boost_flores'] = (data.inventory['boost_flores'] || 0) + 1;
+            lootReport.push(`🚀 **Objeto Raro:** \`x1\` Multiplicador de Flores (Boost)`);
+        }
+
+        data.lastDaily = now;
+        data.dailyStreak = streak;
+        await updateUserData(user.id, data);
+
+        const successEmbed = new EmbedBuilder()
+            .setTitle(`${e()} OFRENDA DIARIA ${e()}`)
+            .setColor('#1a1a1a')
+            .setThumbnail('https://i.pinimg.com/originals/44/1a/1a/441a1a5b8a071d7981504107b31e13e8.gif')
+            .setDescription(
+                `> ✨ *Las sombras reconocen tu lealtad.*\n` +
+                `> 👑 **Rango:** \`${rangoNombre}\` (\`+${((bonoMoney-1)*100).toFixed(0)}%\`)\n` +
+                `> 🔥 **Racha:** \`${streak}\` días ${streakPerdida ? '(Reiniciada)' : ''}${weeklyMessage}\n\n` +
+                `**─── ✦ TU RECOMPENSA ✦ ───**\n` +
+                `🌸 **Flores:** \`+${moneyReward.toLocaleString()}\` flores\n` +
+                `${lootReport.join('\n')}\n` +
+                (multiEvento > 1 ? `✨ **Evento Activo:** \`x${multiEvento}\` aplicado\n` : "") +
+                `**────────────────────**\n` +
+                `🏦 **Cartera:** \`${data.wallet.toLocaleString()} 🌸\``
+            )
+            .setFooter({ text: `Daily ⊹ Rockstar Nightfall` });
+
+        return input.reply({ embeds: [successEmbed] });
+    }
+};
