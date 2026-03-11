@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const { getUserData, updateUserData } = require('../userManager.js');
-const quests = require('../data/quests.json'); // Importamos las misiones
+const quests = require('../data/quests.json'); 
+const fs = require('fs');
+const path = require('path');
 
 const getE = (guild) => {
     const source = guild ? guild.emojis.cache : null;
@@ -18,8 +20,24 @@ module.exports = {
         
         let data = await getUserData(user.id);
         const inv = data.inventory || {};
+        const premium = (data.premiumType || 'none').toLowerCase();
 
-        // --- 🗺️ DEFINICIÓN DE ZONAS (Sincronizadas con Craft y Sell) ---
+        // --- 🌍 INTEGRACIÓN DE EVENTOS GLOBALES ---
+        let multiEvento = 1;
+        const activePath = path.join(__dirname, '../data/activeEvent.json');
+        if (fs.existsSync(activePath)) {
+            try {
+                const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
+                if (ev.type === 'money') multiEvento = ev.multiplier;
+            } catch (err) { console.log("Error leyendo evento:", err); }
+        }
+
+        // --- 💎 BONO POR RANGO PREMIUM (Materiales extra) ---
+        let bonoRango = 1.03; 
+        if (premium === 'pro') bonoRango = 1.07;
+        if (premium === 'ultra') bonoRango = 1.10;
+
+        // --- 🗺️ DEFINICIÓN DE ZONAS ---
         let zonas = [
             { id: 'pico_madera', zona: 'Gruta Superficial', multis: 1, drop: 'mineral_roca', emj: '🪨' },
             { id: 'pico_piedra', zona: 'Caverna de Cuarzo', multis: 2, drop: 'hierro_bruto', emj: '⛓️' },
@@ -27,7 +45,6 @@ module.exports = {
             { id: 'pico_diamante', zona: 'Fosa de Cristal', multis: 4, drop: 'gema_mitica', emj: '🔮' },
             { id: 'pico_mitico', zona: 'Abismo Eterno', multis: 5, drop: 'fragmento_void', emj: '🌌' },
             { id: 'pico_void', zona: '✨ Void Haven', multis: 6, drop: 'polvo_astral', emj: '✨', secret: true }
-            // ... (Puedes añadir aquí el resto de las 28 zonas siguiendo este patrón)
         ];
 
         zonas.sort((a, b) => b.multis - a.multis);
@@ -36,7 +53,7 @@ module.exports = {
         if (!mejorPico) return input.reply({ content: `╰┈➤ ❌ No tienes picos. Forja uno en \`!!craft\`.`, ephemeral: true });
 
         // --- ⏳ COOLDOWNS ---
-        const cooldown = (data.premiumType === 'ultra') ? 0 : (data.premiumType === 'pro' ? 120000 : 300000);
+        const cooldown = (premium === 'ultra') ? 0 : (premium === 'pro' ? 120000 : 300000);
         const lastMine = data.lastMine || 0;
         if (Date.now() - lastMine < cooldown) {
             const espera = Math.ceil((cooldown - (Date.now() - lastMine)) / 1000);
@@ -57,7 +74,9 @@ module.exports = {
             if (i.user.id !== user.id) return;
             collector.stop();
 
-            const cantDrop = Math.floor(Math.random() * 3 + 2) * mejorPico.multis;
+            // --- 💰 CÁLCULO FINAL CON EVENTO Y RANGO ---
+            const baseDrop = Math.floor(Math.random() * 3 + 2) * mejorPico.multis;
+            const cantDrop = Math.floor((baseDrop * multiEvento) * bonoRango);
             
             // --- 📜 GANCHO DE MISIONES ---
             if (data.dailyQuest && !data.dailyQuest.completed) {
@@ -68,15 +87,21 @@ module.exports = {
             }
 
             // Actualizar inventario y salud
-            if (!data.inventory) data.inventory = {};
             data.inventory[mejorPico.drop] = (data.inventory[mejorPico.drop] || 0) + cantDrop;
             data.lastMine = Date.now();
             
             await updateUserData(user.id, data);
 
             const embedExito = new EmbedBuilder()
+                .setTitle(`${e()} EXTRACCIÓN EXITOSA ${e()}`)
                 .setColor('#1a1a1a')
-                .setDescription(`**─── ✦ EXTRACCIÓN ✦ ───**\n${mejorPico.emj} **${mejorPico.drop.toUpperCase()}**: \`x${cantDrop}\`\n**───────────────────**`);
+                .setDescription(
+                    `**─── ✦ RESULTADOS ✦ ───**\n` +
+                    `${mejorPico.emj} **${mejorPico.drop.toUpperCase()}**: \`x${cantDrop}\`\n` +
+                    `**───────────────────**\n` +
+                    `╰┈➤ *Bono Rango:* \`+${((bonoRango-1)*100).toFixed(0)}%\`\n` +
+                    (multiEvento > 1 ? `╰┈➤ *Evento:* \`x${multiEvento} Activo\`` : "")
+                );
 
             return i.update({ embeds: [embedExito], components: [] });
         });
