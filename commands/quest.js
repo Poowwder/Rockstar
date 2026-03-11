@@ -1,71 +1,36 @@
-const { SlashCommandBuilder, EmbedBuilder, Collection, MessageFlags } = require('discord.js');
-const { getUserData, updateUserData, addItemToInventory } = require('../userManager.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { getUserData, updateUserData } = require('../userManager.js');
 const fs = require('fs');
 const path = require('path');
-const ms = require('ms');
 
-const questsDataPath = path.join(__dirname, '../../data/quests.json');
-const ICONS = {
-    quest: '📜',
-    money: '🌸',
-    gem: '💎',
-    boost: '🚀',
-    reward: '🎁',
-    complete: '✅',
-    error: '❌',
-};
-const COLORS = {
-    primary: '#FFB6C1',
-    success: '#A7D7C5',
-    warning: '#F7DBA7',
-    error: '#FF6961',
-    info: '#C8A2C8',
-};
-
-function readJSON(filePath) {
-    if (!fs.existsSync(filePath)) {
-        fs.writeFileSync(filePath, JSON.stringify({}, null, 2));
-        return {};
-    }
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-function writeJSON(filePath, data) {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-}
+// --- ⚙️ CONFIGURACIÓN ---
+const questsPath = path.join(__dirname, '../data/quests.json');
+const ICONS = { quest: '📜', money: '🌸', reward: '🎁', complete: '✅', error: '❌', progress: '⏳' };
+const COLORS = { primary: '#1a1a1a', success: '#A7D7C5', error: '#FF6961' };
 
 const getQuests = () => {
-    const p = path.join(__dirname, '..', '..', 'data/quests.json');
-    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {};
+    return fs.existsSync(questsPath) ? JSON.parse(fs.readFileSync(questsPath, 'utf8')) : {};
 };
 
-
-async function createEconomyEmbed(ctx, title, description, color, thumbnailType = 'default') {
-    const guildName = ctx.guild ? ctx.guild.name : 'R☆ckstar';
-    const guildIcon = ctx.guild ? ctx.guild.iconURL() : null;
-    const embed = new EmbedBuilder()
-        .setColor(color)
-        .setTitle(title)
-        .setDescription(description)
-        .setThumbnail(THUMBNAILS[thumbnailType] || THUMBNAILS.default)
-        .setFooter({ text: guildName, iconURL: guildIcon })
-        .setTimestamp();
-    return embed;
-}
-
 module.exports = {
+    name: 'quest',
+    aliases: ['misiones', 'mision', 'q'],
+    description: '📜 Gestiona tus misiones diarias.',
+    category: 'economía',
     data: new SlashCommandBuilder()
         .setName('quest')
         .setDescription('Gestiona tus misiones diarias.')
         .addSubcommand(sub => sub.setName('view').setDescription('Muestra tu misión diaria actual.'))
-        .addSubcommand(sub => sub.setName('complete').setDescription('Reclama tu recompensa al completar la misión.')),
-    category: 'currency',
-    description: 'Gestiona misiones diarias.',
-    usage: '!!quest <view|complete>',
-    aliases: ['misiones'],
-    async execute(message, args) {
-        message.reply('Por favor usa los comandos de barra `/quest` para las misiones.');
+        .addSubcommand(sub => sub.setName('complete').setDescription('Reclama tu recompensa.')),
+
+    async execute(input, args) {
+        // Soporte para prefijo !!quest view / !!quest complete
+        const sub = args[0]?.toLowerCase();
+        if (sub === 'view') return this.viewQuest(input);
+        if (sub === 'complete') return this.completeQuest(input);
+        return input.reply(`╰┈➤ Usar: \`!!quest view\` o \`!!quest complete\``);
     },
+
     async executeSlash(interaction) {
         const sub = interaction.options.getSubcommand();
         if (sub === 'view') return this.viewQuest(interaction);
@@ -74,76 +39,83 @@ module.exports = {
 
     async viewQuest(ctx) {
         const user = ctx.user || ctx.author;
-        const data = getUserData(user.id);
+        let data = await getUserData(user.id);
         const quests = getQuests();
         const today = new Date().toLocaleDateString();
 
-        if (data.dailyQuest && data.dailyQuest.date === today) {
-            // Quest already generated for today
-            const quest = quests[data.dailyQuest.id];
-            const embed = new EmbedBuilder()
-                .setTitle(`${ICONS.quest} Misión Diaria`)
-                .setDescription(`**${quest.name}**\n${quest.description}\n\nProgreso: ${data.dailyQuest.progress}/${quest.goal}`)
-                .setColor(COLORS.primary)
-                .setFooter({ text: 'Vuelve mañana para una nueva misión.' });
-            await ctx.reply({ embeds: [embed] });
-        } else {
-            // Generate a new quest
-            const questKeys = Object.keys(quests);
-            const randomQuestId = questKeys[Math.floor(Math.random() * questKeys.length)];
-            const quest = quests[randomQuestId];
+        // Si no hay misiones en el JSON
+        if (Object.keys(quests).length === 0) return ctx.reply("❌ No hay misiones configuradas en `quests.json`.");
 
+        // Generar o recuperar misión
+        if (!data.dailyQuest || data.dailyQuest.date !== today) {
+            const questKeys = Object.keys(quests);
+            const randomId = questKeys[Math.floor(Math.random() * questKeys.length)];
+            
             data.dailyQuest = {
-                id: randomQuestId,
+                id: randomId,
                 date: today,
                 progress: 0,
                 completed: false
             };
-            updateUserData(user.id, data);
-
-            const embed = new EmbedBuilder()
-                .setTitle(`${ICONS.quest} Nueva Misión Diaria`)
-                .setDescription(`**${quest.name}**\n${quest.description}\n\nProgreso: 0/${quest.goal}`)
-                .setColor(COLORS.primary)
-                .setFooter({ text: '¡Empieza hoy mismo!' });
-            await ctx.reply({ embeds: [embed] });
+            await updateUserData(user.id, data);
         }
+
+        const quest = quests[data.dailyQuest.id];
+        const estaCompletada = data.dailyQuest.progress >= quest.goal;
+
+        const embed = new EmbedBuilder()
+            .setTitle(`${ICONS.quest} Misión de Hoy`)
+            .setColor(estaCompletada ? COLORS.success : COLORS.primary)
+            .setThumbnail('https://i.pinimg.com/originals/82/30/9b/82309b858e723525565349f481c0f065.gif')
+            .setDescription(
+                `**${quest.name}**\n` +
+                `*“${quest.description}”*\n\n` +
+                `${ICONS.progress} **Progreso:** \`[${data.dailyQuest.progress} / ${quest.goal}]\`\n` +
+                `**Recompensa:** \`${quest.reward.money} 🌸\` y \`${quest.reward.quantity}x ${quest.reward.item}\``
+            )
+            .setFooter({ text: data.dailyQuest.completed ? '✅ Ya reclamaste esta recompensa.' : 'Usa /quest complete cuando termines.' });
+
+        await ctx.reply({ embeds: [embed] });
     },
 
     async completeQuest(ctx) {
         const user = ctx.user || ctx.author;
-        const data = getUserData(user.id);
+        let data = await getUserData(user.id);
         const quests = getQuests();
         const today = new Date().toLocaleDateString();
 
         if (!data.dailyQuest || data.dailyQuest.date !== today) {
-            return ctx.reply({ content: `${ICONS.error} No tienes una misión diaria activa. Usa \`/quest view\` para obtener una.` });
+            return ctx.reply(`${ICONS.error} No tienes una misión activa hoy. Usa \`/quest view\`.`);
         }
 
         if (data.dailyQuest.completed) {
-            return ctx.reply({ content: `${ICONS.error} Ya has completado tu misión diaria de hoy.` });
+            return ctx.reply(`${ICONS.error} Ya reclamaste los premios de hoy.`);
         }
 
         const quest = quests[data.dailyQuest.id];
+
         if (data.dailyQuest.progress < quest.goal) {
-            return ctx.reply({ content: `${ICONS.error} Aún no has completado tu misión. Progreso: ${data.dailyQuest.progress}/${quest.goal}` });
+            return ctx.reply(`${ICONS.error} Aún te falta progreso. \`[${data.dailyQuest.progress}/${quest.goal}]\``);
         }
 
-        // Give reward
-        data.wallet += quest.reward.money || 0;
-        addItemToInventory(user.id, quest.reward.item, quest.reward.quantity || 1);
+        // --- 🎁 ENTREGAR PREMIOS ---
+        data.wallet = (data.wallet || 0) + quest.reward.money;
+        
+        if (!data.inventory) data.inventory = {};
+        data.inventory[quest.reward.item] = (data.inventory[quest.reward.item] || 0) + quest.reward.quantity;
+        
         data.dailyQuest.completed = true;
-        updateUserData(user.id, data);
-
-        let rewardText = `Has recibido tu recompensa:\n`;
-        if (quest.reward.money) rewardText += `» ${ICONS.money} ${quest.reward.money}\n`;
-        if (quest.reward.item) rewardText += `» ${ICONS.reward} ${quest.reward.quantity || 1}x ${quest.reward.item}\n`;
+        await updateUserData(user.id, data);
 
         const embed = new EmbedBuilder()
-            .setTitle(`${ICONS.complete} ¡Misión Diaria Completada!`)
-            .setDescription(rewardText)
+            .setTitle(`${ICONS.complete} ¡Misión Cumplida!`)
             .setColor(COLORS.success)
-            .setFooter({ text: '¡Bien hecho!' });
+            .setDescription(
+                `Has demostrado tu valía, **${user.username}**.\n\n` +
+                `**Has recibido:**\n` +
+                `╰┈➤ \`${quest.reward.money} 🌸\` flores.\n` +
+                `╰┈➤ \`${quest.reward.quantity}x ${quest.reward.item}\` para tu mochila.`
+            );
 
         await ctx.reply({ embeds: [embed] });
     }
