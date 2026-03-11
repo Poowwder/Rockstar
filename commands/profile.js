@@ -40,9 +40,9 @@ module.exports = {
             let rango = (data.premiumType || 'USER').toUpperCase();
             if (target.id === OWNER_ID) rango = '𝕽☆𝖈𝖐𝖘𝖙𝖆𝖗 𝕹𝖔𝖛𝖆';
 
-            // --- 🌸 ESTADO VITAL (FIX DE DECIMALES) ---
+            // --- 🌸 VIDA SIN DECIMALES ---
             const hp = data.health || 0;
-            const displayHp = Math.max(0, Math.floor(hp)); // Convertido a entero sin .0
+            const displayHp = Math.max(0, Math.floor(hp)); 
 
             let maxMarriages = 10;
             if (premium === 'pro' || premium === 'mensual') maxMarriages = 15;
@@ -77,12 +77,11 @@ module.exports = {
                 .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 1024 }))
                 .setDescription(`${getE()} *“Navegando entre las sombras...”* ${getE()}`)
                 .addFields(embedFields)
-                .setFooter({ text: `Rockstar Database ⊹ Archivos de Red` }) // ✅ Footer renovado
+                .setFooter({ text: `Rockstar Database ⊹ Archivos de Red` }) 
                 .setTimestamp();
 
             const row = new ActionRowBuilder();
             
-            // --- 🔘 BOTÓN HAREM (Gris y con nombre correcto) ---
             if (haremCount > 0) {
                 row.addComponents(
                     new ButtonBuilder()
@@ -93,7 +92,6 @@ module.exports = {
                 );
             }
             
-            // --- 🔘 BOTÓN CERRAR (Solo emoji al azar) ---
             row.addComponents(
                 new ButtonBuilder()
                     .setCustomId('btn_close')
