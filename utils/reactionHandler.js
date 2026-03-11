@@ -10,13 +10,11 @@ const getRndEmoji = (guild) => {
 };
 
 // --- ⚙️ HANDLER PRINCIPAL ---
-// Ahora recibe 'input' (el mensaje o la interacción) en lugar de client/user
 async function runReaction(input, type) {
     const isSlash = !!input.user;
     const author = isSlash ? input.user : input.author;
     const guild = input.guild;
 
-    // Extraemos el apodo del servidor
     const authorMember = guild ? (guild.members.cache.get(author.id) || { displayName: author.username }) : { displayName: author.username };
     const e1 = getRndEmoji(guild);
 
@@ -56,20 +54,28 @@ async function runReaction(input, type) {
     const reactionData = reactions[type];
     if (!reactionData) return { content: `❌ El archivo \`${type}\` no existe en el sistema.`, ephemeral: true };
 
-    // --- 🖼️ MOTOR DE RUTAS LOCALES ---
-    const folderPath = path.join(__dirname, '..', 'commands', type);
+    // --- 🖼️ MOTOR DE RUTAS LOCALES SEGURO ---
+    // Nos aseguramos de que busque en minúsculas por compatibilidad con Linux (Render)
+    const folderPath = path.join(__dirname, '..', 'commands', type.toLowerCase());
     
-    let selectedImage = null;
-    let animeName = 'Desconocido';
+    let animeName = 'Internet';
     let attachment = null;
+    let safeFileName = 'reaction_image.gif'; // Nombre a prueba de balas
 
     try {
         if (fs.existsSync(folderPath)) {
-            const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.gif') || file.endsWith('.png'));
+            const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.gif') || file.endsWith('.png') || file.endsWith('.jpg'));
             if (files.length > 0) {
-                selectedImage = files[Math.floor(Math.random() * files.length)];
-                animeName = selectedImage.split('_')[0].replace(/-/g, ' ');
-                attachment = new AttachmentBuilder(path.join(folderPath, selectedImage), { name: selectedImage });
+                const selectedFile = files[Math.floor(Math.random() * files.length)];
+                
+                // Extrae el nombre del anime antes del guión bajo, quita guiones normales y capitaliza
+                let rawName = selectedFile.split('_')[0];
+                animeName = rawName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                // Extrae extensión y crea el attachment seguro
+                const ext = path.extname(selectedFile);
+                safeFileName = `reaction_image${ext}`;
+                attachment = new AttachmentBuilder(path.join(folderPath, selectedFile), { name: safeFileName });
             }
         }
     } catch (error) {
@@ -88,9 +94,9 @@ async function runReaction(input, type) {
 
     let responseObj = { embeds: [embed] };
 
-    // Si encontró archivo local lo usa, sino usa el de internet (fallback)
-    if (attachment && selectedImage) {
-        embed.setImage(`attachment://${selectedImage}`);
+    // Si encontró archivo local, lo incrusta. Si no, usa el link de internet.
+    if (attachment) {
+        embed.setImage(`attachment://${safeFileName}`);
         responseObj.files = [attachment];
     } else {
         embed.setImage(reactionData.fallback);
