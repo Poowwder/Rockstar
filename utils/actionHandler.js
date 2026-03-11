@@ -20,6 +20,7 @@ async function runAction(input, type, targetUser) {
         return { content: `╰┈➤ ${e1} Las sombras no permiten que dirijas esta acción hacia ti mismo.`, ephemeral: true };
     }
 
+    // --- 🖋️ LISTA DE ACCIONES EXTENDIDA ---
     const actions = {
         bite: `ha clavado sus colmillos en`,
         cuddle: `se acurruca con`,
@@ -34,13 +35,17 @@ async function runAction(input, type, targetUser) {
         punch: `le ha dado un golpe a`,
         slap: `le ha cruzado el rostro a`,
         tickle: `desata una ola de cosquillas sobre`,
-        yeet: `ha mandado a volar lejos a`
+        yeet: `ha mandado a volar lejos a`,
+        shoot: `le ha disparado a`, // ✅ AÑADIDO
+        kill: `ha terminado con la vida de`, // ✅ AÑADIDO
+        stare: `se queda observando fijamente a`, // ✅ AÑADIDO
+        punch: `le da un puñetazo a` // ✅ AÑADIDO
     };
 
     const actionText = actions[type] || `interactúa con`;
     
-    // Si la API no tiene la categoría exacta (ej: bully), usamos 'hug' o 'pat' como respaldo
-    const apiCategory = actions[type] ? type : 'hug';
+    // Si la API no tiene la categoría exacta, usamos una parecida
+    const apiCategory = actions[type] ? type : 'pat';
 
     let gifUrl = 'https://i.pinimg.com/originals/c9/22/68/c92268d92cf2adc01fb14197940562dc.gif';
     let animeName = 'Desconocido';
