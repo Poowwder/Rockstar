@@ -1,6 +1,11 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../userManager.js');
+const fs = require('fs');
+const path = require('path');
 
+const boxesPath = path.join(__dirname, '../data/lootboxes.json');
+
+// --- ✨ EMOJIS AL AZAR ---
 const getRndEmoji = (guild) => {
     if (!guild) return '✨';
     const emojis = guild.emojis.cache.filter(e => e.available);
@@ -9,77 +14,73 @@ const getRndEmoji = (guild) => {
 
 module.exports = {
     name: 'box',
-    description: '📦 Abre cajas sorpresa del abismo.',
+    description: '📦 Abre tu caja de suministros diaria.',
     category: 'economía',
-    data: new SlashCommandBuilder().setName('box').setDescription('📦 Abre cajas sorpresa'),
+    data: new SlashCommandBuilder().setName('box').setDescription('📦 Abre tu caja sorpresa diaria'),
 
     async execute(input) {
         const isSlash = !!input.user;
         const user = isSlash ? input.user : input.author;
         const guild = input.guild;
-        const member = input.member;
-        
-        let data = await getUserData(user.id);
         const e = () => getRndEmoji(guild);
+        
+        // 1. Cargar configuración de cajas
+        if (!fs.existsSync(boxesPath)) return input.reply("❌ Error: No se encontró el archivo `lootboxes.json`.");
+        const lootConfig = JSON.parse(fs.readFileSync(boxesPath, 'utf8'));
 
-        let limite = (data.premiumType === 'mensual' || data.premiumType === 'pro') ? 2 : 
-                     (data.premiumType === 'bimestral' || data.premiumType === 'ultra') ? 3 : 1;
+        let data = await getUserData(user.id);
+
+        // 2. Límites por Rango (Normal 1, Pro 2, Ultra 3)
+        const premium = (data.premiumType || 'none').toLowerCase();
+        let limite = (premium === 'pro' || premium === 'mensual') ? 2 : 
+                     (premium === 'ultra' || premium === 'bimestral') ? 3 : 1;
 
         if ((data.boxesToday || 0) >= limite) {
-            return input.reply(`╰┈➤ ${e()} **¡Paciencia!** Ya reclamaste tus tesoros de hoy (\`${limite}/${limite}\`).`);
+            return input.reply(`╰┈➤ ${e()} **¡Límite alcanzado!** Vuelve mañana para más suministros (\`${limite}/${limite}\`).`);
         }
 
-        // --- 📊 SISTEMA DE PROBABILIDADES (Total 100%) ---
+        // 3. Selección de Caja (Por ahora la 'common_lootbox')
+        const boxData = lootConfig['common_lootbox'];
+        if (!boxData) return input.reply("❌ Error: Configuración de caja no encontrada.");
+
+        // --- 🎲 LÓGICA DE PROBABILIDADES ---
         const roll = Math.random() * 100;
-        let premioGanado;
+        let acumulado = 0;
+        let premioFinal = null;
 
-        if (roll < 5) { 
-            // 💎 LEGENDARIO (5%)
-            premioGanado = { id: 'pico_cristal', name: 'Pico de Cristal 💎', type: 'tool', dur: 100, rarity: 'LEGENDARIO' };
-        } else if (roll < 15) { 
-            // 🎣 ÉPICO (10%)
-            premioGanado = { id: 'cana_oro', name: 'Caña de Oro 🎣', type: 'tool', dur: 80, rarity: 'ÉPICO' };
-        } else if (roll < 45) { 
-            // ✨ RARO (30%)
-            premioGanado = { id: 'diamante_rosa', name: 'Diamante Rosa ✨', type: 'item', rarity: 'RARO' };
-        } else { 
-            // 🌸 COMÚN (55%)
-            premioGanado = { id: 'flores', name: '15,000 Flores 🌸', type: 'money', value: 15000, rarity: 'COMÚN' };
+        for (const item of boxData.contents) {
+            acumulado += item.chance;
+            if (roll <= acumulado) {
+                const cantidad = Math.floor(Math.random() * (item.max - item.min + 1)) + item.min;
+                premioFinal = { id: item.id, qty: cantidad };
+                break;
+            }
         }
 
-        // --- ⚙️ PROCESAR PREMIO ---
-        data.boxesToday = (data.boxesToday || 0) + 1;
+        // 4. Actualizar Base de Datos
         if (!data.inventory) data.inventory = {};
-        if (!data.durabilidades) data.durabilidades = {};
-
-        if (premioGanado.type === 'money') {
-            data.wallet += premioGanado.value;
-        } else if (premioGanado.type === 'tool') {
-            data.inventory[premioGanado.id] = (data.inventory[premioGanado.id] || 0) + 1;
-            data.durabilidades[premioGanado.id] = premioGanado.dur;
-        } else {
-            data.inventory[premioGanado.id] = (data.inventory[premioGanado.id] || 0) + 1;
-        }
+        data.inventory[premioFinal.id] = (data.inventory[premioFinal.id] || 0) + premioFinal.qty;
+        data.boxesToday = (data.boxesToday || 0) + 1;
 
         await updateUserData(user.id, data);
 
-        // --- 📄 COLORES POR RAREZA ---
-        const rarityColor = { 'LEGENDARIO': '#FFD700', 'ÉPICO': '#A020F0', 'RARO': '#00BFFF', 'COMÚN': '#1a1a1a' };
+        // --- 📄 PRESENTACIÓN ---
+        const nameNice = premioFinal.id.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
         const boxEmbed = new EmbedBuilder()
-            .setTitle(`${e()} ‧₊˚ Regalo del Abismo ˚₊‧ ${e()}`)
-            .setColor(rarityColor[premioGanado.rarity] || '#1a1a1a')
+            .setTitle(`${e()} ‧₊˚ Suministros Rockstar ˚₊‧ ${e()}`)
+            .setColor('#1a1a1a')
             .setThumbnail('https://i.pinimg.com/originals/ec/7b/03/ec7b036573c734b41a542031336c1c87.gif')
             .setDescription(
-                `> *“El destino ha dictado tu suerte...”*\n\n` +
-                `**─── ✦ RESULTADO ✦ ───**\n` +
-                `${e()} **Rareza:** \`${premioGanado.rarity}\`\n` +
-                `${e()} **Premio:** **${premioGanado.name}**\n` +
-                `${e()} **Cajas hoy:** \`${data.boxesToday}/${limite}\`\n` +
+                `*“El abismo te entrega lo que necesitas para sobrevivir...”*\n\n` +
+                `**─── ✦ CONTENIDO ✦ ───**\n` +
+                `${e()} **Caja:** \`${boxData.name}\`\n` +
+                `${e()} **Recibiste:** **${nameNice}** x${premioFinal.qty}\n` +
+                `${e()} **Uso diario:** \`${data.boxesToday}/${limite}\` cajas\n` +
                 `**─────────────────**\n\n` +
-                `╰┈➤ *¡Úsalo antes de que las sombras lo reclamen!*`
+                `╰┈➤ *Guarda esto bien en tu \`!!inv\`.*`
             )
-            .setFooter({ text: `Rockstar ⊹ Mystery Box`, iconURL: user.displayAvatarURL() });
+            .setFooter({ text: `Rockstar ⊹ Eternal Vault`, iconURL: user.displayAvatarURL() });
 
         return input.reply({ embeds: [boxEmbed] });
     }
