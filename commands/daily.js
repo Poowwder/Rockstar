@@ -1,62 +1,172 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { getUserData, updateUserData } = require('../userManager.js');
+const { getUserData, updateUserData } = require('../userManager.js'); 
+
+// ⏳ 24 Horas y 48 Horas en milisegundos
+const COOLDOWN_MS = 86400000;
+const GRACE_PERIOD_MS = 172800000; // 48 horas (Si pasa de esto, pierde la racha)
+
+// --- ✨ EMOJIS AL AZAR DEL SERVIDOR ---
+const getRndEmoji = (guild) => {
+    if (!guild) return '✨';
+    const emojis = guild.emojis.cache.filter(e => e.available);
+    return emojis.size > 0 ? emojis.random().toString() : '✨';
+};
+
+// --- 🎁 POOL DE OBJETOS DE LA "CAJA" ---
+const ITEM_POOL = [
+    { id: 'wood', name: 'Madera 🪵', weight: 50, min: 5, max: 15 },
+    { id: 'stone', name: 'Piedra 🪨', weight: 50, min: 5, max: 15 },
+    { id: 'common_fish', name: 'Pescado Común 🐟', weight: 30, min: 2, max: 5 },
+    { id: 'iron_ore', name: 'Mena de Hierro ⛓️', weight: 20, min: 1, max: 4 },
+    { id: 'diamante_rosa', name: 'Diamante Rosa ✨', weight: 2, min: 1, max: 1 }
+];
 
 module.exports = {
     name: 'daily',
-    description: 'Reclama tu ofrenda diaria de flores 🌸',
+    description: '🎁 Recibe tu ofrenda diaria. Mantén la racha para mejores cajas.',
     category: 'economía',
     data: new SlashCommandBuilder()
         .setName('daily')
-        .setDescription('Recibe tu regalo diario de flores 🎁'),
+        .setDescription('🎁 Recibe tu ofrenda diaria (Dinero, Materiales y Boosts).'),
 
     async execute(input) {
         const isSlash = !!input.user;
         const user = isSlash ? input.user : input.author;
-        
-        // Manejo seguro del apodo (Display Name)
-        const member = input.guild ? (input.guild.members.cache.get(user.id) || { displayName: user.username }) : { displayName: user.username };
+        const guild = input.guild;
+        const e = () => getRndEmoji(guild);
         
         let data = await getUserData(user.id);
-        const amount = 2000; // Monto de la recompensa
-        const cooldown = 86400000; // 24 horas en milisegundos
-        const lastDaily = data.lastDaily || 0;
+        const now = Date.now();
+        const lastClaim = data.lastDaily ? new Date(data.lastDaily).getTime() : 0;
+        const timePassed = now - lastClaim;
 
-        // --- ⏳ SISTEMA DE ESPERA (COOLDOWN) ---
-        if (cooldown - (Date.now() - lastDaily) > 0) {
-            const time = cooldown - (Date.now() - lastDaily);
-            const hours = Math.floor(time / (1000 * 60 * 60));
-            const minutes = Math.floor((time % (1000 * 60 * 60)) / (1000 * 60));
-            
-            const cooldownEmbed = new EmbedBuilder()
+        // --- ⏳ CONTROL DE TIEMPO (COOLDOWN DE 24H) ---
+        if (timePassed < COOLDOWN_MS) {
+            const timeLeftMS = COOLDOWN_MS - timePassed;
+            const hours = Math.floor(timeLeftMS / (1000 * 60 * 60));
+            const minutes = Math.floor((timeLeftMS % (1000 * 60 * 60)) / (1000 * 60));
+
+            const failEmbed = new EmbedBuilder()
+                .setTitle(`${e()} CICLO INCOMPLETO ${e()}`)
                 .setColor('#1a1a1a')
-                .setDescription(`> ⏳ **${member.displayName}**, las sombras exigen paciencia.\n> Tu próxima ofrenda estará disponible en **${hours}h ${minutes}m**.`);
-            
-            // Responder de forma efímera para no ensuciar el chat
-            return input.reply({ embeds: [cooldownEmbed], ephemeral: true });
+                .setThumbnail('https://i.pinimg.com/originals/91/9a/84/919a8421c970477e6f987c805a9603e8.gif')
+                .setDescription(
+                    `> *“El abismo requiere paciencia, mortal.”*\n\n` +
+                    `╰┈➤ Regresa cuando el ciclo se reinicie en **${hours}h ${minutes}m**.`
+                )
+                .setTimestamp()
+                .setFooter({ text: `Daily ⊹ Rockstar Nightfall`, iconURL: user.displayAvatarURL() });
+
+            return input.reply({ embeds: [failEmbed] });
         }
 
-        // --- 💰 PROCESAR LA TRANSACCIÓN ---
-        // Aseguramos que data.wallet sea un número válido
-        data.wallet = (data.wallet || 0) + amount;
-        data.lastDaily = Date.now();
+        // --- 🔥 SISTEMA DE RACHAS (STREAK) ---
+        let streak = data.dailyStreak || 0;
+        let streakPerdida = false;
+
+        // Si pasaron más de 48 horas, se rompe la racha (excepto si es su primer daily)
+        if (timePassed > GRACE_PERIOD_MS && lastClaim !== 0) {
+            streak = 1;
+            streakPerdida = true;
+        } else {
+            streak += 1; // Sube la racha
+        }
+
+        // ¿Es aniversario semanal? (Día 7, 14, 21...)
+        const isWeeklyBonus = (streak % 7 === 0);
+
+        // --- 💎 BONIFICACIONES POR RANGO ---
+        let premium = (data.premiumType || 'none').toLowerCase();
+        let minMoney = 2000, maxMoney = 3000;
+        let boxPulls = 1; 
+        let boostChance = 0.10; 
+        let rangoNombre = 'Usuario Normal';
+
+        if (premium === 'pro' || premium === 'mensual') {
+            minMoney = 4000; maxMoney = 6000;
+            boxPulls = 2;
+            boostChance = 0.35;
+            rangoNombre = 'Premium Pro';
+        } else if (premium === 'ultra' || premium === 'bimestral') {
+            minMoney = 7000; maxMoney = 10000;
+            boxPulls = 3;
+            boostChance = 0.70;
+            rangoNombre = 'Premium Ultra';
+        }
+
+        // --- 🎉 APLICAR BONIFICACIÓN SEMANAL ---
+        let weeklyMessage = "";
+        if (isWeeklyBonus) {
+            minMoney = Math.floor(minMoney * 1.5); // +50% de dinero
+            maxMoney = Math.floor(maxMoney * 1.5);
+            
+            if (rangoNombre === 'Usuario Normal') boxPulls = 2; // Normales ganan 2 cajas
+            else if (rangoNombre === 'Premium Pro') boxPulls = 4; // Pro gana 4
+            else if (rangoNombre === 'Premium Ultra') boxPulls = 6; // Ultra gana 6
+
+            weeklyMessage = `\n> 🎊 **¡BONIFICACIÓN SEMANAL!** Has sido bendecido con botín extra por tu lealtad constante.\n`;
+        }
+
+        // --- 🌸 CÁLCULO DE DINERO ---
+        const moneyReward = Math.floor(Math.random() * (maxMoney - minMoney + 1)) + minMoney;
+        data.wallet = (data.wallet || 0) + moneyReward;
+
+        // --- 🎁 APERTURA DE LA "CAJA" (Materiales Múltiples) ---
+        if (!data.inventory) data.inventory = {};
+        const totalWeight = ITEM_POOL.reduce((sum, item) => sum + item.weight, 0);
+        
+        let lootReport = [];
+        let aggregatedLoot = {};
+
+        for (let i = 0; i < boxPulls; i++) {
+            let random = Math.random() * totalWeight;
+            let current = 0;
+            for (const item of ITEM_POOL) {
+                current += item.weight;
+                if (random < current) {
+                    const cant = Math.floor(Math.random() * (item.max - item.min + 1) + item.min);
+                    aggregatedLoot[item.id] = { name: item.name, amount: (aggregatedLoot[item.id]?.amount || 0) + cant };
+                    break;
+                }
+            }
+        }
+
+        for (const id in aggregatedLoot) {
+            data.inventory[id] = (data.inventory[id] || 0) + aggregatedLoot[id].amount;
+            lootReport.push(`📦 **Caja Suministros:** \`x${aggregatedLoot[id].amount}\` ${aggregatedLoot[id].name}`);
+        }
+
+        // --- 🚀 SISTEMA DE BOOSTS ---
+        if (Math.random() < boostChance) {
+            data.inventory['boost_flores'] = (data.inventory['boost_flores'] || 0) + 1;
+            lootReport.push(`🚀 **Objeto Raro:** \`x1\` Multiplicador de Flores (Boost)`);
+        }
+
+        // --- 💾 ACTUALIZAR BASE DE DATOS ---
+        data.lastDaily = now;
+        data.dailyStreak = streak;
         await updateUserData(user.id, data);
 
-        // --- 📄 CONSTRUIR EL EMBED ESTÉTICO ---
-        const dailyEmbed = new EmbedBuilder()
+        // --- 📄 PRESENTACIÓN ROCKSTAR ---
+        let rachaAviso = streakPerdida ? `\n> ⚠️ *Tu racha anterior se rompió por inactividad.*` : "";
+
+        const successEmbed = new EmbedBuilder()
+            .setTitle(`${e()} OFRENDA DIARIA ${e()}`)
             .setColor('#1a1a1a')
-            .setThumbnail('https://i.pinimg.com/originals/9e/7b/72/9e7b727f7118181283d656f345371690.gif')
+            .setThumbnail('https://i.pinimg.com/originals/44/1a/1a/441a1a5b8a071d7981504107b31e13e8.gif')
             .setDescription(
-                `> ✨ **Las sombras te han otorgado tu ofrenda, ${member.displayName}.**\n\n` +
-                `╰┈➤ 💰 **Recompensa:** \`${amount.toLocaleString()} 🌸\`\n` +
-                `╰┈➤ 🏦 **Nuevo Balance:** \`${data.wallet.toLocaleString()} 🌸\`\n\n` +
-                `*Regresa mañana cuando el ciclo se reinicie...*`
+                `> ✨ *Las sombras reconocen tu lealtad. Tu ofrenda ha sido otorgada.*\n` +
+                `> 👑 **Beneficio activo:** \`${rangoNombre}\`\n` +
+                `> 🔥 **Racha actual:** \`${streak}\` días consecutivos${rachaAviso}${weeklyMessage}\n\n` +
+                `**─── ✦ TU RECOMPENSA ✦ ───**\n` +
+                `🌸 **Flores:** \`+${moneyReward.toLocaleString()}\` flores\n` +
+                `${lootReport.join('\n')}\n` +
+                `**────────────────────**\n` +
+                `🏦 **Cartera actual:** \`${data.wallet.toLocaleString()} 🌸\``
             )
             .setTimestamp()
-            .setFooter({ 
-                text: `Ofrenda de ${member.displayName} ⊹ Economía`, 
-                iconURL: user.displayAvatarURL({ dynamic: true }) 
-            });
+            .setFooter({ text: `Daily ⊹ Rockstar Nightfall`, iconURL: guild.iconURL() });
 
-        return input.reply({ embeds: [dailyEmbed] });
+        return input.reply({ embeds: [successEmbed] });
     }
 };
