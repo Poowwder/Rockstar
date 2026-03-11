@@ -23,14 +23,16 @@ module.exports = {
         const premium = (data.premiumType || 'none').toLowerCase();
 
         // --- 🌍 INTEGRACIÓN DE EVENTOS GLOBALES ---
-        let multiEvento = 1;
-        const activePath = path.join(__dirname, '../data/activeEvent.json');
-        if (fs.existsSync(activePath)) {
-            try {
-                const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
-                if (ev.type === 'money') multiEvento = ev.multiplier;
-            } catch (err) { console.log("Error leyendo evento:", err); }
-        }
+      // Dentro de mine.js y fish.js
+const activePath = path.join(__dirname, '../data/activeEvent.json');
+let multiEvento = 1;
+
+if (fs.existsSync(activePath)) {
+    const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
+    // Cambia 'money' por 'materials' para que estos comandos 
+    // solo den bonus si el evento es de minería/pesca.
+    if (ev.type === 'materials') multiEvento = ev.multiplier;
+}
 
         // --- 💎 BONO POR RANGO PREMIUM (Materiales extra) ---
         let bonoRango = 1.03; 
