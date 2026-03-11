@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { GuildConfig } = require('../data/mongodb.js'); // Conexión a tu central de datos
+const { GuildConfig } = require('../data/mongodb.js'); 
 
 module.exports = {
     name: 'autorole',
@@ -20,21 +20,28 @@ module.exports = {
         const userRole = interaction.options.getRole('usuario');
         const botRole = interaction.options.getRole('bot');
 
-        // Si no selecciona nada, avisamos
         if (!userRole && !botRole) {
             return interaction.reply({ 
-                content: '❌ Debes seleccionar al menos un rol para configurar.', 
+                content: '╰┈➤ ❌ Debes seleccionar al menos un rol para configurar.', 
                 ephemeral: true 
             });
         }
 
-        // Preparamos los datos para MongoDB
+        // Validación de jerarquía: ¿El bot puede gestionar estos roles?
+        const botMember = interaction.guild.members.me;
+        if ((userRole && userRole.position >= botMember.roles.highest.position) || 
+            (botRole && botRole.position >= botMember.roles.highest.position)) {
+            return interaction.reply({
+                content: '╰┈➤ ⚠️ **Error de Jerarquía:** No puedo asignar roles que están por encima de mi propio rol. Sube mi rol en los ajustes del servidor.',
+                ephemeral: true
+            });
+        }
+
         const updateData = {};
         if (userRole) updateData.userRoleId = userRole.id;
         if (botRole) updateData.botRoleId = botRole.id;
 
         try {
-            // Guardamos o actualizamos en la DB centralizada
             await GuildConfig.findOneAndUpdate(
                 { GuildID: interaction.guild.id },
                 { $set: updateData },
@@ -42,14 +49,18 @@ module.exports = {
             );
 
             const embed = new EmbedBuilder()
-                .setTitle('🎭 Auto-Role Configurado')
-                .setColor('#FFB6C1')
-                .setDescription('Rockstar asignará estos roles automáticamente a quienes se unan.')
-                .addFields(
-                    { name: '👤 Rol para Usuarios', value: userRole ? `${userRole}` : 'Sin cambios', inline: true },
-                    { name: '🤖 Rol para Bots', value: botRole ? `${botRole}` : 'Sin cambios', inline: true }
+                .setTitle('🎭 PROTOCOLO DE IDENTIDAD: ACTIVADO')
+                .setColor('#1a1a1a') // Estética Dark Rockstar
+                .setThumbnail('https://i.pinimg.com/originals/a9/1a/1a/a91a1a5118c64227f7178a994784157d.gif')
+                .setDescription(
+                    `> *“En Rockstar Nightfall, todos tienen un lugar asignado desde el inicio.”*\n\n` +
+                    `Rockstar gestionará los siguientes roles automáticamente:`
                 )
-                .setFooter({ text: 'Recuerda que mi rol debe estar por encima de estos en los ajustes del servidor.' })
+                .addFields(
+                    { name: '👤 Miembros', value: userRole ? `${userRole}` : '保持 (Sin cambios)', inline: true },
+                    { name: '🤖 Automatas', value: botRole ? `${botRole}` : '保持 (Sin cambios)', inline: true }
+                )
+                .setFooter({ text: 'Asegúrate de que mis permisos sean superiores a los roles configurados.' })
                 .setTimestamp();
 
             return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -57,7 +68,7 @@ module.exports = {
         } catch (error) {
             console.error("Error en AutoRole:", error);
             return interaction.reply({ 
-                content: '❌ Hubo un error al guardar la configuración en la base de datos.', 
+                content: '❌ Hubo un error al sincronizar con la central de datos MongoDB.', 
                 ephemeral: true 
             });
         }
