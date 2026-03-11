@@ -28,6 +28,9 @@ module.exports = {
             return available.size > 0 ? available.random().toString() : '✨';
         };
 
+        // Función para quitar las mayúsculas feas y dejar solo la primera letra mayúscula
+        const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+
         // --- 📂 FILTRADO DE COMANDOS ---
         const allCommands = [...new Map(client.commands.map(cmd => [cmd.name, cmd])).values()];
         const categories = [...new Set(allCommands.map(cmd => cmd.category || 'general'))]
@@ -35,7 +38,7 @@ module.exports = {
 
         const query = isSlash ? input.options.getString('comando') : args?.[0];
 
-        // --- 🔍 1. MODO MANUAL (Slash: Ephemeral / Prefix: DM) ---
+        // --- 🔍 1. MODO MANUAL ---
         if (query) {
             const cmd = allCommands.find(c => c.name === query.toLowerCase() || (c.aliases && c.aliases.includes(query.toLowerCase())));
             
@@ -46,19 +49,19 @@ module.exports = {
 
                 const detailEmbed = new EmbedBuilder()
                     .setColor('#1a1a1a')
-                    .setTitle(`${getE(isDM)} Manual: ${cmd.name.toUpperCase()} ${getE(isDM)}`)
+                    .setTitle(`${getE(isDM)} Manual: ${capitalize(cmd.name)} ${getE(isDM)}`)
                     .setThumbnail(client.user.displayAvatarURL())
                     .setDescription(
-                        `${getE(isDM)} **¿Para qué sirve?**\n> ${finalDesc || 'Sin descripción disponible.'}\n\n` +
-                        `${getE(isDM)} **Funcionamiento & Uso:**\n> Se ejecuta usando el comando \`${cmd.usage || '!!' + cmd.name}\`.\n` +
-                        `> Pertenece a la sección de **${cmd.category?.toUpperCase() || 'GENERAL'}**.\n\n` +
-                        `${getE(isDM)} *Explora más comandos usando el menú principal del sistema.*`
+                        `${getE(isDM)} **¿Para qué sirve?**\n> -# ${finalDesc || 'Sin descripción disponible.'}\n\n` +
+                        `${getE(isDM)} **Funcionamiento & Uso:**\n> -# Se ejecuta usando el comando ${cmd.usage || '!!' + cmd.name}.\n` +
+                        `> -# Pertenece a la sección de **${capitalize(cmd.category || 'general')}**.\n\n` +
+                        `${getE(isDM)} -# Explora más comandos usando el menú principal del sistema.`
                     )
                     .addFields(
-                        { name: `${getE(isDM)} Aliases`, value: `\`${cmd.aliases ? cmd.aliases.join(', ') : 'Ninguno'}\``, inline: true },
-                        { name: `${getE(isDM)} Categoría`, value: `\`${cmd.category || 'General'}\``, inline: true }
+                        { name: `${getE(isDM)} Aliases ${getE(isDM)}`, value: `-# ${cmd.aliases ? cmd.aliases.join(', ') : 'Ninguno'}`, inline: true },
+                        { name: `${getE(isDM)} Categoría ${getE(isDM)}`, value: `-# ${capitalize(cmd.category || 'general')}`, inline: true }
                     )
-                    .setFooter({ text: `Rockstar Nova ⊹ Manual Detallado`, iconURL: user.displayAvatarURL() });
+                    .setFooter({ text: `${getE(isDM)} Rockstar Nova ⊹ Manual Detallado ${getE(isDM)}`, iconURL: user.displayAvatarURL() });
 
                 if (isSlash) {
                     return input.reply({ embeds: [detailEmbed], ephemeral: true });
@@ -77,15 +80,12 @@ module.exports = {
         let page = 0;
         const pages = ['home'];
 
-        // Lógica automática: Divide las categorías que tengan más de 10 comandos en varias páginas
         categories.forEach(cat => {
             const catCmds = allCommands.filter(c => (c.category || 'general') === cat);
             for (let i = 0; i < catCmds.length; i += 10) {
                 pages.push({
                     cat: cat,
-                    cmds: catCmds.slice(i, i + 10),
-                    current: Math.floor(i / 10) + 1,
-                    total: Math.ceil(catCmds.length / 10)
+                    cmds: catCmds.slice(i, i + 10)
                 });
             }
         });
@@ -102,21 +102,20 @@ module.exports = {
                         `${getE()} He detectado **${allCommands.length}** funciones en mi núcleo.\n` +
                         `${getE()} Navega por las secciones usando los botones inferiores.\n\n` +
                         `${getE()} **Tip:** Usa \`!!help [comando]\` para un manual en tu DM.`
-                    );
+                    )
+                    .setFooter({ text: `${getE()} Página de Inicio ⊹ ${user.username} ${getE()}`, iconURL: user.displayAvatarURL() });
             } else {
-                // Título dinámico si hay partes (ej: Sección: ACCIÓN (Pt. 1))
-                const extraTitle = pageData.total > 1 ? ` (Pt. ${pageData.current})` : '';
-                
-                embed.setTitle(`${getE()} Sección: ${pageData.cat.toUpperCase()}${extraTitle} ${getE()}`)
-                    .setDescription(`${getE()} **Comandos de esta categoría:**\n*Los comandos están distribuidos en columnas para tu comodidad.*`)
-                    .setFooter({ text: `Página ${p} de ${pages.length - 1} ⊹ ${user.username}`, iconURL: user.displayAvatarURL() });
+                // Título sin la Parte 1, Parte 2, etc.
+                embed.setTitle(`${getE()} Sección: ${capitalize(pageData.cat)} ${getE()}`)
+                    .setDescription(`${getE()} **Comandos de esta categoría:**\n-# Los comandos están distribuidos en columnas para tu comodidad.`)
+                    .setFooter({ text: `${getE()} Página ${p} de ${pages.length - 1} ⊹ ${user.username} ${getE()}`, iconURL: user.displayAvatarURL() });
 
-                // Esto crea las columnas automáticamente usando "inline: true"
+                // Campos en columnas con letra miniatura (-#) y sin fondo negro
                 const fields = pageData.cmds.map(c => {
                     let d = (c.name === 'work') ? 'Ficha tu entrada y cumple con tu jornada laboral.' : c.description;
                     return {
-                        name: `✦ ${c.name}`,
-                        value: `\`${d || 'Sin descripción.'}\``,
+                        name: `${getE()} ${capitalize(c.name)}`,
+                        value: `-# ${d || 'Sin descripción.'}`, 
                         inline: true 
                     };
                 });
@@ -131,7 +130,7 @@ module.exports = {
                 new ButtonBuilder().setCustomId('home').setLabel('Inicio').setStyle(ButtonStyle.Secondary).setEmoji(getE()),
                 new ButtonBuilder().setCustomId('prev').setLabel('Atrás').setStyle(ButtonStyle.Primary).setEmoji(getE()),
                 new ButtonBuilder().setCustomId('next').setLabel('Adelante').setStyle(ButtonStyle.Primary).setEmoji(getE()),
-                new ButtonBuilder().setCustomId('exit').setLabel('Salir').setStyle(ButtonStyle.Danger).setEmoji('✖️')
+                new ButtonBuilder().setCustomId('exit').setLabel('Salir').setStyle(ButtonStyle.Danger).setEmoji(getE())
             );
         };
 
