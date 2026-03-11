@@ -4,7 +4,7 @@ const path = require('path');
 const http = require('http');
 const { connectDB } = require('./data/mongodb.js');
 const { checkNekos } = require('./functions/checkNekos.js');
-// 🚀 NUEVO: Importamos el motor de experiencia
+// 🚀 IMPORTACIÓN CLAVE: Extraemos las funciones necesarias
 const { addXP, getUserData } = require('./userManager.js'); 
 require('dotenv').config();
 
@@ -31,49 +31,33 @@ const prefix = "!!";
 
 connectDB();
 
-// --- 📂 CARGA DE COMANDOS CON VALIDACIÓN ---
+// --- 📂 CARGA DE COMANDOS ---
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-
-console.log('--- 🛠️ Cargando Comandos ---');
-
 for (const file of commandFiles) {
     try {
         const filePath = `./commands/${file}`;
         delete require.cache[require.resolve(filePath)];
         const command = require(filePath);
-
-        // Registro para comandos Slash y de Prefijo
-        if (command.name) {
-            client.commands.set(command.name, command);
-        }
-        // Si el comando tiene data (Slash), usamos el nombre de data.name para el mapa
-        if (command.data && command.data.name) {
-            client.commands.set(command.data.name, command);
-        }
-
+        if (command.name) client.commands.set(command.name, command);
+        if (command.data && command.data.name) client.commands.set(command.data.name, command);
     } catch (error) {
-        console.error(`\n🚨 ERROR CRÍTICO EN EL ARCHIVO: [${file}]`);
-        console.error(`Mensaje: ${error.message}\n`);
+        console.error(`🚨 ERROR EN: [${file}] - ${error.message}`);
     }
 }
 
-// --- ⚡ EVENTO: CLIENTREADY ---
 client.once(Events.ClientReady, (c) => { 
     console.log(`✅ Rockstar logueado como ${c.user.tag}`);
-    console.log('🚀 Bot listo para recibir interacciones.');
 });
 
-// --- 💬 EVENTO: MESSAGE (Prefijo !!, Actividad y EXPERIENCIA) ---
+// --- 💬 EVENTO: MESSAGE (XP y Prefijo) ---
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
     // --- 📈 SISTEMA DE EXPERIENCIA PASIVA ---
-    // Da entre 15 y 25 XP por cada mensaje enviado en el servidor
     const xpGained = Math.floor(Math.random() * 11) + 15; 
     const levelStatus = await addXP(message.author.id, xpGained, client);
     
-    // Si subió de nivel, lo anunciamos en el canal
-    if (levelStatus.leveledUp) {
+    if (levelStatus && levelStatus.leveledUp) {
         message.channel.send(`> ✨ Las sombras reconocen tu esfuerzo, <@${message.author.id}>. Has ascendido al **Nivel ${levelStatus.level}**.`);
     }
 
@@ -90,28 +74,21 @@ client.on('messageCreate', async message => {
             return;
         }
     }
-    
     await checkNekos(message, 'message');
 });
 
-// --- ⚡ EVENTO: INTERACTION (Comandos / y Autocompletado) ---
+// --- ⚡ EVENTO: INTERACTION (Slash y Autocomplete) ---
 client.on('interactionCreate', async interaction => {
-    
-    // --- 🔍 NUEVO: MANEJADOR DE AUTOCOMPLETADO (Para /reaction) ---
+    // 🔍 MANEJADOR DE AUTOCOMPLETADO (Para /reaction)
     if (interaction.isAutocomplete()) {
         const cmd = client.commands.get(interaction.commandName);
-        if (!cmd || !cmd.autocomplete) return;
-        try {
-            await cmd.autocomplete(interaction);
-        } catch (error) {
-            console.error("Error en autocompletado:", error);
+        if (cmd && cmd.autocomplete) {
+            try { await cmd.autocomplete(interaction); } catch (e) { console.error(e); }
         }
-        return; // Terminamos aquí para que no siga leyendo
+        return;
     }
 
-    // --- 💬 MANEJADOR DE SLASH COMMANDS ---
     if (!interaction.isChatInputCommand()) return;
-
     const cmd = client.commands.get(interaction.commandName);
     if (!cmd) return;
 
