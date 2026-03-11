@@ -1,42 +1,49 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../userManager.js');
 
+const getE = (guild) => {
+    const source = guild ? guild.emojis.cache : null;
+    return (source && source.filter(e => e.available).size > 0) ? source.random().toString() : '✨';
+};
+
 module.exports = {
     name: 'mine',
     description: 'Extrae flores de las profundidades de la tierra ⛏️',
     category: 'economía',
     async execute(input) {
-        const user = input.author || input.user;
+        const isSlash = !!input.user;
+        const user = isSlash ? input.user : input.author;
+        const guild = input.guild;
+        
         let data = await getUserData(user.id);
         const inv = data.inventory || {};
+        const e = () => getE(guild);
 
-        // --- 📂 1. VERIFICACIÓN DE HERRAMIENTAS (¡PRIMERO!) ---
+        // --- ⛏️ 1. VERIFICACIÓN DE HERRAMIENTAS ---
         const zonas = [
             { id: 'pico_mitico', zona: 'Abismo Eterno', multis: 4 },
             { id: 'pico_hierro', zona: 'Venas de Acero', multis: 1.8 },
             { id: 'pico_madera', zona: 'Gruta Superficial', multis: 1 }
         ];
         
-        // Zona VIP exclusiva
-        if (data.premiumType === 'pro' || data.premiumType === 'ultra') {
+        if (data.premiumType && data.premiumType !== 'none') {
             zonas.unshift({ id: 'pico_void', zona: '✨ Void Haven', multis: 6, secret: true });
         }
 
-        // Buscamos si tiene el pico normal o el reparado en su Objeto de inventario
         const mejorPico = zonas.find(z => (inv[z.id] || 0) > 0 || (inv[`${z.id}_repaired`] || 0) > 0);
 
         if (!mejorPico) {
-            return input.reply({ content: "╰┈➤ ❌ No puedes entrar a la mina sin herramientas. Ve a la `!!shop` por un pico.", ephemeral: true });
+            return input.reply({ content: `╰┈➤ ❌ No puedes minar sin herramientas. Compra un pico en la \`!!shop\`.`, ephemeral: true });
         }
 
         // --- ⚙️ 2. CONFIGURACIÓN DE RANGOS Y COOLDOWN ---
-        if (data.health === undefined) data.health = 3;
-        let riesgo = 0.15, daño = 1, pctPerdida = 0.15, pctVidas = 0.60, cooldown = 300000;
+        let riesgo = 0.15, daño = 1, cooldown = 300000;
+        const premium = (data.premiumType || 'none').toLowerCase();
 
-        if (data.premiumType === 'pro' || data.premiumType === 'mensual') { 
-            riesgo = 0.10; daño = 0.5; pctPerdida = 0.10; pctVidas = 0.50; cooldown = 120000; 
-        } else if (data.premiumType === 'ultra' || data.premiumType === 'bimestral') { 
-            riesgo = 0.05; daño = 0.3; pctPerdida = 0.05; pctVidas = 0.20; cooldown = 0; 
+        if (premium === 'pro' || premium === 'mensual') { 
+            riesgo = 0.10; daño = 0.5; cooldown = 120000; 
+        } else if (premium === 'ultra' || premium === 'bimestral') { 
+            riesgo = 0.05; daño = 0.2; cooldown = 0; 
         }
 
         const lastMine = data.lastMine ? new Date(data.lastMine).getTime() : 0;
@@ -45,54 +52,55 @@ module.exports = {
             return input.reply({ content: `⏳ El polvo no se ha asentado. Reintenta en \`${espera}s\`.`, ephemeral: true });
         }
 
-        // --- 💀 3. LÓGICA DE RIESGO (DERRUMBE) ---
+        // --- 🚀 3. LÓGICA DE BOOSTS ---
+        const now = Date.now();
+        data.activeBoosts = (data.activeBoosts || []).filter(b => b.expiresAt > now);
+        const hasMoneyBoost = data.activeBoosts.some(b => b.id === 'boost_flores');
+        const multiplier = hasMoneyBoost ? 2 : 1;
+
+        // --- 💀 4. LÓGICA DE RIESGO (DERRUMBE) ---
         if (Math.random() < riesgo) {
             data.health -= daño;
-            data.lastMine = Date.now(); // El intento fallido también consume cooldown
+            data.lastMine = now;
+
+            // updateUserData procesará la purga de inventario si la vida llega a 0
+            await updateUserData(user.id, data);
 
             if (data.health <= 0) {
-                const perdidaDinero = Math.floor((data.wallet || 0) * pctPerdida);
-                const vidasPerdidasInv = Math.ceil((inv['vidas'] || 0) * pctVidas);
-                
-                data.wallet = Math.max(0, (data.wallet || 0) - perdidaDinero);
-                data.health = 0; // Se queda en 0 para que el hospital lo cure
-                
-                if (inv['vidas']) data.inventory['vidas'] -= vidasPerdidasInv;
-
-                // Pérdida de materiales (Sincronizado con Objeto)
-                const mats = ['wood', 'stone', 'iron_ore'];
-                mats.forEach(m => { 
-                    if(inv[m]) data.inventory[m] = Math.max(0, inv[m] - Math.ceil(inv[m] * pctPerdida)); 
-                });
-
-                await updateUserData(user.id, data);
-                
                 const deathEmbed = new EmbedBuilder()
-                    .setTitle('💀 Muerte en la Mina')
+                    .setTitle(`${e()} 💀 Derrumbe Fatal`)
                     .setColor('#000000')
-                    .setDescription(`Has sucumbido ante la presión de la tierra.\n\n> 💸 Perdiste: \`${perdidaDinero}\` flores\n> 💔 Vidas perdidas: \`${vidasPerdidasInv}\``)
-                    .setFooter({ text: 'Usa !!hospital para recuperarte' });
+                    .setThumbnail('https://i.pinimg.com/originals/8a/cc/b0/8accb071720d2d3129807b1cc1ec3f1e.gif')
+                    .setDescription(`> *La montaña ha reclamado tu esencia.*\n\n╰┈➤ 🎒 Parte de tus materiales se han perdido bajo las rocas.\n╰┈➤ ❤️ Has sido rescatado y tu salud vuelve a **3 corazones**.`)
+                    .setFooter({ text: 'Ten más cuidado en las profundidades.' });
 
                 return input.reply({ embeds: [deathEmbed] });
             }
 
-            await updateUserData(user.id, data);
-            return input.reply(`⚠️ **Derrumbe:** Recibiste una herida de \`${daño}\`. ❤️ Vitalidad: \`${data.health.toFixed(1)}/3\``);
+            return input.reply(`⚠️ **Derrumbe:** Las piedras te han golpeado. Perdiste \`${daño}\` de vida. ❤️ Vitalidad: \`${Math.floor(data.health)}/3\``);
         }
 
-        // --- 💰 4. CÁLCULO DE GANANCIAS ---
-        const flores = Math.floor(Math.random() * 500 + 500) * mejorPico.multis;
-        data.wallet = (data.wallet || 0) + flores;
-        data.lastMine = Date.now();
+        // --- 💰 5. CÁLCULO DE GANANCIAS ---
+        const floresBase = Math.floor(Math.random() * 500 + 500) * mejorPico.multis;
+        const floresFinales = floresBase * multiplier;
+
+        data.wallet = (data.wallet || 0) + floresFinales;
+        data.lastMine = now;
 
         await updateUserData(user.id, data);
 
+        let boostMsg = hasMoneyBoost ? `\n╰┈➤ 🚀 **Boost:** ¡Multiplicador x2 aplicado!` : "";
+
         const embed = new EmbedBuilder()
             .setColor('#1a1a1a')
-            .setAuthor({ name: `Exploración: ${mejorPico.zona}`, iconURL: user.displayAvatarURL() })
+            .setAuthor({ name: `Minería: ${mejorPico.zona}`, iconURL: user.displayAvatarURL() })
             .setThumbnail(mejorPico.secret ? 'https://i.pinimg.com/originals/7b/0a/61/7b0a61833503b414f6b0f1a91e3e7f91.gif' : 'https://i.pinimg.com/originals/30/85/6a/30856a9080b06b0b009e86749fcb186b.gif')
-            .setDescription(`> *“El silencio de la piedra es tu único aliado.”*\n\n💰 **Ganancia:** \`${flores.toFixed(0)}\` flores\n❤️ **Vitalidad:** \`${data.health.toFixed(1)}/3\``)
-            .setFooter({ text: `Herramienta: ${mejorPico.id.replace(/_/g, ' ')}` });
+            .setDescription(
+                `> *“El silencio de la piedra es tu único aliado.”*\n\n` +
+                `💰 **Ganancia:** \`+${floresFinales.toLocaleString()} 🌸\`${boostMsg}\n` +
+                `❤️ **Vitalidad:** \`${Math.floor(data.health)}/3\``
+            )
+            .setFooter({ text: `Equipo: ${mejorPico.id.replace(/_/g, ' ')}` });
 
         return input.reply({ embeds: [embed] });
     }
