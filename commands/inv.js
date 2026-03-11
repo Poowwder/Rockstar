@@ -1,10 +1,17 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData } = require('../userManager.js');
 
+// --- ✨ EMOJIS AL AZAR PARA DECORACIÓN ---
+const getRndEmoji = (guild) => {
+    if (!guild) return '✨';
+    const emojis = guild.emojis.cache.filter(e => e.available);
+    return emojis.size > 0 ? emojis.random().toString() : '✨';
+};
+
 module.exports = {
     name: 'inv',
     aliases: ['inventario', 'inventory', 'items', 'mochila'],
-    category: 'economia',
+    category: 'economía',
     usage: '!!inv [@usuario]',
     data: new SlashCommandBuilder()
         .setName('inv')
@@ -12,33 +19,39 @@ module.exports = {
         .addUserOption(option => option.setName('usuario').setDescription('Ver el inventario de otra persona')),
 
     async execute(input) {
-        // --- ⊹ Detección Híbrida ⊹ ---
-        const isSlash = !input.author;
-        const target = isSlash ? (input.options.getUser('usuario') || input.user) : (input.mentions.users.first() || input.author);
+        // --- ⊹ DETECCIÓN HÍBRIDA MAESTRA ⊹ ---
+        const isSlash = !!input.user;
+        const author = isSlash ? input.user : input.author;
+        const target = isSlash ? (input.options.getUser('usuario') || author) : (input.mentions.users.first() || author);
         const guild = input.guild;
         
+        const member = guild ? (guild.members.cache.get(target.id) || { displayName: target.username }) : { displayName: target.username };
         const data = await getUserData(target.id);
+        const rndEmj = getRndEmoji(guild);
         
-        // --- ⟢ Emojis Dinámicos del Servidor ⟢ ---
+        // --- ⟢ EMOJIS DINÁMICOS POR ÍTEM ⟢ ---
+        // Busca un emoji en tu servidor que se llame EXACTAMENTE igual que el ítem. Si no, usa 📦
         const getEmoji = (name) => {
+            if (!guild) return '📦';
             const emoji = guild.emojis.cache.find(e => e.name.toLowerCase() === name.toLowerCase());
-            return emoji ? emoji.toString() : '✨';
+            return emoji ? emoji.toString() : '📦';
         };
 
         const inventario = data.inventory || {};
-        const durabilidades = data.durabilidades || {}; // Asegúrate de guardar durabilidad aquí
+        const durabilidades = data.durabilidades || {}; 
         
-        // --- ⚙️ Clasificación de Objetos ---
+        // --- ⚙️ CLASIFICACIÓN DE OBJETOS ---
         const herramientas = [];
         const materiales = [];
 
         Object.entries(inventario).forEach(([key, qty]) => {
             if (qty <= 0) return;
 
+            // Formatea el nombre (ej: "mineral_oro" -> "Mineral Oro")
             const nameNice = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
             const emoji = getEmoji(key);
 
-            // Si es un pico, caña o algo con durabilidad
+            // Filtro para picos y cañas
             if (key.includes('pico') || key.includes('cana')) {
                 const dur = durabilidades[key] !== undefined ? ` \`[${durabilidades[key]} usos]\`` : "";
                 const estado = key.endsWith('_broken') ? " 🥀 *Roto*" : key.endsWith('_repaired') ? " 🛠️ *Reparado*" : "";
@@ -48,25 +61,21 @@ module.exports = {
             }
         });
 
-        // --- ⊹ Construcción del Embed ⊹ ---
+        // --- ⊹ CONSTRUCCIÓN DEL EMBED ⊹ ---
+        const txtHerramientas = herramientas.length > 0 ? herramientas.join('\n') : "> *Sin herramientas en el cinturón.*";
+        const txtMateriales = materiales.length > 0 ? materiales.join('\n') : "> *Mochila vacía... el abismo te espera.*";
+
         const invEmbed = new EmbedBuilder()
-            .setColor('#1a1a1a') // Negro Gótico
-            .setAuthor({ name: `Mochila de ${target.username}`, iconURL: target.displayAvatarURL({ dynamic: true }) })
+            .setColor('#1a1a1a') // Negro Rockstar
+            .setAuthor({ name: `Equipamiento de ${member.displayName}`, iconURL: target.displayAvatarURL({ dynamic: true }) })
             .setThumbnail('https://i.pinimg.com/originals/82/30/9b/82309b858e723525565349f481c0f065.gif')
-            .setFooter({ text: `✦ Rockstar Inventory ⊹ Alquimia de Sombras`, iconURL: guild.iconURL() });
+            .setDescription(
+                `> *“Lo que cargamos nos define, lo que guardamos nos protege.”* ${rndEmj}\n\n` +
+                `**⚒️ ⟢ ₊˚ Equipo Activo ˚₊ ⟣**\n${txtHerramientas}\n\n` +
+                `**💎 ⟢ ₊˚ Recursos ˚₊ ⟣**\n${txtMateriales}`
+            )
+            .setFooter({ text: `Inventario ⊹ Economía Rockstar`, iconURL: guild ? guild.iconURL() : target.displayAvatarURL() });
 
-        // Sección de Herramientas
-        const txtHerramientas = herramientas.length > 0 ? herramientas.join('\n') : "*Sin herramientas activas.*";
-        
-        // Sección de Materiales
-        const txtMateriales = materiales.length > 0 ? materiales.join('\n') : "*Mochila vacía... ve a minar.*";
-
-        invEmbed.setDescription(
-            `> *“Lo que cargamos nos define, lo que guardamos nos protege.”* ⊹\n\n` +
-            `**⚒️ ⟢ ₊˚ Equipo Actual ˚₊ ⟣**\n${txtHerramientas}\n\n` +
-            `**💎 ⟢ ₊˚ Recursos ˚₊ ⟣**\n${txtMateriales}`
-        );
-
-        return isSlash ? input.reply({ embeds: [invEmbed] }) : input.reply({ embeds: [invEmbed] });
+        return input.reply({ embeds: [invEmbed] });
     }
 };
