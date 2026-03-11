@@ -1,13 +1,18 @@
 {
-  "coin_rain": {
-    "id": "coin_rain",
+  "lluvia_flores": {
+    "id": "lluvia_flores",
     "name": "Lluvia de Monedas",
-    "description": "¡Llueven monedas del cielo!",
-    "chance": 5,
-    "effect": {
-      "type": "money",
-      "amount": 1000
-    },
+    "description": "¡Las flores caen del cielo! Ganancias x2 en Work, Crime y Daily.",
+    "multiplier": 2,
+    "type": "money",
     "icon": "🌧️"
+  },
+  "fiebre_oro": {
+    "id": "fiebre_oro",
+    "name": "Fiebre de Extracción",
+    "description": "¡Las vetas de cristal brillan más que nunca! Doble materiales en Mine y Fish.",
+    "multiplier": 2,
+    "type": "materials",
+    "icon": "⛏️"
   }
 }
