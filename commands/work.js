@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const { getUserData, updateUserData } = require('../userManager.js'); 
+const fs = require('fs');
+const path = require('path');
 
 // --- 🏆 CONFIGURACIÓN DE ASCENSOS ---
 const RANGOS_LABORALES = [
@@ -47,11 +49,30 @@ module.exports = {
         let data = await getUserData(userId);
         const now = Date.now();
         
-        // --- 💎 CONFIGURACIÓN VIP Y BOOSTS ---
-        let cooldown = 3600000, multiRango = 1, probFail = 0.25;
+        // --- 🌍 INTEGRACIÓN DE EVENTOS GLOBALES ---
+        let multiEvento = 1;
+        const activePath = path.join(__dirname, '../data/activeEvent.json');
+        if (fs.existsSync(activePath)) {
+            try {
+                const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
+                if (ev.type === 'money') multiEvento = ev.multiplier;
+            } catch (err) { console.log("Error leyendo evento:", err); }
+        }
+
+        // --- 💎 CONFIGURACIÓN VIP Y BONOS POR RANGO (3%, 7%, 10%) ---
+        let cooldown = 3600000, multiRango = 1.03, probFail = 0.25;
         const prem = (data.premiumType || 'none').toLowerCase();
-        if (prem === 'pro' || prem === 'mensual') { cooldown = 1800000; multiRango = 1.2; probFail = 0.15; }
-        else if (prem === 'ultra' || prem === 'bimestral') { cooldown = 0; multiRango = 1.5; probFail = 0.05; }
+        
+        if (prem === 'pro' || prem === 'mensual') { 
+            cooldown = 1800000; 
+            multiRango = 1.07; 
+            probFail = 0.15; 
+        }
+        else if (prem === 'ultra' || prem === 'bimestral') { 
+            cooldown = 0; 
+            multiRango = 1.10; 
+            probFail = 0.05; 
+        }
 
         data.activeBoosts = (data.activeBoosts || []).filter(b => b.expiresAt > now);
         const multiBoost = data.activeBoosts.some(b => b.id === 'boost_flores') ? 2 : 1;
@@ -75,10 +96,12 @@ module.exports = {
                 return interactionToReply.reply(`⚠️ **Fallo:** Cometiste un error grave en tu turno. Advertencia \`[${data.workWarnings}/2]\`.`);
             } else {
                 let ganaBase = Math.floor((Math.random() * (currentJob.max - currentJob.min + 1)) + currentJob.min);
-                let ganaFinal = Math.floor(ganaBase * multiRango * multiBoost * rangoActual.bono);
+                
+                // --- CÁLCULO FINAL: Base * MultiEvento * MultiRango (Premium) * MultiBoost * BonoLaboral ---
+                let ganaFinal = Math.floor((ganaBase * multiEvento) * multiRango * multiBoost * rangoActual.bono);
                 
                 data.jobExperience = expActual + 1;
-                data.wallet += ganaFinal;
+                data.wallet = (data.wallet || 0) + ganaFinal;
                 data.lastWork = now;
                 data.workWarnings = 0;
 
@@ -87,11 +110,20 @@ module.exports = {
 
                 await updateUserData(userId, data);
 
-                return interactionToReply.reply({ embeds: [new EmbedBuilder()
+                const workEmbed = new EmbedBuilder()
                     .setColor(rangoActual.color)
                     .setThumbnail('https://i.pinimg.com/originals/33/c2/f7/33c2f7034f40d0263309a96e987c9f8a.gif')
-                    .setDescription(`> ${currentJob.emoji} **Jornada Exitosa**\n> Puesto: **${currentJob.nombre}** (\`${rangoActual.nombre}\`)\n\n╰┈➤ 💰 **Paga:** \`+${ganaFinal.toLocaleString()} 🌸\`\n╰┈➤ 📈 **Experiencia:** \`${data.jobExperience}\` turnos.${ascensoMsg}`)
-                ]});
+                    .setTitle(`💼 JORNADA COMPLETADA`)
+                    .setDescription(
+                        `> ${currentJob.emoji} **Puesto:** ${currentJob.nombre}\n` +
+                        `> **Rango Laboral:** \`${rangoActual.nombre}\` (Bono x${rangoActual.bono})\n\n` +
+                        `╰┈➤ 💰 **Paga:** \`+${ganaFinal.toLocaleString()} 🌸\`\n` +
+                        `╰┈➤ 📊 **Bonus Rango:** \`+${((multiRango-1)*100).toFixed(0)}%\`\n` +
+                        (multiEvento > 1 ? `╰┈➤ 🌟 **Evento:** \`x${multiEvento} Activo\`\n` : "") +
+                        `╰┈➤ 📈 **Experiencia:** \`${data.jobExperience}\` turnos.${ascensoMsg}`
+                    );
+
+                return interactionToReply.reply({ embeds: [workEmbed] });
             }
         };
 
@@ -103,7 +135,6 @@ module.exports = {
 
         // --- MODO INTERACTIVO (!!work) ---
         if (!isSlash) {
-            // SI NO TIENE TRABAJO: Mostrar menú y RECOLECTAR respuesta
             if (!data.job) {
                 const menu = new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
@@ -113,8 +144,6 @@ module.exports = {
                 );
                 
                 const response = await input.reply({ content: `> ✨ **Bolsa de Empleo Rockstar**\n> Selecciona una carrera para empezar.`, components: [menu] });
-
-                // RECOLECTOR PARA EL MENÚ
                 const collector = response.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 60000 });
 
                 collector.on('collect', async i => {
@@ -129,7 +158,6 @@ module.exports = {
                 return;
             }
 
-            // SI TIENE TRABAJO: Verificar cooldown y mostrar botones
             const rest = cooldown - (now - (data.lastWork || 0));
             if (cooldown > 0 && rest > 0) {
                 const min = Math.floor(rest/60000);
