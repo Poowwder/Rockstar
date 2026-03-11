@@ -13,13 +13,19 @@ const UserSchema = new mongoose.Schema({
     activeBoosts: { type: Array, default: [] }, 
     job: { type: String, default: null },
     jobExperience: { type: Number, default: 0 },
-    lastWork: { type: Number, default: 0 },
-    dailyStreak: { type: Number, default: 0 }, // Añade esta línea a tu UserSchema
     workWarnings: { type: Number, default: 0 },
     inventory: { type: Object, default: {} }, 
     durabilidades: { type: Object, default: {} },
     xp: { type: Number, default: 0 },
-    level: { type: Number, default: 1 }
+    level: { type: Number, default: 1 },
+
+    // --- ⏳ CONTROL DE TIEMPOS Y RACHAS ---
+    lastWork: { type: Number, default: 0 },
+    dailyStreak: { type: Number, default: 0 }, 
+    lastDaily: { type: Number, default: 0 },
+    lastCrime: { type: Number, default: 0 },
+    lastMine: { type: Number, default: 0 },
+    lastFish: { type: Number, default: 0 }
 });
 
 // --- 🛒 ESQUEMA DE LA TIENDA ---
@@ -77,7 +83,7 @@ async function addXP(userId, amount) {
     return { leveledUp: false };
 }
 
-// --- 🛒 FUNCIONES DE TIENDA (Las que faltaban exportar) ---
+// --- 🛒 FUNCIONES DE TIENDA ---
 async function getShopItemsDB() { 
     try { return await ShopItem.find({}); } catch (e) { return []; } 
 }
