@@ -1,63 +1,85 @@
 const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../userManager.js');
+const ms = require('ms');
+
+const getE = (guild) => {
+    const source = guild ? guild.emojis.cache : null;
+    return (source && source.filter(e => e.available).size > 0) ? source.random().toString() : '✨';
+};
 
 module.exports = {
     name: 'use',
+    description: '✨ Usa un objeto de tu inventario.',
+    category: 'economía',
     data: new SlashCommandBuilder()
         .setName('use')
-        .setDescription('🎀 Usa o equipa un objeto de tu inventario')
-        .addStringOption(opt => opt.setName('item').setDescription('Nombre del item').setRequired(true)),
+        .setDescription('Usa o equipa un objeto de tu inventario')
+        .addStringOption(opt => opt.setName('item').setDescription('ID del objeto').setRequired(true)),
 
     async execute(input, args) {
         const isSlash = !!input.user;
         const user = isSlash ? input.user : input.author;
-        const itemName = isSlash ? input.options.getString('item').toLowerCase() : args?.join(' ').toLowerCase();
+        const guild = input.guild;
+        const itemName = isSlash ? input.options.getString('item').toLowerCase() : args?.[0]?.toLowerCase();
 
-        if (!itemName) return input.reply("╰┈➤ 🌸 **¡Hola!** Dime qué quieres usar. ✨");
+        if (!itemName) return input.reply(`╰┈➤ ${getE(guild)} **Dime qué quieres usar.**`);
 
         let data = await getUserData(user.id);
-        
-        // Buscamos el item en el inventario
-        const itemIndex = data.inventory.findIndex(i => i.toLowerCase().includes(itemName));
+        const inv = data.inventory || {};
 
-        if (itemIndex === -1) {
-            return input.reply(`╰┈➤ ❌ **¡Ups!** No encontré ese objeto en tu mochila. ✨`);
+        // 1. Verificar si tiene el item (Lógica de Objeto)
+        if (!inv[itemName] || inv[itemName] <= 0) {
+            return input.reply(`╰┈➤ ❌ No tienes \`${itemName}\` en tu mochila.`);
         }
 
-        const itemReal = data.inventory[itemIndex];
-        let mensajeExtra = `*“¡Te ves increíble con esto!”* 🎀`;
-        let estadoItem = `Listo para la acción`;
+        let mensajeExtra = `*“¡Listo para la acción!”*`;
+        let estadoItem = `Objeto activado.`;
+        let color = '#1a1a1a';
 
-        // --- ❤️ LÓGICA ESPECIAL PARA EL ITEM "VIDA" ---
-        if (itemReal.toLowerCase().includes("vida")) {
-            // Regla: No se puede usar si tiene más de 2.0 (Bimestrales deben perder 1 completa)
-            if (data.health > 2.0) {
-                return input.reply(`╰┈➤ 🩺 **¡Espera!** Tu salud está en \`${data.health.toFixed(1)}/3\`. Solo puedes usar una vida cuando tengas \`2.0\` o menos. ✨`);
+        // --- 🧪 LÓGICA DE ITEMS ---
+
+        // ❤️ VIDA EXTRA
+        if (itemName.includes("vida")) {
+            if (data.health >= 3) {
+                return input.reply(`╰┈➤ 🩺 **¡Espera!** Tu salud ya está al máximo (\`${data.health}/3\`).`);
             }
-
-            // Consumimos el item y curamos
-            data.inventory.splice(itemIndex, 1);
+            inv[itemName] -= 1;
             data.health = Math.min(3, data.health + 1);
-            
-            await updateUserData(user.id, { health: data.health, inventory: data.inventory });
-            
-            mensajeExtra = `*“¡Te sientes con mucha más energía!”* 💖`;
-            estadoItem = `Salud restaurada a ${data.health.toFixed(1)}/3`;
+            mensajeExtra = `*“¡Sientes cómo tus heridas sanan!”* ❤️`;
+            estadoItem = `Salud restaurada a ${Math.floor(data.health)}/3`;
+            color = '#ff4d4d';
+        } 
+        
+        // 🚀 BOOST DE FLORES (Ejemplo)
+        else if (itemName === 'boost_flores') {
+            inv[itemName] -= 1;
+            if (!data.activeBoosts) data.activeBoosts = [];
+            data.activeBoosts.push({ id: 'boost_flores', expiresAt: Date.now() + ms('1h') });
+            mensajeExtra = `*“¡Tus ganancias se multiplicarán por una hora!”* 🌸`;
+            estadoItem = `Multiplicador x2 Activado (1h)`;
+            color = '#ffb7f5';
         }
+
+        else {
+            return input.reply(`╰┈➤ ❌ El objeto \`${itemName}\` no tiene una función de uso definida.`);
+        }
+
+        // 2. Guardar cambios
+        data.inventory = inv;
+        await updateUserData(user.id, data);
 
         const useEmbed = new EmbedBuilder()
-            .setTitle(`✨ ‧₊˚ Objeto Utilizado ˚₊‧ ✨`)
-            .setColor('#FFB6C1')
-            .setThumbnail('https://i.pinimg.com/originals/de/13/8d/de138d68962534575975d4f7c975a5c5.gif')
+            .setTitle(`${getE(guild)} ‧₊˚ Objeto Utilizado ˚₊‧ ${getE(guild)}`)
+            .setColor(color)
+            .setThumbnail(user.displayAvatarURL({ dynamic: true }))
             .setDescription(
                 `${mensajeExtra}\n\n` +
-                `**୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧**\n` +
-                `🌸 **Has usado:** \`${itemReal}\`\n` +
-                `✨ **Estado:** \`${estadoItem}\`\n` +
-                `**୨୧ ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈ ୨୧**\n\n` +
-                `╰┈➤ *¡A por todas, Rockstar!*`
+                `**─── ✦ REGISTRO ✦ ───**\n` +
+                `${getE(guild)} **Usaste:** \`${itemName}\`\n` +
+                `${getE(guild)} **Efecto:** \`${estadoItem}\`\n` +
+                `**─────────────────**`
             )
-            .setFooter({ text: `Acción por: ${user.username} ♡`, iconURL: user.displayAvatarURL() });
+            .setFooter({ text: `Acción: ${user.username} ⊹ Rockstar Nightfall` });
 
         return input.reply({ embeds: [useEmbed] });
     }
