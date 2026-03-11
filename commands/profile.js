@@ -26,7 +26,6 @@ module.exports = {
             target = input.mentions.users.first() || author;
         }
 
-        // --- ✨ MOTOR DE EMOJIS AL AZAR ---
         const getE = () => {
             const source = guild ? guild.emojis.cache : client.emojis.cache;
             const available = source.filter(e => e.available);
@@ -36,17 +35,15 @@ module.exports = {
         try {
             const data = await getUserData(target.id);
             
-            // --- 💎 RANGOS Y VIP ---
             const OWNER_ID = '1428164600091902055'; 
             const premium = (data.premiumType || 'none').toLowerCase();
             let rango = (data.premiumType || 'USER').toUpperCase();
             if (target.id === OWNER_ID) rango = '𝕽☆𝖈𝖐𝖘𝖙𝖆𝖗 𝕹𝖔𝖛𝖆';
 
-            // --- 🌸 BARRA DE VIDA (SIN CORAZONES VISUALES) ---
+            // --- 🌸 ESTADO VITAL (FIX DE DECIMALES) ---
             const hp = data.health || 0;
-            const displayHp = Math.max(0, hp); // Vida nunca será negativa
+            const displayHp = Math.max(0, Math.floor(hp)); // Convertido a entero sin .0
 
-            // --- 💍 SISTEMA DE MATRIMONIOS ---
             let maxMarriages = 10;
             if (premium === 'pro' || premium === 'mensual') maxMarriages = 15;
             if (premium === 'ultra' || premium === 'bimestral') maxMarriages = 20;
@@ -54,15 +51,13 @@ module.exports = {
             const haremList = data.harem || [];
             const haremCount = haremList.length;
 
-            // --- 📄 CAMPOS DEL EMBED DINÁMICOS ---
             const embedFields = [
                 { name: ' ', value: 
                     `${getE()} 💠 **Rango:** \`${rango}\`\n` +
                     `${getE()} ✨ **Carisma:** \`${data.rep || 0}\` Pts\n` +
                     `${getE()} 💀 **Muertes:** ${data.deadCount || 0}`
                 },
-                // Muestra solo los números, limpio y estético
-                { name: `${getE()} Estado Vital ${getE()}`, value: `❤️ \`${displayHp.toFixed(1)} / 3\`` }
+                { name: `${getE()} Estado Vital ${getE()}`, value: `❤️ **${displayHp} / 3**` }
             ];
 
             if (haremCount > 0) {
@@ -82,17 +77,29 @@ module.exports = {
                 .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 1024 }))
                 .setDescription(`${getE()} *“Navegando entre las sombras...”* ${getE()}`)
                 .addFields(embedFields)
-                .setFooter({ text: `Rockstar Database ⊹ Sistema de Identidad` }) // ✅ Sin emojis aquí
+                .setFooter({ text: `Rockstar Database ⊹ Archivos de Red` }) // ✅ Footer renovado
                 .setTimestamp();
 
-            // --- 🔘 BOTONES DEL PERFIL ---
             const row = new ActionRowBuilder();
             
+            // --- 🔘 BOTÓN HAREM (Gris y con nombre correcto) ---
             if (haremCount > 0) {
-                row.addComponents(new ButtonBuilder().setCustomId('btn_harem').setLabel('Harén').setStyle(ButtonStyle.Secondary).setEmoji(getE()));
+                row.addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('btn_harem')
+                        .setLabel('Harem')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setEmoji(getE())
+                );
             }
             
-            row.addComponents(new ButtonBuilder().setCustomId('btn_close').setLabel('Cerrar').setStyle(ButtonStyle.Danger).setEmoji('✖️'));
+            // --- 🔘 BOTÓN CERRAR (Solo emoji al azar) ---
+            row.addComponents(
+                new ButtonBuilder()
+                    .setCustomId('btn_close')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji(getE())
+            );
 
             const msg = await input.reply({ embeds: [embed], components: [row], fetchReply: true });
 
@@ -116,7 +123,7 @@ module.exports = {
                         .setTitle(`💍 Harén de ${target.username} 💍`)
                         .setDescription(`${getE()} *Límite de expansión: \`[${haremCount} / ${maxMarriages}]\`*\n\n${haremDisplay}`)
                         .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-                        .setFooter({ text: `Rockstar Database`, iconURL: i.user.displayAvatarURL() }); // ✅ Sin emojis aquí
+                        .setFooter({ text: `Rockstar Database ⊹ Registro de Vínculos` });
 
                     return i.reply({ embeds: [haremEmbed], ephemeral: true });
                 }
