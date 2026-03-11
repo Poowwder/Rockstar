@@ -3,40 +3,63 @@ const { updateShopItemDB } = require('../userManager.js');
 
 module.exports = {
     name: 'additem',
+    description: 'Añade un objeto al Mercado de las Sombras.',
+    category: 'administración',
     async execute(message, args) {
-        // Verificación de permisos
+        // --- 🛡️ CONTROL DE ACCESO ---
         const hasRole = message.member.roles.cache.some(r => r.name.toLowerCase() === 'shop');
         if (!message.member.permissions.has(PermissionFlagsBits.Administrator) && !hasRole) return;
 
-        // ✅ FIX: Ahora solo pide 3 datos. Adiós a las IDs manuales.
-        if (args.length < 3) return message.reply("╰┈➤ ❌ Uso correcto: `!!additem <emoji> <precio> <nombre>`\n*Ejemplo:* `!!additem 🎣 2000 Caña de pescar`");
+        // --- 📝 VALIDACIÓN DE ARGUMENTOS ---
+        // Uso: !!additem <emoji> <precio> <categoría> <nombre>
+        if (args.length < 4) {
+            return message.reply({
+                content: "╰┈➤ ❌ **Error de formato.**\n> Uso: `!!additem <emoji> <precio> <categoría> <nombre>`\n> *Ejemplo: !!additem ⛏️ 3000 Herramientas Pico de Diamante*"
+            });
+        }
 
         const emoji = args[0];
         const precio = parseInt(args[1]);
-        const nombre = args.slice(2).join(' '); // Todo lo demás será el nombre
+        const categoria = args[2].toUpperCase(); // Se guarda en mayúsculas para los títulos de la tienda
+        const nombre = args.slice(3).join(' ');
 
-        if (isNaN(precio)) return message.reply("╰┈➤ ❌ Las sombras exigen un número válido como precio.");
+        if (isNaN(precio)) return message.reply("╰┈➤ ❌ El precio debe ser un número válido.");
 
-        // 🔮 MAGIA AUTOMÁTICA: Crea la ID usando el nombre
-        // Ejemplo: "Caña de Pescar" -> "cana_de_pescar"
+        // --- 🔮 GENERADOR DE ID AUTOMÁTICO ---
         const id = nombre.toLowerCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quita tildes y eñes
-            .replace(/[^a-z0-9]/g, '_') // Cambia espacios por guiones bajos
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quita tildes
+            .replace(/[^a-z0-9]/g, '_') // Cambia caracteres raros por guiones
             .replace(/_+/g, '_'); // Limpia guiones dobles
 
-        // Guardamos en la base de datos
-        await updateShopItemDB(id, { id, name: nombre, emoji, price: precio, tipo: "fijo" });
-        
-        // Embed estético
-        const embed = new EmbedBuilder()
-            .setColor('#1a1a1a')
-            .setDescription(
-                `> ✨ **Mercado de las Sombras Actualizado**\n` +
-                `> ╰┈➤ ${emoji} **${nombre}** ha sido añadido con éxito.\n` +
-                `> ╰┈➤ **Valor:** \`${precio}\` flores 🌸\n` +
-                `> ╰┈➤ *ID Interna asignada:* \`${id}\``
-            );
-        
-        message.reply({ embeds: [embed] });
+        // --- 💾 GUARDADO EN BASE DE DATOS ---
+        try {
+            await updateShopItemDB(id, { 
+                id, 
+                name: nombre, 
+                emoji, 
+                price: precio, 
+                tipo: "fijo", 
+                categoria: categoria 
+            });
+
+            // --- 📄 EMBED DE CONFIRMACIÓN ---
+            const embed = new EmbedBuilder()
+                .setColor('#1a1a1a')
+                .setTitle('✨ Registro de Mercancía Exitoso')
+                .setDescription(
+                    `> Un nuevo objeto ha sido vinculado al Mercado de las Sombras.\n\n` +
+                    `╰┈➤ **Objeto:** ${emoji} ${nombre}\n` +
+                    `╰┈➤ **Sección:** \`${categoria}\`\n` +
+                    `╰┈➤ **Valor:** \`${precio.toLocaleString()}\` flores 🌸\n` +
+                    `╰┈➤ **ID Asignada:** \`${id}\``
+                )
+                .setFooter({ text: 'Rockstar Economy ⊹ Gestión de Inventario' });
+
+            message.reply({ embeds: [embed] });
+
+        } catch (error) {
+            console.error("Error al añadir item:", error);
+            message.reply("╰┈➤ ❌ Hubo un fallo al contactar con la base de datos.");
+        }
     }
 };
