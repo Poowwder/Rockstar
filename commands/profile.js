@@ -27,7 +27,7 @@ module.exports = {
         const data = await getUserData(target.id);
         const profileDB = await UserProfile.findOne({ UserID: target.id, GuildID: input.guild.id });
 
-        const OWNER_ID = '1134261491745493032'; 
+        const OWNER_ID = '1428164600091902055'; 
         const isOwner = (target.id === OWNER_ID);
         
         let rankTitle = data.premiumType ? data.premiumType.toUpperCase() : "CIUDADANO REGULAR";
