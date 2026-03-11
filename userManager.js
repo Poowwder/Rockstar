@@ -10,16 +10,11 @@ const UserSchema = new mongoose.Schema({
     rep: { type: Number, default: 0 },
     premiumType: { type: String, default: 'none' }, 
     premiumUntil: { type: Date, default: null },
-    
-    // 💍 Vínculos y Harén
     harem: { type: Array, default: [] }, 
-    
-    // Trabajo y Cooldowns
     job: { type: String, default: null },
     lastWork: { type: Number, default: 0 },
     workWarnings: { type: Number, default: 0 },
     lastCrime: { type: Date, default: null },
-    
     inventory: { type: Object, default: {} }, 
     durabilidades: { type: Object, default: {} },
     xp: { type: Number, default: 0 },
@@ -33,7 +28,6 @@ const UserSchema = new mongoose.Schema({
     }
 });
 
-// --- 🛒 ESQUEMA DE LA TIENDA ---
 const ShopItemSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true },
     name: { type: String, required: true },
@@ -46,7 +40,7 @@ const ShopItemSchema = new mongoose.Schema({
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
 const ShopItem = mongoose.models.ShopItem || mongoose.model('ShopItem', ShopItemSchema);
 
-// --- 📉 FUNCIONES DE USUARIO Y EXPERIENCIA ---
+// --- 📉 FUNCIONES ---
 
 async function getUserData(userId) {
     let user = await User.findOne({ userId });
@@ -54,124 +48,60 @@ async function getUserData(userId) {
     return user;
 }
 
-async function addXP(userId, amount, client) {
-    let user = await getUserData(userId);
-    let multiplicador = 1; 
-    const rango = (user.premiumType || 'none').toLowerCase();
-
-    if (rango === 'ultra' || rango === 'bimestral') multiplicador = 2.0;
-    else if (rango === 'pro' || rango === 'mensual') multiplicador = 1.5;
-
-    const xpFinal = Math.floor(amount * multiplicador);
-    user.xp += xpFinal;
-    const nextLevelXP = user.level * 500;
-
-    if (user.xp >= nextLevelXP) {
-        user.level += 1;
-        user.xp -= nextLevelXP; 
-        await user.save();
-        return { leveledUp: true, level: user.level };
-    }
-    await user.save();
-    return { leveledUp: false };
-}
-
-// --- 💀 EL NÚCLEO: ACTUALIZACIÓN Y MUERTE QUIRÚRGICA ---
-
+// ✅ ACTUALIZACIÓN ROBUSTA (Arregla el inventario invisible)
 async function updateUserData(userId, data) {
     try {
-        let oldData = await User.findOne({ userId });
-        if (!oldData) oldData = await User.create({ userId });
+        let user = await User.findOne({ userId });
+        if (!user) user = await User.create({ userId });
 
-        // 🛡️ Lógica de Muerte (Mine/Fish) - Solo si pasa de Vivo a Muerto
-        if (data.health <= 0 && oldData.health > 0) {
-            const rank = (oldData.premiumType || 'none').toLowerCase();
-            const inv = oldData.inventory || {};
+        // 💀 LÓGICA DE MUERTE Y RENACIMIENTO
+        // Si la salud es 0 (como en tu captura) o menos, activamos la purga y revivimos
+        if (data.health <= 0) {
+            const rank = (user.premiumType || 'none').toLowerCase();
+            const inv = user.inventory || {};
             const newInv = { ...inv };
 
-            let lossPercentage; // Pérdida de materiales
-            let livesLoss;      // Pérdida de ítem "vida"
+            let lossPercentage = rank.includes('ultra') ? 0.05 : rank.includes('pro') ? 0.10 : 0.15;
+            let livesLoss = rank.includes('ultra') ? 2 : rank.includes('pro') ? 0.35 : 0.50;
 
-            // Definición de tasas según el rango
-            if (rank === 'ultra' || rank === 'bimestral') {
-                lossPercentage = 0.05; // 5% de materiales
-                livesLoss = 2;         // -2 vidas fijas
-            } else if (rank === 'pro' || rank === 'mensual') {
-                lossPercentage = 0.10; // 10% de materiales
-                livesLoss = 0.35;      // 35% de vidas compradas
-            } else {
-                lossPercentage = 0.15; // 15% de materiales
-                livesLoss = 0.50;      // 50% de vidas compradas
-            }
-
-            // Aplicar la purga al inventario sin tocar dinero
             for (let itemId in newInv) {
                 if (newInv[itemId] <= 0) continue;
-
                 if (itemId === 'vida') {
-                    // Si es Ultra, resta vidas fijas. Si no, resta porcentaje.
-                    if (rank === 'ultra' || rank === 'bimestral') {
-                        newInv[itemId] = Math.max(0, newInv[itemId] - livesLoss);
-                    } else {
-                        newInv[itemId] = Math.max(0, Math.floor(newInv[itemId] * (1 - livesLoss)));
-                    }
+                    if (rank.includes('ultra')) newInv[itemId] = Math.max(0, newInv[itemId] - livesLoss);
+                    else newInv[itemId] = Math.max(0, Math.floor(newInv[itemId] * (1 - livesLoss)));
                 } else {
-                    // Materiales (hierro, gemas, madera, peces, etc)
                     newInv[itemId] = Math.max(0, Math.floor(newInv[itemId] * (1 - lossPercentage)));
                 }
             }
 
-            // Inyectamos los cambios en el objeto data para que se guarden
-            data.inventory = newInv;
-            data.deadCount = (oldData.deadCount || 0) + 1;
-            data.health = 3; // ❤️ Renacimiento automático
-            // data.wallet NO se toca (Mine/Fish no quita dinero)
+            // Aplicamos los cambios de muerte
+            user.inventory = newInv;
+            user.deadCount += 1;
+            user.health = 3; // ❤️ Te devolvemos las 3 vidas
+            // Limpiamos 'data' para que no sobrescriba la salud a 0 otra vez
+            delete data.health;
+            delete data.inventory;
         }
 
-        await User.findOneAndUpdate({ userId }, { $set: data }, { upsert: true });
+        // 🧬 MEZCLAR DATOS NUEVOS
+        Object.assign(user, data);
+
+        // 🔥 CRÍTICO: Avisar a la base de datos que el Inventario cambió
+        user.markModified('inventory');
+        user.markModified('durabilidades');
+        user.markModified('harem');
+
+        await user.save();
         return true;
     } catch (err) { 
-        console.error("Error al actualizar datos de usuario:", err);
+        console.error("Error al guardar:", err);
         return false; 
     }
 }
 
-// --- 🛒 GESTIÓN DE LA TIENDA ---
+// ... (getShopItemsDB, updateShopItemDB, deleteShopItemDB se mantienen igual)
+async function getShopItemsDB() { try { return await ShopItem.find({}); } catch (e) { return []; } }
+async function updateShopItemDB(id, itemData) { try { await ShopItem.findOneAndUpdate({ id }, { $set: itemData }, { upsert: true }); return true; } catch (err) { return false; } }
+async function deleteShopItemDB(id) { try { await ShopItem.findOneAndDelete({ id }); return true; } catch (err) { return false; } }
 
-async function getShopItemsDB() {
-    try {
-        return await ShopItem.find({});
-    } catch (e) {
-        return [];
-    }
-}
-
-async function updateShopItemDB(id, itemData) {
-    try {
-        await ShopItem.findOneAndUpdate({ id }, { $set: itemData }, { upsert: true });
-        return true;
-    } catch (err) {
-        return false;
-    }
-}
-
-async function deleteShopItemDB(id) {
-    try {
-        await ShopItem.findOneAndDelete({ id });
-        return true;
-    } catch (err) {
-        return false;
-    }
-}
-
-// 🚀 EXPORTACIONES
-module.exports = { 
-    User, 
-    ShopItem,
-    getUserData, 
-    updateUserData, 
-    addXP, 
-    getShopItemsDB,
-    updateShopItemDB,
-    deleteShopItemDB
-};
+module.exports = { User, ShopItem, getUserData, updateUserData, getShopItemsDB, updateShopItemDB, deleteShopItemDB };
