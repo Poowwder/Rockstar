@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const { EmbedBuilder } = require('discord.js');
 
+// --- 👤 ESQUEMA DE USUARIO ---
 const UserSchema = new mongoose.Schema({
     userId: { type: String, required: true, unique: true },
     wallet: { type: Number, default: 0 },
@@ -11,13 +11,16 @@ const UserSchema = new mongoose.Schema({
     premiumType: { type: String, default: 'none' }, 
     premiumUntil: { type: Date, default: null },
     
+    // 💍 Vínculos (Agregado para que tus matrimonios funcionen)
+    harem: { type: Array, default: [] }, 
+    
     // Trabajo y Cooldowns
     job: { type: String, default: null },
     lastWork: { type: Number, default: 0 },
     workWarnings: { type: Number, default: 0 },
     lastCrime: { type: Date, default: null },
     
-    inventory: { type: Object, default: {} }, // 🔥 Importante: Object para cantidades
+    inventory: { type: Object, default: {} }, 
     durabilidades: { type: Object, default: {} },
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
@@ -30,48 +33,20 @@ const UserSchema = new mongoose.Schema({
     }
 });
 
+// --- 🛒 ESQUEMA DE LA TIENDA (Lo que faltaba) ---
+const ShopItemSchema = new mongoose.Schema({
+    id: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    emoji: { type: String, default: '📦' },
+    price: { type: Number, required: true },
+    tipo: { type: String, default: 'fijo' },
+    categoria: { type: String, default: 'VARIOS' } // Se guarda la sección (HERRAMIENTAS, etc)
+});
+
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
+const ShopItem = mongoose.models.ShopItem || mongoose.model('ShopItem', ShopItemSchema);
 
-// --- 📈 FUNCIÓN DE EXPERIENCIA CON MULTIPLICADORES ---
-async function addXP(userId, amount, client) {
-    let user = await User.findOne({ userId });
-    if (!user) user = await User.create({ userId });
-
-    let multiplicador = 1; 
-    const rango = (user.premiumType || 'none').toLowerCase();
-
-    // Multiplicadores: Ultra/Bimestral (2x), Pro/Mensual (1.5x)
-    if (rango === 'ultra' || rango === 'bimestral') multiplicador = 2.0;
-    else if (rango === 'pro' || rango === 'mensual') multiplicador = 1.5;
-
-    const xpFinal = Math.floor(amount * multiplicador);
-    user.xp += xpFinal;
-
-    const nextLevelXP = user.level * 500;
-
-    if (user.xp >= nextLevelXP) {
-        user.level += 1;
-        user.xp -= nextLevelXP; 
-        
-        if (user.level === 10 && !user.nekos.nyx) {
-            await grantNeko(userId, 'nyx', client);
-        }
-        await user.save();
-        return { leveledUp: true, level: user.level };
-    }
-    
-    await user.save();
-    return { leveledUp: false };
-}
-
-async function grantNeko(userId, nekoId, client) {
-    const user = await User.findOne({ userId });
-    if (!user || user.nekos[nekoId]) return;
-    user.nekos[nekoId] = true;
-    await user.save();
-    // (Aquí va tu lógica de notificación DM...)
-}
-
+// --- 📉 FUNCIONES DE USUARIO ---
 async function getUserData(userId) {
     let user = await User.findOne({ userId });
     if (!user) user = await User.create({ userId });
@@ -90,13 +65,70 @@ async function updateUserData(userId, data) {
     } catch (err) { return false; }
 }
 
-async function getShopItemsDB() { return []; }
+async function addXP(userId, amount, client) {
+    let user = await getUserData(userId);
+    let multiplicador = 1; 
+    const rango = (user.premiumType || 'none').toLowerCase();
 
-// 🚀 EXPORTACIONES (Esto es lo que arregla el error de Render)
+    if (rango === 'ultra' || rango === 'bimestral') multiplicador = 2.0;
+    else if (rango === 'pro' || rango === 'mensual') multiplicador = 1.5;
+
+    const xpFinal = Math.floor(amount * multiplicador);
+    user.xp += xpFinal;
+    const nextLevelXP = user.level * 500;
+
+    if (user.xp >= nextLevelXP) {
+        user.level += 1;
+        user.xp -= nextLevelXP; 
+        await user.save();
+        return { leveledUp: true, level: user.level };
+    }
+    await user.save();
+    return { leveledUp: false };
+}
+
+// --- 🛒 FUNCIONES DE LA TIENDA (Arreglado) ---
+
+// Obtener todos los ítems guardados
+async function getShopItemsDB() {
+    try {
+        return await ShopItem.find({});
+    } catch (e) {
+        console.error("Error al obtener ítems:", e);
+        return [];
+    }
+}
+
+// Guardar o actualizar un ítem
+async function updateShopItemDB(id, itemData) {
+    try {
+        await ShopItem.findOneAndUpdate({ id }, { $set: itemData }, { upsert: true });
+        return true;
+    } catch (err) {
+        console.error("Error en updateShopItemDB:", err);
+        return false;
+    }
+}
+
+// Eliminar un ítem
+async function deleteShopItemDB(id) {
+    try {
+        await ShopItem.findOneAndDelete({ id });
+        return true;
+    } catch (err) {
+        console.error("Error en deleteShopItemDB:", err);
+        return false;
+    }
+}
+
+// 🚀 EXPORTACIONES COMPLETAS
 module.exports = { 
     User, 
+    ShopItem,
     getUserData, 
     updateUserData, 
     addXP, 
-    getShopItemsDB 
+    getShopItemsDB,
+    updateShopItemDB,
+    deleteShopItemDB
 };
