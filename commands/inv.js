@@ -19,7 +19,6 @@ module.exports = {
         .addUserOption(option => option.setName('usuario').setDescription('Ver el inventario de otra persona')),
 
     async execute(input) {
-        // --- ⊹ DETECCIÓN HÍBRIDA MAESTRA ⊹ ---
         const isSlash = !!input.user;
         const author = isSlash ? input.user : input.author;
         const target = isSlash ? (input.options.getUser('usuario') || author) : (input.mentions.users.first() || author);
@@ -29,32 +28,36 @@ module.exports = {
         const data = await getUserData(target.id);
         const rndEmj = getRndEmoji(guild);
         
-        // --- ⟢ EMOJIS DINÁMICOS POR ÍTEM ⟢ ---
-        // Busca un emoji en tu servidor que se llame EXACTAMENTE igual que el ítem. Si no, usa 📦
-        const getEmoji = (name) => {
+        // --- ⟢ BUSCADOR DE EMOJIS MEJORADO ⟢ ---
+        const getEmoji = (key) => {
             if (!guild) return '📦';
-            const emoji = guild.emojis.cache.find(e => e.name.toLowerCase() === name.toLowerCase());
+            // Busca emojis que contengan el nombre (ej: "pico" encuentra "pico_oro")
+            const emoji = guild.emojis.cache.find(e => e.name.toLowerCase().includes(key.toLowerCase()));
             return emoji ? emoji.toString() : '📦';
         };
 
         const inventario = data.inventory || {};
         const durabilidades = data.durabilidades || {}; 
         
-        // --- ⚙️ CLASIFICACIÓN DE OBJETOS ---
         const herramientas = [];
         const materiales = [];
+
+        // Palabras clave para identificar herramientas compradas
+        const toolKeywords = ['pico', 'cana', 'hacha', 'pala', 'martillo'];
 
         Object.entries(inventario).forEach(([key, qty]) => {
             if (qty <= 0) return;
 
-            // Formatea el nombre (ej: "mineral_oro" -> "Mineral Oro")
+            // Formatea el nombre: "pico_piedra" -> "Pico Piedra"
             const nameNice = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
             const emoji = getEmoji(key);
 
-            // Filtro para picos y cañas
-            if (key.includes('pico') || key.includes('cana')) {
+            // ¿Es una herramienta?
+            const isTool = toolKeywords.some(word => key.toLowerCase().includes(word));
+
+            if (isTool) {
                 const dur = durabilidades[key] !== undefined ? ` \`[${durabilidades[key]} usos]\`` : "";
-                const estado = key.endsWith('_broken') ? " 🥀 *Roto*" : key.endsWith('_repaired') ? " 🛠️ *Reparado*" : "";
+                const estado = key.endsWith('_broken') ? " 🥀 *Roto*" : "";
                 herramientas.push(`╰┈➤ ${emoji} **${nameNice}**${dur}${estado}`);
             } else {
                 materiales.push(`╰┈➤ ${emoji} **${nameNice}** x\`${qty}\``);
@@ -62,19 +65,22 @@ module.exports = {
         });
 
         // --- ⊹ CONSTRUCCIÓN DEL EMBED ⊹ ---
-        const txtHerramientas = herramientas.length > 0 ? herramientas.join('\n') : "> *Sin herramientas en el cinturón.*";
-        const txtMateriales = materiales.length > 0 ? materiales.join('\n') : "> *Mochila vacía... el abismo te espera.*";
+        const txtHerramientas = herramientas.length > 0 ? herramientas.join('\n') : "> *Cinturón de herramientas vacío.*";
+        const txtMateriales = materiales.length > 0 ? materiales.join('\n') : "> *No hay recursos en la mochila.*";
 
         const invEmbed = new EmbedBuilder()
-            .setColor('#1a1a1a') // Negro Rockstar
-            .setAuthor({ name: `Equipamiento de ${member.displayName}`, iconURL: target.displayAvatarURL({ dynamic: true }) })
+            .setColor('#1a1a1a')
+            .setAuthor({ 
+                name: `Mochila de ${target.username}`, 
+                iconURL: target.displayAvatarURL({ dynamic: true }) 
+            })
             .setThumbnail('https://i.pinimg.com/originals/82/30/9b/82309b858e723525565349f481c0f065.gif')
             .setDescription(
                 `> *“Lo que cargamos nos define, lo que guardamos nos protege.”* ${rndEmj}\n\n` +
-                `**⚒️ ⟢ ₊˚ Equipo Activo ˚₊ ⟣**\n${txtHerramientas}\n\n` +
+                `**⚒️ ⟢ ₊˚ Herramientas ˚₊ ⟣**\n${txtHerramientas}\n\n` +
                 `**💎 ⟢ ₊˚ Recursos ˚₊ ⟣**\n${txtMateriales}`
             )
-            .setFooter({ text: `Inventario ⊹ Economía Rockstar`, iconURL: guild ? guild.iconURL() : target.displayAvatarURL() });
+            .setFooter({ text: `Rockstar ⊹ Eternal Vault` });
 
         return input.reply({ embeds: [invEmbed] });
     }
