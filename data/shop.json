@@ -1,0 +1,27 @@
+{
+  "wood": {
+    "name": "Madera",
+    "sellPrice": 50,
+    "icon": "🪵"
+  },
+  "stone": {
+    "name": "Piedra",
+    "sellPrice": 30,
+    "icon": "🪨"
+  },
+  "iron_ore": {
+    "name": "Mena de Hierro",
+    "sellPrice": 150,
+    "icon": "⛓️"
+  },
+  "diamante_rosa": {
+    "name": "Diamante Rosa",
+    "sellPrice": 75000,
+    "icon": "✨"
+  },
+  "pico_cristal": {
+    "name": "Pico de Cristal",
+    "sellPrice": 5000,
+    "icon": "💎"
+  }
+}
