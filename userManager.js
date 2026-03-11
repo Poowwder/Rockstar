@@ -11,10 +11,7 @@ const UserSchema = new mongoose.Schema({
     premiumType: { type: String, default: 'none' }, 
     premiumUntil: { type: Date, default: null },
     harem: { type: Array, default: [] }, 
-    job: { type: String, default: null },
-    lastWork: { type: Number, default: 0 },
-    workWarnings: { type: Number, default: 0 },
-    lastCrime: { type: Date, default: null },
+    activeBoosts: { type: Array, default: [] }, // 🔥 Para multiplicadores
     inventory: { type: Object, default: {} }, 
     durabilidades: { type: Object, default: {} },
     xp: { type: Number, default: 0 },
@@ -52,17 +49,14 @@ async function addXP(userId, amount, client) {
     let user = await getUserData(userId);
     let multiplicador = 1; 
     const rango = (user.premiumType || 'none').toLowerCase();
-
     if (rango === 'ultra' || rango === 'bimestral') multiplicador = 2.0;
     else if (rango === 'pro' || rango === 'mensual') multiplicador = 1.5;
 
-    const xpFinal = Math.floor(amount * multiplicador);
-    user.xp += xpFinal;
-    const nextLevelXP = user.level * 500;
-
-    if (user.xp >= nextLevelXP) {
+    user.xp += Math.floor(amount * multiplicador);
+    const nextLevel = user.level * 500;
+    if (user.xp >= nextLevel) {
         user.level += 1;
-        user.xp -= nextLevelXP; 
+        user.xp -= nextLevel;
         await user.save();
         return { leveledUp: true, level: user.level };
     }
@@ -75,25 +69,24 @@ async function updateUserData(userId, data) {
         let user = await User.findOne({ userId });
         if (!user) user = await User.create({ userId });
 
-        // 💀 RENACIMIENTO ROCKSTAR
-        if (data.health <= 0) {
+        // 💀 RENACIMIENTO (Al llegar a 0 vida)
+        if (data.health !== undefined && data.health <= 0) {
             const rank = (user.premiumType || 'none').toLowerCase();
             const inv = user.inventory || {};
             const newInv = { ...inv };
 
-            let lossPercentage = rank.includes('ultra') ? 0.05 : rank.includes('pro') ? 0.10 : 0.15;
-            let livesLoss = rank.includes('ultra') ? 2 : rank.includes('pro') ? 0.35 : 0.50;
+            let loss = rank.includes('ultra') ? 0.05 : rank.includes('pro') ? 0.10 : 0.15;
+            let vLoss = rank.includes('ultra') ? 2 : rank.includes('pro') ? 0.35 : 0.50;
 
-            for (let itemId in newInv) {
-                if (newInv[itemId] <= 0) continue;
-                if (itemId === 'vida') {
-                    if (rank.includes('ultra')) newInv[itemId] = Math.max(0, newInv[itemId] - livesLoss);
-                    else newInv[itemId] = Math.max(0, Math.floor(newInv[itemId] * (1 - livesLoss)));
+            for (let id in newInv) {
+                if (newInv[id] <= 0) continue;
+                if (id === 'vida') {
+                    if (rank.includes('ultra')) newInv[id] = Math.max(0, newInv[id] - vLoss);
+                    else newInv[id] = Math.max(0, Math.floor(newInv[id] * (1 - vLoss)));
                 } else {
-                    newInv[itemId] = Math.max(0, Math.floor(newInv[itemId] * (1 - lossPercentage)));
+                    newInv[id] = Math.max(0, Math.floor(newInv[id] * (1 - loss)));
                 }
             }
-
             user.inventory = newInv;
             user.deadCount += 1;
             user.health = 3; 
@@ -102,31 +95,18 @@ async function updateUserData(userId, data) {
         }
 
         Object.assign(user, data);
-
         user.markModified('inventory');
         user.markModified('durabilidades');
         user.markModified('harem');
+        user.markModified('activeBoosts');
 
         await user.save();
         return true;
-    } catch (err) { 
-        console.error("Error al guardar:", err);
-        return false; 
-    }
+    } catch (err) { return false; }
 }
 
 async function getShopItemsDB() { try { return await ShopItem.find({}); } catch (e) { return []; } }
 async function updateShopItemDB(id, itemData) { try { await ShopItem.findOneAndUpdate({ id }, { $set: itemData }, { upsert: true }); return true; } catch (err) { return false; } }
 async function deleteShopItemDB(id) { try { await ShopItem.findOneAndDelete({ id }); return true; } catch (err) { return false; } }
 
-// 🚀 EXPORTACIONES (Ahora sí con addXP incluido)
-module.exports = { 
-    User, 
-    ShopItem, 
-    getUserData, 
-    updateUserData, 
-    addXP, 
-    getShopItemsDB, 
-    updateShopItemDB, 
-    deleteShopItemDB 
-};
+module.exports = { User, ShopItem, getUserData, updateUserData, addXP, getShopItemsDB, updateShopItemDB, deleteShopItemDB };
