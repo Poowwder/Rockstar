@@ -10,8 +10,15 @@ const UserSchema = new mongoose.Schema({
     rep: { type: Number, default: 0 },
     premiumType: { type: String, default: 'none' }, 
     premiumUntil: { type: Date, default: null },
+    
+    // Trabajo y Cooldowns
+    job: { type: String, default: null },
+    lastWork: { type: Number, default: 0 },
+    workWarnings: { type: Number, default: 0 },
     lastCrime: { type: Date, default: null },
-    inventory: { type: Object, default: {} }, // Guardado como objeto para cantidades
+    
+    inventory: { type: Object, default: {} }, // 🔥 Importante: Object para cantidades
+    durabilidades: { type: Object, default: {} },
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
     nekos: {
@@ -33,7 +40,7 @@ async function addXP(userId, amount, client) {
     let multiplicador = 1; 
     const rango = (user.premiumType || 'none').toLowerCase();
 
-    // Lógica de rangos: Ultra (2x), Pro (1.5x)
+    // Multiplicadores: Ultra/Bimestral (2x), Pro/Mensual (1.5x)
     if (rango === 'ultra' || rango === 'bimestral') multiplicador = 2.0;
     else if (rango === 'pro' || rango === 'mensual') multiplicador = 1.5;
 
@@ -44,7 +51,7 @@ async function addXP(userId, amount, client) {
 
     if (user.xp >= nextLevelXP) {
         user.level += 1;
-        user.xp -= nextLevelXP; // Mantiene el sobrante para el siguiente nivel
+        user.xp -= nextLevelXP; 
         
         if (user.level === 10 && !user.nekos.nyx) {
             await grantNeko(userId, 'nyx', client);
@@ -62,7 +69,7 @@ async function grantNeko(userId, nekoId, client) {
     if (!user || user.nekos[nekoId]) return;
     user.nekos[nekoId] = true;
     await user.save();
-    // (Aquí iría el código de envío de DM que ya tienes...)
+    // (Aquí va tu lógica de notificación DM...)
 }
 
 async function getUserData(userId) {
@@ -73,6 +80,11 @@ async function getUserData(userId) {
 
 async function updateUserData(userId, data) {
     try {
+        if (data.health <= 0) {
+            let oldData = await User.findOne({ userId });
+            if (oldData && oldData.health > 0) data.deadCount = (data.deadCount || 0) + 1;
+            data.wallet = 0;
+        }
         await User.findOneAndUpdate({ userId }, { $set: data }, { upsert: true });
         return true;
     } catch (err) { return false; }
@@ -80,11 +92,11 @@ async function updateUserData(userId, data) {
 
 async function getShopItemsDB() { return []; }
 
-// 🚀 EXPORTACIONES COMPLETAS
+// 🚀 EXPORTACIONES (Esto es lo que arregla el error de Render)
 module.exports = { 
     User, 
     getUserData, 
     updateUserData, 
-    addXP, // <-- Ahora el index.js sí podrá ver esta función
+    addXP, 
     getShopItemsDB 
 };
