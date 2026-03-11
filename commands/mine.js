@@ -8,7 +8,7 @@ const getE = (guild) => {
 
 module.exports = {
     name: 'mine',
-    description: 'Extrae flores de las profundidades de la tierra ⛏️',
+    description: 'Extrae materiales de las profundidades de la tierra ⛏️',
     category: 'economía',
     async execute(input) {
         const isSlash = !!input.user;
@@ -22,7 +22,7 @@ module.exports = {
         // --- ⛏️ 1. VERIFICACIÓN DE HERRAMIENTAS ---
         const zonas = [
             { id: 'pico_mitico', zona: 'Abismo Eterno', multis: 4 },
-            { id: 'pico_hierro', zona: 'Venas de Acero', multis: 1.8 },
+            { id: 'pico_hierro', zona: 'Venas de Acero', multis: 2 },
             { id: 'pico_madera', zona: 'Gruta Superficial', multis: 1 }
         ];
         
@@ -76,19 +76,15 @@ module.exports = {
             if (i.user.id !== user.id) return i.reply({ content: "❌ Esta no es tu expedición.", ephemeral: true });
             collector.stop();
 
-            // Guardamos que ya descubrió la zona
             if (isFirstTime) {
                 if (!data.inventory) data.inventory = {};
                 data.inventory[discoveredKey] = 1;
             }
 
-            // --- 🚀 LÓGICA DE BOOSTS ---
             const now = Date.now();
             data.activeBoosts = (data.activeBoosts || []).filter(b => b.expiresAt > now);
-            const hasMoneyBoost = data.activeBoosts.some(b => b.id === 'boost_flores');
-            const multiplier = hasMoneyBoost ? 2 : 1;
+            const multiplier = data.activeBoosts.some(b => b.id === 'boost_flores') ? 2 : 1;
 
-            // --- 💀 LÓGICA DE RIESGO (DERRUMBE) ---
             if (Math.random() < riesgo) {
                 data.health -= daño;
                 data.lastMine = now;
@@ -106,21 +102,44 @@ module.exports = {
                 return i.update({ content: `⚠️ **Derrumbe:** Las piedras te han golpeado. Perdiste \`${daño}\` de vida. ❤️ Vitalidad: \`${Math.floor(data.health)}/3\``, embeds: [], components: [] });
             }
 
-            // --- 💰 CÁLCULO DE GANANCIAS ---
-            const floresBase = Math.floor(Math.random() * 500 + 500) * mejorPico.multis;
-            const floresFinales = floresBase * multiplier;
-            data.wallet = (data.wallet || 0) + floresFinales;
+            // --- 💎 CÁLCULO DE MATERIALES (Ya no es dinero) ---
+            const minMulti = mejorPico.multis * multiplier; 
+            let report = [];
+            if (!data.inventory) data.inventory = {};
+
+            // Piedra (100% asegurada)
+            const cantPiedra = Math.floor(Math.random() * 4 + 2) * minMulti;
+            data.inventory['stone'] = (data.inventory['stone'] || 0) + cantPiedra;
+            report.push(`🪨 **Piedra:** \`x${cantPiedra}\``);
+
+            // Hierro (50% probabilidad)
+            if (Math.random() > 0.50) {
+                const cantHierro = Math.floor(Math.random() * 2 + 1) * minMulti;
+                data.inventory['iron_ore'] = (data.inventory['iron_ore'] || 0) + cantHierro;
+                report.push(`⛓️ **Mena de Hierro:** \`x${cantHierro}\``);
+            }
+
+            // Diamante Rosa (5% probabilidad extrema)
+            if (Math.random() > 0.95) {
+                const cantDiamante = 1 * multiplier;
+                data.inventory['diamante_rosa'] = (data.inventory['diamante_rosa'] || 0) + cantDiamante;
+                report.push(`✨ **Diamante Rosa:** \`x${cantDiamante}\``);
+            }
+
             data.lastMine = now;
             await updateUserData(user.id, data);
 
-            let boostMsg = hasMoneyBoost ? `\n╰┈➤ 🚀 **Boost:** ¡Multiplicador x2 aplicado!` : "";
+            let boostMsg = multiplier === 2 ? `\n╰┈➤ 🚀 **Boost Activo:** ¡Doble recolección!` : "";
+            
             const embedExito = new EmbedBuilder()
                 .setColor('#1a1a1a')
                 .setAuthor({ name: `Minería: ${mejorPico.zona}`, iconURL: user.displayAvatarURL() })
                 .setThumbnail(thumb)
                 .setDescription(
                     `> *“El abismo recompensa a los audaces.”*\n\n` +
-                    `💰 **Ganancia:** \`+${floresFinales.toLocaleString()} 🌸\`${boostMsg}\n` +
+                    `**─── ✦ MATERIALES EXTRAÍDOS ✦ ───**\n` +
+                    `${report.join('\n')}${boostMsg}\n` +
+                    `**────────────────────────**\n` +
                     `❤️ **Vitalidad:** \`${Math.floor(data.health)}/3\``
                 )
                 .setFooter({ text: `Equipo: ${mejorPico.id.replace(/_/g, ' ')}` });
