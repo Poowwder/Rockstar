@@ -59,27 +59,39 @@ async function runAction(input, type, targetUser) {
 
     const actionText = actions[type] || `interactúa misteriosamente con`;
 
-    // --- 🖼️ MOTOR DE RUTAS (Modificado para leer directo de /commands/) ---
-    // Busca en la carpeta: /commands/hug/ (o el tipo de comando que sea)
-    const folderPath = path.join(__dirname, '..', 'commands', type);
+    // --- 🖼️ MOTOR DE IMÁGENES SEGURO ---
+    // Asegúrate de que tus carpetas de imágenes estén DENTRO de la carpeta 'commands' 
+    // Ejemplo: /commands/hug/Naruto_1.gif
+    const folderPath = path.join(__dirname, '..', 'commands', type.toLowerCase());
     
-    let selectedImage = null;
     let animeName = 'Desconocido';
     let attachment = null;
+    let safeFileName = 'action_image.gif'; // Nombre seguro para Discord
 
     try {
         if (fs.existsSync(folderPath)) {
-            const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.gif') || file.endsWith('.png'));
+            const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.gif') || file.endsWith('.png') || file.endsWith('.jpg'));
             
             if (files.length > 0) {
-                selectedImage = files[Math.floor(Math.random() * files.length)];
-                // Extrae el nombre del anime antes del guión bajo
-                animeName = selectedImage.split('_')[0].replace(/-/g, ' ');
-                attachment = new AttachmentBuilder(path.join(folderPath, selectedImage), { name: selectedImage });
+                const selectedFile = files[Math.floor(Math.random() * files.length)];
+                
+                // Extrae el nombre del anime (Todo lo que esté antes del primer '_')
+                let rawName = selectedFile.split('_')[0];
+                // Limpia guiones y capitaliza la primera letra
+                animeName = rawName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                // Extraemos la extensión real (.gif, .png, etc)
+                const ext = path.extname(selectedFile);
+                safeFileName = `action_image${ext}`;
+
+                // Creamos el anexo con un nombre limpio y sin espacios para que Discord no llore
+                attachment = new AttachmentBuilder(path.join(folderPath, selectedFile), { name: safeFileName });
             }
+        } else {
+            console.log(`⚠️ La carpeta para la acción "${type}" no existe en: ${folderPath}`);
         }
     } catch (error) {
-        console.error(`❌ Error leyendo la ruta de imágenes para ${type}:`, error);
+        console.error(`❌ Error procesando imagen para ${type}:`, error);
     }
 
     // --- 📄 CONSTRUCCIÓN DEL EMBED ROCKSTAR ---
@@ -88,16 +100,18 @@ async function runAction(input, type, targetUser) {
         .setDescription(`> ${e1} **${authorMember.displayName}** ${actionText} **${targetMember.displayName}** ${e2}`)
         .setTimestamp() 
         .setFooter({ 
-            text: `Fuente: ${animeName} ⊹ Solicitado por ${authorMember.displayName}`,
+            text: `Anime: ${animeName} ⊹ Solicitado por ${authorMember.displayName}`,
             iconURL: author.displayAvatarURL({ dynamic: true })
         });
 
     let responseObj = { embeds: [embed] };
 
-    if (attachment && selectedImage) {
-        embed.setImage(`attachment://${selectedImage}`);
+    // Si encontramos una imagen local, la adjuntamos de forma segura
+    if (attachment) {
+        embed.setImage(`attachment://${safeFileName}`);
         responseObj.files = [attachment];
     } else {
+        // Fallback si la carpeta no existe o está vacía
         embed.setImage('https://i.pinimg.com/originals/c9/22/68/c92268d92cf2adc01fb14197940562dc.gif'); 
     }
 
