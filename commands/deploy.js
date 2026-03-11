@@ -9,7 +9,7 @@ module.exports = {
     async execute(message) {
         // --- 🛡️ SEGURIDAD ABSOLUTA ---
         // Pon tu ID real aquí para que NADIE más pueda usar este comando
-        const OWNER_ID = '1134261491745493032'; 
+        const OWNER_ID = '1428164600091902055'; 
         if (message.author.id !== OWNER_ID) return; 
 
         const msg = await message.reply("⏳ *Iniciando sincronización en las sombras...*");
