@@ -36,7 +36,7 @@ module.exports = {
         .setName('work')
         .setDescription('Ficha tu turno y gana flores por tu labor.')
         .addSubcommand(sub => sub.setName('list').setDescription('📋 Mira los trabajos disponibles'))
-        .addSubcommand(sub => sub.setName('apply').setDescription('📝 Postúlate a un trabajo').addStringOption(opt => opt.setName('trabajo').setDescription('Elige tu oficio').setRequired(true)))
+        .addSubcommand(sub => sub.setName('apply').setDescription('📝 Postúlate a un trabajo').addStringOption(opt => opt.setName('trabajo').setDescription('ID del oficio').setRequired(true)))
         .addSubcommand(sub => sub.setName('shift').setDescription('⌚ Cumple tu turno'))
         .addSubcommand(sub => sub.setName('resign').setDescription('🚪 Renuncia a tu trabajo')),
 
@@ -57,7 +57,7 @@ module.exports = {
         const multiBoost = data.activeBoosts.some(b => b.id === 'boost_flores') ? 2 : 1;
 
         const processShift = async (interactionToReply) => {
-            if (!data.job) return interactionToReply.reply({ content: `╰┈➤ ❌ No tienes empleo. Usa \`!!work list\` para elegir uno.`, ephemeral: true });
+            if (!data.job) return interactionToReply.reply({ content: `╰┈➤ ❌ No tienes empleo. Usa \`!!work\` para elegir uno.`, ephemeral: true });
             
             const currentJob = JOBS[data.job];
             const expActual = data.jobExperience || 0;
@@ -72,7 +72,7 @@ module.exports = {
                     return interactionToReply.reply(`🚨 **DESPIDO:** Fuiste despedido por acumular advertencias. Tu reputación en esta empresa ha vuelto a cero.`);
                 }
                 await updateUserData(userId, data);
-                return interactionToReply.reply(`⚠️ **Fallo:** Cometiste un error grave. Advertencia \`[${data.workWarnings}/2]\`.`);
+                return interactionToReply.reply(`⚠️ **Fallo:** Cometiste un error grave en tu turno. Advertencia \`[${data.workWarnings}/2]\`.`);
             } else {
                 let ganaBase = Math.floor((Math.random() * (currentJob.max - currentJob.min + 1)) + currentJob.min);
                 let ganaFinal = Math.floor(ganaBase * multiRango * multiBoost * rangoActual.bono);
@@ -95,34 +95,59 @@ module.exports = {
             }
         };
 
-        // --- LÓGICA DE RENUNCIA (RESET EXPERIENCIA) ---
-        if ((!isSlash && input.args?.[0] === 'resign') || (isSlash && input.options.getSubcommand() === 'resign')) {
-            data.job = null;
-            data.jobExperience = 0; // Se resetea al cambiar de empresa
-            await updateUserData(userId, data);
-            return input.reply("🚪 Has renunciado. Tu experiencia laboral ha vuelto a cero.");
+        // --- LÓGICA DE RENUNCIA ---
+        if ((!isSlash && input.content?.includes('resign')) || (isSlash && input.options.getSubcommand() === 'resign')) {
+            data.job = null; data.jobExperience = 0; await updateUserData(userId, data);
+            return input.reply("🚪 Has renunciado satisfactoriamente. Tu experiencia laboral ha vuelto a cero.");
         }
 
-        // --- LÓGICA DE APLICACIÓN ---
-        if (isSlash && input.options.getSubcommand() === 'apply') {
-            const sel = input.options.getString('trabajo').toLowerCase();
-            if (!JOBS[sel]) return input.reply("❌ Ese trabajo no existe.");
-            data.job = sel; data.jobExperience = 0;
-            await updateUserData(userId, data);
-            return input.reply(`🤝 Bienvenido. Tu puesto de **${JOBS[sel].nombre}** te espera.`);
-        }
-
-        // --- MENÚ INTERACTIVO (!!work) ---
+        // --- MODO INTERACTIVO (!!work) ---
         if (!isSlash) {
+            // SI NO TIENE TRABAJO: Mostrar menú y RECOLECTAR respuesta
             if (!data.job) {
-                const menu = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('select_work').setPlaceholder('🌸 Elige tu profesión...').addOptions(Object.keys(JOBS).map(k => ({ label: JOBS[k].nombre, value: k, emoji: JOBS[k].emoji }))));
-                return input.reply({ content: `> ✨ **Centro de Empleo**\n> Selecciona una carrera para empezar.`, components: [menu] });
-            }
-            const rest = cooldown - (now - (data.lastWork || 0));
-            if (cooldown > 0 && rest > 0) return input.reply({ content: `⏳ Estás agotado. Vuelve en **${Math.floor(rest/60000)}m ${Math.floor((rest%60000)/1000)}s**.`, ephemeral: true });
+                const menu = new ActionRowBuilder().addComponents(
+                    new StringSelectMenuBuilder()
+                        .setCustomId('select_work')
+                        .setPlaceholder('🌸 Elige tu profesión...')
+                        .addOptions(Object.keys(JOBS).map(k => ({ label: JOBS[k].nombre, value: k, emoji: JOBS[k].emoji })))
+                );
+                
+                const response = await input.reply({ content: `> ✨ **Bolsa de Empleo Rockstar**\n> Selecciona una carrera para empezar.`, components: [menu] });
 
-            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('btn_shift').setLabel('💼 Fichar').setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId('btn_resign').setLabel('🚪 Renunciar').setStyle(ButtonStyle.Danger));
-            const res = await input.reply({ content: `<@${userId}>`, embeds: [new EmbedBuilder().setColor('#1a1a1a').setDescription(`> 🏢 **Turno Pendiente**\n> Puesto: **${JOBS[data.job].nombre}**\n> Rango: \`${[...RANGOS_LABORALES].reverse().find(r => data.jobExperience >= r.minTurnos).nombre}\``)], components: [row], fetchReply: true });
+                // RECOLECTOR PARA EL MENÚ
+                const collector = response.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 60000 });
+
+                collector.on('collect', async i => {
+                    if (i.user.id !== userId) return i.reply({ content: "❌ No puedes elegir por otro.", ephemeral: true });
+                    const selection = i.values[0];
+                    data.job = selection;
+                    data.jobExperience = 0;
+                    await updateUserData(userId, data);
+                    await i.update({ content: `🤝 **Contratado:** Ahora eres **${JOBS[selection].nombre}**. ¡Bienvenido al equipo!`, components: [] });
+                    collector.stop();
+                });
+                return;
+            }
+
+            // SI TIENE TRABAJO: Verificar cooldown y mostrar botones
+            const rest = cooldown - (now - (data.lastWork || 0));
+            if (cooldown > 0 && rest > 0) {
+                const min = Math.floor(rest/60000);
+                const seg = Math.floor((rest%60000)/1000);
+                return input.reply({ content: `⏳ Estás agotado. Vuelve en **${min}m ${seg}s**.`, ephemeral: true });
+            }
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('btn_shift').setLabel('💼 Fichar').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('btn_resign').setLabel('🚪 Renunciar').setStyle(ButtonStyle.Danger)
+            );
+
+            const res = await input.reply({ 
+                content: `<@${userId}>`, 
+                embeds: [new EmbedBuilder().setColor('#1a1a1a').setDescription(`> 🏢 **Turno Pendiente**\n> Puesto: **${JOBS[data.job].nombre}**\n> Rango: \`${[...RANGOS_LABORALES].reverse().find(r => data.jobExperience >= r.minTurnos).nombre}\``)], 
+                components: [row], 
+                fetchReply: true 
+            });
 
             const collector = res.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
             collector.on('collect', async i => {
@@ -131,10 +156,26 @@ module.exports = {
                 if (i.customId === 'btn_shift') return processShift(i);
                 if (i.customId === 'btn_resign') {
                     data.job = null; data.jobExperience = 0; await updateUserData(userId, data);
-                    return i.reply("🚪 Renunciaste satisfactoriamente.");
+                    return i.update({ content: "🚪 Renunciaste satisfactoriamente.", embeds: [], components: [] });
                 }
             });
             return;
+        }
+
+        // --- SLASH COMMANDS (Enrutador) ---
+        if (isSlash) {
+            const sub = input.options.getSubcommand();
+            if (sub === 'apply') {
+                const sel = input.options.getString('trabajo').toLowerCase();
+                if (!JOBS[sel]) return input.reply("❌ Ese trabajo no existe.");
+                data.job = sel; data.jobExperience = 0; await updateUserData(userId, data);
+                return input.reply(`🤝 Bienvenido. Tu puesto de **${JOBS[sel].nombre}** te espera.`);
+            }
+            if (sub === 'shift') return processShift(input);
+            if (sub === 'list') {
+                const list = Object.keys(JOBS).map(k => `${JOBS[k].emoji} **${JOBS[k].nombre}**: \`${JOBS[k].min}-${JOBS[k].max} 🌸\``).join('\n');
+                return input.reply({ embeds: [new EmbedBuilder().setTitle('📋 Empleos Rockstar').setColor('#1a1a1a').setDescription(list)] });
+            }
         }
     }
 };
