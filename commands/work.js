@@ -50,14 +50,15 @@ module.exports = {
         const now = Date.now();
         
         // --- 🌍 INTEGRACIÓN DE EVENTOS GLOBALES ---
-        let multiEvento = 1;
-        const activePath = path.join(__dirname, '../data/activeEvent.json');
-        if (fs.existsSync(activePath)) {
-            try {
-                const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
-                if (ev.type === 'money') multiEvento = ev.multiplier;
-            } catch (err) { console.log("Error leyendo evento:", err); }
-        }
+      // Dentro de work.js, crime.js y daily.js
+const activePath = path.join(__dirname, '../data/activeEvent.json');
+let multiEvento = 1;
+
+if (fs.existsSync(activePath)) {
+    const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
+    // Estos comandos solo dan bonus si el evento es de dinero.
+    if (ev.type === 'money') multiEvento = ev.multiplier;
+}
 
         // --- 💎 CONFIGURACIÓN VIP Y BONOS POR RANGO (3%, 7%, 10%) ---
         let cooldown = 3600000, multiRango = 1.03, probFail = 0.25;
