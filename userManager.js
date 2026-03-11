@@ -48,14 +48,34 @@ async function getUserData(userId) {
     return user;
 }
 
-// ✅ ACTUALIZACIÓN ROBUSTA (Arregla el inventario invisible)
+async function addXP(userId, amount, client) {
+    let user = await getUserData(userId);
+    let multiplicador = 1; 
+    const rango = (user.premiumType || 'none').toLowerCase();
+
+    if (rango === 'ultra' || rango === 'bimestral') multiplicador = 2.0;
+    else if (rango === 'pro' || rango === 'mensual') multiplicador = 1.5;
+
+    const xpFinal = Math.floor(amount * multiplicador);
+    user.xp += xpFinal;
+    const nextLevelXP = user.level * 500;
+
+    if (user.xp >= nextLevelXP) {
+        user.level += 1;
+        user.xp -= nextLevelXP; 
+        await user.save();
+        return { leveledUp: true, level: user.level };
+    }
+    await user.save();
+    return { leveledUp: false };
+}
+
 async function updateUserData(userId, data) {
     try {
         let user = await User.findOne({ userId });
         if (!user) user = await User.create({ userId });
 
-        // 💀 LÓGICA DE MUERTE Y RENACIMIENTO
-        // Si la salud es 0 (como en tu captura) o menos, activamos la purga y revivimos
+        // 💀 RENACIMIENTO ROCKSTAR
         if (data.health <= 0) {
             const rank = (user.premiumType || 'none').toLowerCase();
             const inv = user.inventory || {};
@@ -74,19 +94,15 @@ async function updateUserData(userId, data) {
                 }
             }
 
-            // Aplicamos los cambios de muerte
             user.inventory = newInv;
             user.deadCount += 1;
-            user.health = 3; // ❤️ Te devolvemos las 3 vidas
-            // Limpiamos 'data' para que no sobrescriba la salud a 0 otra vez
+            user.health = 3; 
             delete data.health;
             delete data.inventory;
         }
 
-        // 🧬 MEZCLAR DATOS NUEVOS
         Object.assign(user, data);
 
-        // 🔥 CRÍTICO: Avisar a la base de datos que el Inventario cambió
         user.markModified('inventory');
         user.markModified('durabilidades');
         user.markModified('harem');
@@ -99,9 +115,18 @@ async function updateUserData(userId, data) {
     }
 }
 
-// ... (getShopItemsDB, updateShopItemDB, deleteShopItemDB se mantienen igual)
 async function getShopItemsDB() { try { return await ShopItem.find({}); } catch (e) { return []; } }
 async function updateShopItemDB(id, itemData) { try { await ShopItem.findOneAndUpdate({ id }, { $set: itemData }, { upsert: true }); return true; } catch (err) { return false; } }
 async function deleteShopItemDB(id) { try { await ShopItem.findOneAndDelete({ id }); return true; } catch (err) { return false; } }
 
-module.exports = { User, ShopItem, getUserData, updateUserData, getShopItemsDB, updateShopItemDB, deleteShopItemDB };
+// 🚀 EXPORTACIONES (Ahora sí con addXP incluido)
+module.exports = { 
+    User, 
+    ShopItem, 
+    getUserData, 
+    updateUserData, 
+    addXP, 
+    getShopItemsDB, 
+    updateShopItemDB, 
+    deleteShopItemDB 
+};
