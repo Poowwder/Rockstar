@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const { GuildConfig } = require('../data/mongodb.js'); // Conexión para logs
+const { sendAuditLog } = require('../functions/auditLogger.js'); // Logger maestro
 
 const warningsPath = path.join(__dirname, '../data/warnings.json');
 
@@ -14,7 +14,7 @@ const getRndEmoji = (guild) => {
 
 module.exports = {
     name: 'warn',
-    description: '🚨 Advierte a un usuario por mal comportamiento.',
+    description: '🚨 Registra una advertencia en el expediente de un sujeto.',
     category: 'moderación',
     data: new SlashCommandBuilder()
         .setName('warn')
@@ -29,12 +29,11 @@ module.exports = {
         const guild = input.guild;
         const e = () => getRndEmoji(guild);
 
-        // 1. Verificar Permisos (Prefijo)
+        // --- 🛡️ VALIDACIÓN DE AUTORIDAD ---
         if (!isSlash && !input.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
             return input.reply(`╰┈➤ ❌ Careces de autoridad para dictar veredictos.`);
         }
 
-        // 2. Obtener Usuario y Razón
         const targetUser = isSlash ? input.options.getUser('usuario') : input.mentions.users.first();
         const reason = isSlash ? input.options.getString('razon') : args?.slice(1).join(' ');
 
@@ -44,7 +43,7 @@ module.exports = {
 
         if (targetUser.bot) return input.reply("╰┈➤ ❌ No puedes advertir a un ente mecánico.");
 
-        // 3. Gestión de Datos (JSON)
+        // --- 📂 GESTIÓN DE EXPEDIENTES (JSON) ---
         if (!fs.existsSync(path.dirname(warningsPath))) fs.mkdirSync(path.dirname(warningsPath), { recursive: true });
         if (!fs.existsSync(warningsPath)) fs.writeFileSync(warningsPath, JSON.stringify({}, null, 2));
 
@@ -65,15 +64,29 @@ module.exports = {
 
         const totalWarns = warns[guild.id][targetUser.id].length;
 
+        // --- 👁️ SISTEMA DE LOGS (ROCKSTAR AUDITORÍA) ---
+        await sendAuditLog(guild, {
+            title: '⊹ Nueva Advertencia Registrada ⊹',
+            description: 
+                `**Sujeto:** ${targetUser.tag} (\`${targetUser.id}\`)\n` +
+                `**Moderador:** ${moderator.tag}\n` +
+                `**Razón:** \`${reason}\`\n` +
+                `**ID de Registro:** \`${warnEntry.id}\`\n` +
+                `**Total en Expediente:** \`${totalWarns}\`\n` +
+                `> *El comportamiento ha sido archivado en las sombras.*`,
+            color: '#1a1a1a',
+            icon: moderator.displayAvatarURL()
+        });
+
         // --- 📄 PRESENTACIÓN ROCKSTAR ---
         const warnEmbed = new EmbedBuilder()
-            .setTitle(`${e()} ‧₊˚ Advertencia del Sistema ˚₊‧ ${e()}`)
+            .setTitle(`${e()} ‧₊˚ Veredicto de Vigilancia ˚₊‧ ${e()}`)
             .setColor('#1a1a1a')
             .setThumbnail('https://i.pinimg.com/originals/8a/cc/b0/8accb071720d2d3129807b1cc1ec3f1e.gif')
             .setDescription(
-                `> **El veredicto ha sido dictado.**\n\n` +
+                `*“Tus actos han dejado una huella en el registro...”*\n\n` +
                 `**─── ✦ DETALLES ✦ ───**\n` +
-                `👤 **Usuario:** ${targetUser}\n` +
+                `👤 **Sujeto:** ${targetUser}\n` +
                 `⚖️ **Moderador:** ${moderator.username}\n` +
                 `📄 **Razón:** \`${reason}\`\n` +
                 `**─────────────────**\n` +
@@ -82,31 +95,14 @@ module.exports = {
             .setFooter({ text: `Rockstar ⊹ Vigilance System`, iconURL: guild.iconURL() })
             .setTimestamp();
 
-        // --- 👁️ SISTEMA DE LOGS (AUDITORÍA) ---
-        try {
-            const config = await GuildConfig.findOne({ GuildID: guild.id });
-            if (config && config.LogChannelID) {
-                const logChannel = guild.channels.cache.get(config.LogChannelID);
-                if (logChannel) {
-                    const logEmbed = new EmbedBuilder()
-                        .setColor('#1a1a1a')
-                        .setAuthor({ name: '⊹ Nueva Advertencia (Log) ⊹', iconURL: moderator.displayAvatarURL() })
-                        .setDescription(
-                            `**Usuario:** ${targetUser.tag} (\`${targetUser.id}\`)\n` +
-                            `**Moderador:** ${moderator.tag}\n` +
-                            `**Razón:** ${reason}\n` +
-                            `**ID de Warn:** \`${warnEntry.id}\`\n` +
-                            `**Total Histórico:** ${totalWarns}`
-                        )
-                        .setTimestamp();
-                    await logChannel.send({ embeds: [logEmbed] });
-                }
-            }
-        } catch (err) { console.error("Error en log de warn:", err); }
-
         // Avisar al usuario por MD
         try {
-            await targetUser.send({ content: `⚠️ Has sido advertido en **${guild.name}**.\n**Motivo:** ${reason}\n*Acumulas ${totalWarns} advertencias.*
+            await targetUser.send({ 
+                content: `╰┈➤ 🌑 **Notificación de Vigilancia:** Has sido advertido en **${guild.name}**.\n**Motivo:** \`${reason}\`\n*Tu expediente ahora cuenta con ${totalWarns} advertencias.*`
+            });
+        } catch (err) {
+            console.log(`No se pudo enviar MD a ${targetUser.tag}`);
+        }
 
         return input.reply({ embeds: [warnEmbed] });
     }
