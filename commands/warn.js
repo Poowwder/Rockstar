@@ -5,12 +5,29 @@ const { sendAuditLog } = require('../functions/auditLogger.js');
 module.exports = {
     name: 'warn',
     description: '🚨 Registra una advertencia en los archivos del dominio.',
+    category: 'moderación',
+
+    // --- 🛠️ LA PIEZA FALTANTE (Para que funcione el /warn y se quite el error) ---
+    data: new SlashCommandBuilder()
+        .setName('warn')
+        .setDescription('🚨 Registra una advertencia en los archivos del dominio.')
+        .addUserOption(option => 
+            option.setName('usuario')
+            .setDescription('El sujeto que recibirá la advertencia')
+            .setRequired(true))
+        .addStringOption(option => 
+            option.setName('razon')
+            .setDescription('El motivo de la sanción')
+            .setRequired(true))
+        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
     async execute(input, args) {
         const isSlash = !!input.user;
         const moderator = isSlash ? input.user : input.author;
         const guild = input.guild;
 
-        if (!input.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+        // Validamos permisos si lo usan con prefijo (!!)
+        if (!isSlash && !input.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
             return input.reply(`╰┈➤ ❌ Careces de autoridad para dictar veredictos.`);
         }
 
@@ -32,29 +49,30 @@ module.exports = {
 
         const totalWarns = await Warning.countDocuments({ GuildID: guild.id, UserID: targetUser.id });
 
-        // --- 👁️ AUDITORÍA AUTOMÁTICA ---
+        // --- 👁️ AUDITORÍA AUTOMÁTICA (Purificada sin IDs) ---
         await sendAuditLog(guild, {
             title: '⊹ Nueva Advertencia Registrada ⊹',
             description: 
-                `**Sujeto:** ${targetUser.tag} (\`${targetUser.id}\`)\n` +
+                `**Sujeto:** ${targetUser.tag}\n` +
                 `**Moderador:** ${moderator.tag}\n` +
                 `**Razón:** \`${reason}\`\n` +
                 `**ID de Registro:** \`${warnID}\`\n` +
-                `**Total en Expediente:** \`${totalWarns}\`\n` +
+                `**Total en Expediente:** \`${totalWarns}\`\n\n` +
                 `> *El comportamiento ha sido archivado permanentemente.*`,
             color: '#1a1a1a',
             icon: moderator.displayAvatarURL()
         });
 
+        // --- 📄 VEREDICTO PÚBLICO ---
         const warnEmbed = new EmbedBuilder()
             .setTitle(`‧₊˚ Veredicto de Vigilancia ˚₊‧`)
-            .setColor('#1a1a1a')
+            .setColor('#1a1a1a') // Negro Rockstar
             .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
             .setDescription(
                 `👤 **Sujeto:** ${targetUser}\n` +
                 `⚖️ **Moderador:** ${moderator.username}\n` +
                 `📄 **Razón:** \`${reason}\`\n` +
-                `🆔 **ID:** \`${warnID}\`\n` +
+                `🆔 **ID de Archivo:** \`${warnID}\`\n` +
                 `**─────────────────**\n` +
                 `⚠️ **Advertencias Totales:** \`${totalWarns}\``
             )
