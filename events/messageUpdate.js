@@ -3,23 +3,27 @@ const { sendAuditLog } = require('../functions/auditLogger.js');
 module.exports = {
     name: 'messageUpdate',
     async execute(oldMessage, newMessage) {
-        // Intentamos recuperar mensajes antiguos si no están en memoria
+        console.log(`[🔍 DEBUG UPDATE] Evento disparado en el canal: ${oldMessage.channel?.name || 'Desconocido'}`);
+
         if (oldMessage.partial) {
+            console.log(`[🔍 DEBUG UPDATE] Mensaje antiguo es parcial. Intentando recuperación (fetch)...`);
             try {
                 await oldMessage.fetch();
+                console.log(`[🔍 DEBUG UPDATE] Mensaje antiguo recuperado exitosamente.`);
             } catch (error) {
-                // Si ya no existe, abortamos la misión
+                console.log(`[❌ DEBUG UPDATE] Abortado: El mensaje no pudo ser recuperado (${error.message}).`);
                 return;
             }
         }
         
-        // Ignoramos a los entes mecánicos (bots)
         if (oldMessage.author?.bot) return;
         
-        // Discord dispara este evento cuando se cargan enlaces/imágenes (embeds automáticos).
-        // Bloqueamos eso verificando si el texto realmente cambió.
-        if (oldMessage.content === newMessage.content) return;
+        if (oldMessage.content === newMessage.content) {
+            console.log(`[🔍 DEBUG UPDATE] Ignorado: El texto es idéntico (probablemente Discord cargó un embed o imagen).`);
+            return;
+        }
 
+        console.log(`[🔍 DEBUG UPDATE] Edición real detectada. Autor: ${oldMessage.author?.tag}. Preparando log...`);
         await sendAuditLog(oldMessage.guild, {
             title: '⊹ Alteración de Mensaje ⊹',
             description: 
@@ -28,7 +32,7 @@ module.exports = {
                 `**Antes:**\n\`\`\`${oldMessage.content || '[Vacío/Multimedia]'}\`\`\`\n` +
                 `**Después:**\n\`\`\`${newMessage.content || '[Vacío/Multimedia]'}\`\`\`\n` +
                 `> *La realidad del mensaje ha sido distorsionada.*`,
-            color: '#f1c40f', // Amarillo de advertencia
+            color: '#f1c40f',
             icon: oldMessage.author.displayAvatarURL({ dynamic: true })
         });
     }
