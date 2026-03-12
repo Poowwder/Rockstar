@@ -18,32 +18,36 @@ module.exports = {
         }
 
         // 2. CASO B: Mensaje Reciente (En el radar)
-        
-        // Verificamos si el mensaje tenía algún archivo o imagen adjunta
-        const attachment = message.attachments.first();
-        
-        // Formateamos el texto en un bloque de código elegante
         let contenido = message.content ? `\`\`\`\n${message.content}\n\`\`\`` : '';
         
-        // Si borraron una imagen, añadimos el enlace para que el staff pueda verla
+        // Verificamos si hay un archivo adjunto
+        const attachment = message.attachments.first();
+        let imageURL = null;
+
         if (attachment) {
-            contenido += `\n📎 **Archivo destruido:** [Enlace a la evidencia](${attachment.proxyURL || attachment.url})`;
+            // Si el archivo es una imagen, extraemos su enlace interno para mostrarla
+            if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+                imageURL = attachment.proxyURL || attachment.url;
+            }
+            
+            // Si borraron una imagen sin texto acompañante
+            if (!contenido) contenido = '`[Archivo multimedia eliminado]`';
+        } else if (!contenido) {
+            // Si no había ni texto ni imagen (ej. un sticker)
+            contenido = '`[Mensaje vacío o ilegible]`';
         }
 
-        // Si no había ni texto ni imagen (ej. un sticker o embed raro)
-        if (!contenido) {
-            contenido = '`[El mensaje original era ilegible o multimedia no compatible]`';
-        }
-
+        // Enviamos el manifiesto al canal de Logs
         await sendAuditLog(message.guild, {
             title: '⊹ Evidencia Eliminada ⊹',
             description: 
                 `**Sujeto:** ${message.author.tag}\n` +
                 `**Sector:** ${message.channel}\n\n` +
-                `**Lo que se borró:**\n${contenido}\n\n` +
+                `**Original:**\n${contenido}\n\n` +
                 `> *Un rastro ha sido borrado, pero el sistema no olvida.*`,
             color: '#ff4d4d',
-            icon: message.author.displayAvatarURL({ dynamic: true })
+            icon: message.author.displayAvatarURL({ dynamic: true }),
+            image: imageURL // 📸 La imagen se renderizará limpia al fondo del Embed
         });
     }
 };
