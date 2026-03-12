@@ -3,23 +3,26 @@ const { sendAuditLog } = require('../functions/auditLogger.js');
 module.exports = {
     name: 'messageDelete',
     async execute(message) {
-        // Ignoramos a otros bots para no generar spam infinito
-        if (message.author?.bot) return;
+        console.log(`[🔍 DEBUG DELETE] Evento disparado en el canal: ${message.channel?.name || 'Desconocido'}`);
 
-        // Si el mensaje es muy antiguo (enviado antes de que el bot se encendiera)
-        // Discord no nos dará el contenido, pero sí sabemos dónde se borró.
+        if (message.author?.bot) {
+            console.log(`[🔍 DEBUG DELETE] Ignorado: El autor era un ente mecánico (Bot).`);
+            return;
+        }
+
         if (message.partial) {
+            console.log(`[🔍 DEBUG DELETE] El mensaje borrado era parcial (fuera de caché). Preparando log...`);
             return await sendAuditLog(message.guild, {
                 title: '⊹ Evidencia Antigua Eliminada ⊹',
                 description: 
                     `**Sector:** ${message.channel}\n` +
                     `**ID del Mensaje:** \`${message.id}\`\n` +
                     `> *Las sombras devoraron un mensaje antiguo. Su contenido original se ha perdido en el vacío.*`,
-                color: '#ff4d4d' // Rojo de alerta
+                color: '#ff4d4d'
             });
         }
 
-        // Si el mensaje estaba en la memoria caché del bot, revelamos su contenido
+        console.log(`[🔍 DEBUG DELETE] Mensaje en caché detectado. Autor: ${message.author?.tag}. Preparando log...`);
         await sendAuditLog(message.guild, {
             title: '⊹ Evidencia Eliminada ⊹',
             description: 
