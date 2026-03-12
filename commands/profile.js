@@ -29,7 +29,7 @@ module.exports = {
         const getE = () => {
             const source = guild ? guild.emojis.cache : client.emojis.cache;
             const available = source.filter(e => e.available);
-            return available.size > 0 ? available.random().toString() : '✨'; // Fallback por si el server no tiene emojis
+            return available.size > 0 ? available.random().toString() : '✨';
         };
 
         try {
@@ -47,7 +47,7 @@ module.exports = {
             const haremCount = haremList.length;
 
             const embedFields = [
-                { name: '\u200B', value: 
+                { name: ' ', value: 
                     `${getE()} **Rango:** \`${rango}\`\n` +
                     `${getE()} **Carisma:** \`${data.rep || 0}\` Pts\n` +
                     `${getE()} **Muertes:** ${data.deadCount || 0}`
@@ -58,7 +58,6 @@ module.exports = {
             // --- 💍 SECCIÓN DE MATRIMONIO PURA ---
             if (haremCount > 0) {
                 const firstPartner = haremList[0];
-                // Se agrega directamente al primer bloque de texto, SOLO si está casado.
                 embedFields[0].value += `\n${getE()} **Casada/o con:** \`${firstPartner.username || 'Alguien'}\``;
             }
 
@@ -99,7 +98,7 @@ module.exports = {
 
             collector.on('collect', async i => {
                 if (i.customId === 'btn_close') {
-                    if (i.user.id !== author.id) return i.reply({ content: `${getE()} No puedes cerrar esto.`, ephemeral: true });
+                    if (i.user.id !== author.id) return i.reply({ content: `❌ No puedes cerrar esto.`, ephemeral: true });
                     await i.update({ content: `${getE()} *Expediente cerrado...*`, embeds: [], components: [] });
                     return setTimeout(() => msg.delete().catch(() => {}), 2000);
                 }
@@ -129,7 +128,7 @@ module.exports = {
 
         } catch (error) {
             console.error("Error en Profile:", error);
-            const errorMsg = `${getE()} Fallo en el sistema.`;
+            const errorMsg = "❌ Fallo en el sistema.";
             if (isSlash) return input.reply({ content: errorMsg, ephemeral: true });
             return input.reply(errorMsg);
         }
