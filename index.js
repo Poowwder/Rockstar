@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { connectDB } = require('./data/mongodb.js');
-const { checkNekos } = require('./functions/checkNekos.js');
 const { addXP } = require('./userManager.js'); 
 require('dotenv').config();
 
@@ -98,8 +97,6 @@ client.on('messageCreate', async message => {
             try { await cmd.execute(message, args); } catch (e) { console.error(e); }
         }
     }
-    
-    await checkNekos(message, 'message');
 });
 
 // --- ⚡ EVENTO: INTERACTION (Slash, Modals, Buttons) ---
