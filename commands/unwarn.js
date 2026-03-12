@@ -1,76 +1,74 @@
 const fs = require('fs');
 const path = require('path');
-const { EmbedBuilder } = require('discord.js');
-const { GuildConfig } = require('../data/mongodb.js'); // Conexión a la base de datos para logs
+const { PermissionFlagsBits } = require('discord.js');
+const { sendAuditLog } = require('../functions/auditLogger.js'); // Logger maestro
+
 const warningsPath = path.join(__dirname, '../data/warnings.json');
 
 module.exports = {
     name: 'unwarn',
+    description: 'Elimina una advertencia específica del expediente de un usuario.',
     async execute(message, args) {
-        // --- 🛡️ VALIDACIÓN DE PERMISOS ---
-        if (!message.member.permissions.has('ModerateMembers')) {
+        // --- 🛡️ VALIDACIÓN DE AUTORIDAD ---
+        if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
             return message.reply('╰┈➤ ❌ Careces de autoridad para alterar los expedientes de las sombras.');
         }
 
-        const user = message.mentions.users.first();
-        const warnId = args[1]; // El segundo argumento debe ser el ID
+        const user = message.mentions.users.first() || message.guild.members.cache.get(args[0])?.user;
+        const warnId = args[1];
 
         if (!user || !warnId) {
-            return message.reply('╰┈➤ ⚠️ Uso correcto: `!!unwarn @usuario [ID_del_warn]`');
+            return message.reply('╰┈➤ ⚠️ **Uso correcto:** `!!unwarn @usuario [ID_del_warn]`');
         }
 
-        // --- 📂 LECTURA DEL ARCHIVO ---
+        // --- 📂 LECTURA DE EXPEDIENTES ---
         let warns = {};
         try {
-            warns = JSON.parse(fs.readFileSync(warningsPath, 'utf8') || '{}');
+            if (fs.existsSync(warningsPath)) {
+                warns = JSON.parse(fs.readFileSync(warningsPath, 'utf8'));
+            }
         } catch (e) {
-            warns = {};
+            console.error("Error leyendo warnings.json:", e);
+            return message.reply('╰┈➤ ❌ Error al acceder a los archivos del sistema.');
         }
 
-        if (warns[message.guild.id] && warns[message.guild.id][user.id]) {
-            const initialLength = warns[message.guild.id][user.id].length;
-            
-            // Filtramos la advertencia que coincida con el ID
-            warns[message.guild.id][user.id] = warns[message.guild.id][user.id].filter(w => w.id !== warnId);
-            
-            // Si la longitud es la misma, significa que no encontró ese ID
-            if (warns[message.guild.id][user.id].length === initialLength) {
-                return message.reply('╰┈➤ ❌ No se encontró ninguna advertencia con ese ID en su expediente.');
-            }
+        const guildWarns = warns[message.guild.id];
+        const userWarns = guildWarns ? guildWarns[user.id] : null;
 
-            // Guardamos los cambios
+        if (!userWarns || userWarns.length === 0) {
+            return message.reply('╰┈➤ ❌ Este sujeto no posee antecedentes registrados en este dominio.');
+        }
+
+        // --- 🧹 PROCESO DE INDULTO ---
+        const initialLength = userWarns.length;
+        warns[message.guild.id][user.id] = userWarns.filter(w => w.id !== warnId);
+
+        if (warns[message.guild.id][user.id].length === initialLength) {
+            return message.reply(`╰┈➤ ❌ No se encontró ninguna advertencia con el ID \`${warnId}\` en su expediente.`);
+        }
+
+        try {
+            // Guardar cambios en el archivo
             fs.writeFileSync(warningsPath, JSON.stringify(warns, null, 2));
-            message.reply(`╰┈➤ 🌑 La advertencia \`${warnId}\` ha sido borrada del expediente de **${user.tag}**.`);
+            
+            message.reply(`╰┈➤ 🌑 El indulto ha sido procesado. La advertencia \`${warnId}\` de **${user.tag}** ha sido erradicada.`);
 
             // --- 👁️ SISTEMA DE LOGS (ROCKSTAR AUDITORÍA) ---
-            try {
-                const config = await GuildConfig.findOne({ GuildID: message.guild.id });
-                
-                if (config && config.LogChannelID) {
-                    const logChannel = message.guild.channels.cache.get(config.LogChannelID);
-                    
-                    if (logChannel) {
-                        const logEmbed = new EmbedBuilder()
-                            .setColor('#1a1a1a')
-                            .setAuthor({ name: '⊹ Indulto de Expediente (Unwarn) ⊹', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                            .setDescription(
-                                `**Usuario Indultado:** ${user.tag} (\`${user.id}\`)\n` +
-                                `**Moderador:** ${message.author.tag} (\`${message.author.id}\`)\n` +
-                                `**Warn ID Removido:** \`${warnId}\`\n` +
-                                `> *Una mancha en su historial ha sido borrada de la existencia.*`
-                            )
-                            .setFooter({ text: `Rockstar ⊹ Vigilancia` })
-                            .setTimestamp();
-                        
-                        await logChannel.send({ embeds: [logEmbed] });
-                    }
-                }
-            } catch (error) {
-                console.error("Error enviando log de unwarn:", error);
-            }
-            
-        } else {
-            message.reply('╰┈➤ ❌ Este usuario no tiene antecedentes registrados en las sombras.');
+            await sendAuditLog(message.guild, {
+                title: '⊹ Indulto de Expediente (Unwarn) ⊹',
+                description: 
+                    `**Sujeto Indultado:** ${user.tag} (\`${user.id}\`)\n` +
+                    `**Moderador:** ${message.author.tag}\n` +
+                    `**Warn ID Removido:** \`${warnId}\`\n` +
+                    `> *Una mancha en su historial ha sido borrada de la existencia.*`,
+                thumbnail: user.displayAvatarURL({ dynamic: true }),
+                color: '#1a1a1a',
+                icon: message.author.displayAvatarURL()
+            });
+
+        } catch (error) {
+            console.error("Error guardando unwarn:", error);
+            message.reply('╰┈➤ ❌ Fallo crítico al intentar actualizar el expediente físico.');
         }
     }
 };
