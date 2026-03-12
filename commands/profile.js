@@ -3,11 +3,11 @@ const { getUserData } = require('../userManager.js');
 
 module.exports = {
     name: 'profile',
-    description: 'Muestra tu expediente clasificado.',
+    description: 'Muestra tu perfil.',
     category: 'economía',
     data: new SlashCommandBuilder()
         .setName('profile')
-        .setDescription('Muestra tu expediente clasificado')
+        .setDescription('Muestra tu perfil en las sombras')
         .addUserOption(option => 
             option.setName('usuario')
                 .setDescription('El usuario del que quieres ver el perfil')
@@ -29,7 +29,7 @@ module.exports = {
         const getE = () => {
             const source = guild ? guild.emojis.cache : client.emojis.cache;
             const available = source.filter(e => e.available);
-            return available.size > 0 ? available.random().toString() : '✨';
+            return available.size > 0 ? available.random().toString() : '🌑';
         };
 
         try {
@@ -46,36 +46,39 @@ module.exports = {
             const haremList = data.harem || [];
             const haremCount = haremList.length;
 
-            // Construimos la descripción de forma continua para evitar espacios vacíos
-            let descriptionLines = [
-                `${getE()} *“Navegando entre las sombras...”* ${getE()}\n`,
-                `${getE()} **Rango:** \`${rango}\``,
-                `${getE()} **Carisma:** \`${data.rep || 0}\` Pts`,
-                `${getE()} **Muertes:** ${data.deadCount || 0}`
+            // --- 📝 CONSTRUCCIÓN CON SEPARACIÓN (FIELDS) ---
+            const embedFields = [
+                { name: ' ', value: 
+                    `${getE()} **Rango:** \`${rango}\`\n` +
+                    `${getE()} **Carisma:** \`${data.rep || 0}\` Pts\n` +
+                    `${getE()} **Muertes:** ${data.deadCount || 0}`
+                }
             ];
 
             // --- 💍 SECCIÓN DE MATRIMONIO PURA ---
             if (haremCount > 0) {
                 const firstPartner = haremList[0];
-                descriptionLines.push(`\n${getE()} **Casada/o con:** \`${firstPartner.username || 'Alguien'}\``);
+                embedFields[0].value += `\n${getE()} **Casada/o con:** \`${firstPartner.username || 'Alguien'}\``;
             }
 
-            descriptionLines.push(`\n**Estado Vital** ${getE()}`);
-            descriptionLines.push(`${getE()} **${displayHp} / 3**`);
+            // Aquí restauramos el field separado para el Estado Vital (el hueco que te gusta)
+            embedFields.push({ name: `${getE()} Estado Vital ${getE()}`, value: `${getE()} **${displayHp} / 3**` });
 
             const embed = new EmbedBuilder()
                 .setColor('#1a1a1a')
                 .setAuthor({ 
-                    name: `⊹ Expediente Clasificado: ${target.username} ⊹`, 
+                    name: `⊹ ${target.username} ⊹`, // ¡Adiós a "Expediente Clasificado"!
                     iconURL: target.displayAvatarURL({ dynamic: true }) 
                 })
                 .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 1024 }))
-                .setDescription(descriptionLines.join('\n'))
+                .setDescription(`${getE()} *“Navegando entre las sombras...”* ${getE()}`)
+                .addFields(embedFields)
                 .setFooter({ text: `Rockstar ⊹ Nightfall` }) 
                 .setTimestamp();
 
             const row = new ActionRowBuilder();
             
+            // --- 🔘 BOTÓN DE HAREM ---
             if (haremCount > 0) {
                 row.addComponents(
                     new ButtonBuilder()
@@ -100,10 +103,11 @@ module.exports = {
             collector.on('collect', async i => {
                 if (i.customId === 'btn_close') {
                     if (i.user.id !== author.id) return i.reply({ content: `❌ No puedes cerrar esto.`, ephemeral: true });
-                    await i.update({ content: `${getE()} *Expediente cerrado...*`, embeds: [], components: [] });
+                    await i.update({ content: `${getE()} *Perfil cerrado...*`, embeds: [], components: [] });
                     return setTimeout(() => msg.delete().catch(() => {}), 2000);
                 }
                 
+                // --- 💍 LÓGICA DEL BOTÓN HAREM ---
                 if (i.customId === 'btn_harem') {
                     let maxMarriages = 10;
                     if (premium === 'pro' || premium === 'mensual') maxMarriages = 15;
