@@ -46,20 +46,22 @@ module.exports = {
             const haremList = data.harem || [];
             const haremCount = haremList.length;
 
-            const embedFields = [
-                { name: ' ', value: 
-                    `${getE()} **Rango:** \`${rango}\`\n` +
-                    `${getE()} **Carisma:** \`${data.rep || 0}\` Pts\n` +
-                    `${getE()} **Muertes:** ${data.deadCount || 0}`
-                },
-                { name: `${getE()} Estado Vital ${getE()}`, value: `${getE()} **${displayHp} / 3**` }
+            // Construimos la descripción de forma continua para evitar espacios vacíos
+            let descriptionLines = [
+                `${getE()} *“Navegando entre las sombras...”* ${getE()}\n`,
+                `${getE()} **Rango:** \`${rango}\``,
+                `${getE()} **Carisma:** \`${data.rep || 0}\` Pts`,
+                `${getE()} **Muertes:** ${data.deadCount || 0}`
             ];
 
             // --- 💍 SECCIÓN DE MATRIMONIO PURA ---
             if (haremCount > 0) {
                 const firstPartner = haremList[0];
-                embedFields[0].value += `\n${getE()} **Casada/o con:** \`${firstPartner.username || 'Alguien'}\``;
+                descriptionLines.push(`\n${getE()} **Casada/o con:** \`${firstPartner.username || 'Alguien'}\``);
             }
+
+            descriptionLines.push(`\n**Estado Vital** ${getE()}`);
+            descriptionLines.push(`${getE()} **${displayHp} / 3**`);
 
             const embed = new EmbedBuilder()
                 .setColor('#1a1a1a')
@@ -68,8 +70,7 @@ module.exports = {
                     iconURL: target.displayAvatarURL({ dynamic: true }) 
                 })
                 .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 1024 }))
-                .setDescription(`${getE()} *“Navegando entre las sombras...”* ${getE()}`)
-                .addFields(embedFields)
+                .setDescription(descriptionLines.join('\n'))
                 .setFooter({ text: `Rockstar ⊹ Nightfall` }) 
                 .setTimestamp();
 
