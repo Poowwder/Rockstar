@@ -1,6 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
 const { getUserData, updateUserData } = require('../userManager.js'); 
 
+// --- 💾 MEMORIA TEMPORAL (Cooldowns y Pendientes) ---
+const cooldowns = new Map();
+const pendingRequests = new Set();
+
 module.exports = {
     name: 'marry',
     aliases: ['propose', 'divorce'],
@@ -19,7 +23,6 @@ module.exports = {
              .addUserOption(o => o.setName('u').setDescription('Usuario a remover').setRequired(true))),
 
     async execute(input, args) {
-        // ✅ FIX: Corrección de detección híbrida
         const isSlash = !!input.user;
         const user = isSlash ? input.user : input.author;
         const client = input.client;
@@ -32,98 +35,113 @@ module.exports = {
 
         const target = isSlash ? input.options.getUser('u') : input.mentions.users.first();
 
-        // --- ✨ MOTOR DE EMOJIS AL AZAR ---
         const getE = () => {
             const source = guild ? guild.emojis.cache : client.emojis.cache;
             const available = source.filter(e => e.available);
             return available.size > 0 ? available.random().toString() : '✨';
         };
+
+        // --- ⏳ SISTEMA DE COOLDOWN (5 MINUTOS) ---
+        const cooldownTime = 5 * 60 * 1000;
+        const now = Date.now();
+        if (cooldowns.has(user.id)) {
+            const expirationTime = cooldowns.get(user.id) + cooldownTime;
+            if (now < expirationTime) {
+                const timeLeft = Math.ceil((expirationTime - now) / 1000 / 60);
+                return input.reply({ content: `╰┈➤ ${getE()} **Paciencia.** Las sombras necesitan tiempo para otro ritual. Regresa en \`${timeLeft}\` minutos.`, ephemeral: true });
+            }
+        }
         
-        // --- 💎 OBTENER DATOS Y CALCULAR SLOTS ---
         let data = await getUserData(user.id);
-        if (!data) return input.reply(`╰┈➤ ❌ Las sombras no pudieron encontrar tu expediente.`);
-
-        let maxSlots = 10;
-        const premium = (data.premiumType || 'none').toLowerCase();
-        if (premium === 'pro' || premium === 'mensual') maxSlots = 15;
-        if (premium === 'ultra' || premium === 'bimestral') maxSlots = 20;
-
-        // Prevención por si la DB está vacía
         if (!data.harem) data.harem = [];
 
         // --- 💍 LÓGICA DE PROPUESTA ---
         if (sub === 'propose') {
-            if (!target || target.id === user.id) return input.reply(`╰┈➤ ❌ No puedes forjar un vínculo contigo mismo o con el aire.`);
-            if (target.bot) return input.reply(`╰┈➤ 🤖 Los entes artificiales no tienen alma para formar alianzas.`);
+            if (!target || target.id === user.id) return input.reply(`╰┈➤ ${getE()} No puedes forjar un vínculo contigo mismo.`);
+            if (target.bot) return input.reply(`╰┈➤ ${getE()} Los entes artificiales no tienen alma.`);
             
-            if (data.harem.length >= maxSlots) {
-                return input.reply(`╰┈➤ ❌ **Límite alcanzado.** Tu capacidad actual es de \`[${maxSlots}]\` espacios.`);
+            // Verificación de Petición Pendiente
+            const requestID = `${user.id}-${target.id}`;
+            if (pendingRequests.has(requestID)) {
+                return input.reply({ content: `╰┈➤ ${getE()} **Espera.** Ya tienes una propuesta enviada a esta persona que aún no ha expirado.`, ephemeral: true });
             }
-            
-            if (data.harem.some(m => m.id === target.id)) return input.reply(`╰┈➤ 💍 Ese alma ya pertenece a tu harén.`);
+
+            if (data.harem.some(m => m.id === target.id)) return input.reply(`╰┈➤ ${getE()} Este alma ya está bajo tu protección.`);
+
+            let maxSlots = (data.premiumType === 'pro' || data.premiumType === 'mensual') ? 15 : (data.premiumType === 'ultra' || data.premiumType === 'bimestral' ? 20 : 10);
+            if (data.harem.length >= maxSlots) return input.reply(`╰┈➤ ${getE()} **Límite alcanzado.** Capacidad actual: \`[${maxSlots}]\`.`);
 
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('yes').setLabel('Aceptar Alianza').setStyle(ButtonStyle.Success).setEmoji(getE()),
-                new ButtonBuilder().setCustomId('no').setLabel('Rechazar').setStyle(ButtonStyle.Danger).setEmoji('✖️')
+                new ButtonBuilder().setCustomId('yes').setLabel(`${getE()} Aceptar`).setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('no').setLabel(`${getE()} Rechazar`).setStyle(ButtonStyle.Danger)
             );
 
             const proposeEmbed = new EmbedBuilder()
-                .setTitle(`${getE()} Pacto de Sombras y Alianzas ${getE()}`)
+                .setTitle(`${getE()} Pacto de Alianza ${getE()}`)
                 .setColor('#1a1a1a')
                 .setThumbnail(target.displayAvatarURL({ dynamic: true }))
                 .setDescription(
-                    `${getE()} **<@${target.id}>**, las sombras han susurrado tu nombre.\n` +
-                    `> **${user.username}** te ofrece formar un vínculo eterno y unirte a su harén.\n\n` +
-                    `${getE()} *¿Aceptarías esta unión?*\n\n` +
-                    `╰┈➤ **Espacios de ${user.username}:** \`[${data.harem.length + 1} / ${maxSlots}]\``
+                    `${getE()} **<@${target.id}>**, alguien te observa.\n` +
+                    `> **${user.username}** te ofrece un lugar en su harén eterno.\n\n` +
+                    `${getE()} *¿Aceptarías sellar este vínculo?*`
                 )
-                .setFooter({ text: `${getE()} Rockstar Alianzas ${getE()}`, iconURL: user.displayAvatarURL() })
+                .setFooter({ text: `Rockstar Alianzas` })
                 .setTimestamp();
 
-            const msg = await input.reply({ embeds: [proposeEmbed], components: [row] });
+            const msg = await input.reply({ embeds: [proposeEmbed], components: [row], fetchReply: true });
             
+            pendingRequests.add(requestID); // Marcamos como pendiente
+
             const filter = i => i.user.id === target.id;
-            const collector = msg.createMessageComponentCollector({ filter, time: 60000, max: 1 });
+            const collector = msg.createMessageComponentCollector({ filter, time: 60000 });
 
             collector.on('collect', async i => {
+                pendingRequests.delete(requestID); // Limpiamos al responder
                 if (i.customId === 'yes') {
-                    // Guardamos ID, nombre y fecha
                     data.harem.push({ id: target.id, username: target.username, time: Date.now() });
                     await updateUserData(user.id, { harem: data.harem });
+                    cooldowns.set(user.id, now); // Activamos cooldown solo si acepta
 
                     const weddingEmbed = new EmbedBuilder()
                         .setTitle(`${getE()} Vínculo Sellado ${getE()}`)
                         .setColor('#1a1a1a')
                         .setImage('https://i.pinimg.com/originals/44/21/df/4421df09315998a1351543719003f671.gif')
-                        .setDescription(`> ${getE()} **Las sombras son testigos.**\n> <@${target.id}> ahora forma parte oficial del harén de **${user.username}**.`)
-                        .setFooter({ text: `${getE()} Nuevo Vínculo ${getE()}` })
+                        .setDescription(`> ${getE()} **Alianza confirmada.**\n> <@${target.id}> ahora pertenece al harén de **${user.username}**.`)
+                        .setFooter({ text: `Protocolo de Unión Rockstar` })
                         .setTimestamp();
                     
                     await i.update({ embeds: [weddingEmbed], components: [] });
                 } else {
-                    await i.update({ content: `╰┈➤ 💔 **El vínculo se ha roto antes de empezar.** La propuesta ha sido rechazada.`, embeds: [], components: [] });
+                    await i.update({ content: `╰┈➤ ${getE()} 💔 **Alianza rechazada.** El rastro de esta propuesta se desvanece...`, embeds: [], components: [] });
                 }
             });
 
             collector.on('end', collected => {
+                pendingRequests.delete(requestID); // Limpiamos si expira
                 if (collected.size === 0) {
-                    msg.edit({ content: `╰┈➤ ⏳ *El tiempo se agotó y el anillo se perdió en la oscuridad...*`, components: [], embeds: [] }).catch(() => {});
+                    msg.edit({ content: `╰┈➤ ${getE()} ⏳ *El silencio fue la respuesta. Propuesta expirada.*`, components: [], embeds: [] }).catch(() => {});
                 }
             });
         }
 
         // --- 💔 LÓGICA DE DIVORCIO ---
         if (sub === 'divorce') {
-            if (!target) return input.reply(`╰┈➤ ❌ Menciona el alma que deseas desterrar de tu harén.`);
+            if (!target) return input.reply(`╰┈➤ ${getE()} Menciona el alma que deseas desterrar.`);
             
-            if (!data.harem.some(m => m.id === target.id)) {
-                return input.reply(`╰┈➤ ❌ Esa persona no pertenece a tus alianzas.`);
-            }
+            if (!data.harem.some(m => m.id === target.id)) return input.reply(`╰┈➤ ${getE()} Esa persona no está en tu harén.`);
 
             data.harem = data.harem.filter(m => m.id !== target.id);
             await updateUserData(user.id, { harem: data.harem });
 
-            return input.reply(`╰┈➤ 💔 El vínculo con **${target.username}** se ha cortado. Las sombras reclaman su espacio... ¡Next! ✨`);
+            const divorceEmbed = new EmbedBuilder()
+                .setTitle(`${getE()} Vínculo Quebrado ${getE()}`)
+                .setColor('#1a1a1a')
+                .setImage('https://i.pinimg.com/originals/70/41/50/70415039a51800684f0490b83b3e8e2c.gif')
+                .setDescription(`> ${getE()} **Se ha terminado.**\n> El alma de **${target.username}** ha sido expulsada del harén de **${user.username}**.`)
+                .setFooter({ text: `Protocolo de Ruptura Rockstar` })
+                .setTimestamp();
+
+            return input.reply({ embeds: [divorceEmbed] });
         }
     }
 };
