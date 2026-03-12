@@ -1,48 +1,39 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { GuildConfig } = require('../data/mongodb.js'); // Conexión a la base de datos para los logs
+const { PermissionFlagsBits } = require('discord.js');
+const { sendAuditLog } = require('../functions/auditLogger.js'); // Logger maestro
 
 module.exports = {
-    name: 'unban',
-    description: 'Desbanea a un usuario mediante su ID.',
-    async execute(message, args) {
-        // --- 🛡️ VALIDACIÓN DE PERMISOS ---
-        if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-            return message.reply('╰┈➤ ❌ Careces de autoridad para perdonar a los exiliados.');
-        }
-        
-        const userId = args[0];
-        if (!userId) {
-            return message.reply('╰┈➤ ⚠️ Debes proveer el ID del alma que deseas retornar de las sombras.');
+    name: 'unlock',
+    description: 'Restaura el flujo de mensajes en el canal actual.',
+    async execute(message) {
+        // --- 🛡️ VALIDACIÓN DE AUTORIDAD ---
+        if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+            return message.reply('╰┈➤ ❌ Careces de autoridad para abrir las puertas de este dominio.');
         }
 
         try {
-            // --- 🔓 LÓGICA DE UNBAN ---
-            await message.guild.members.unban(userId);
-            message.reply(`╰┈➤ 🌑 El usuario con ID \`${userId}\` ha sido perdonado. Las puertas se abren de nuevo.`);
+            // --- 🔓 LÓGICA DE DESBLOQUEO ---
+            // Usamos 'null' para que el permiso vuelva a su estado original (heredado)
+            await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, { 
+                SendMessages: null 
+            });
+
+            // Respuesta estética Rockstar
+            message.reply('╰┈➤ 🌑 **Sello Roto.** Las voces han sido restauradas en este sector.');
 
             // --- 👁️ SISTEMA DE LOGS (ROCKSTAR AUDITORÍA) ---
-            const config = await GuildConfig.findOne({ GuildID: message.guild.id });
-            
-            if (config && config.LogChannelID) {
-                const logChannel = message.guild.channels.cache.get(config.LogChannelID);
-                
-                if (logChannel) {
-                    const logEmbed = new EmbedBuilder()
-                        .setColor('#1a1a1a')
-                        .setAuthor({ name: '⊹ Exilio Revocado (Unban) ⊹', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                        .setDescription(
-                            `**Usuario Perdonado (ID):** \`${userId}\`\n` +
-                            `**Moderador:** ${message.author.tag} (\`${message.author.id}\`)\n` +
-                            `> *Un alma ha sido liberada del abismo y puede volver a caminar entre nosotros.*`
-                        )
-                        .setFooter({ text: `Rockstar ⊹ Vigilancia` })
-                        .setTimestamp();
-                    
-                    await logChannel.send({ embeds: [logEmbed] });
-                }
-            }
+            await sendAuditLog(message.guild, {
+                title: '⊹ Canal Desbloqueado (Unlock) ⊹',
+                description: 
+                    `**Canal:** <#${message.channel.id}>\n` +
+                    `**Moderador:** ${message.author.tag} (\`${message.author.id}\`)\n` +
+                    `> *El bloqueo de escritura ha sido levantado por la autoridad.*`,
+                color: '#1a1a1a', // Negro Rockstar
+                icon: message.author.displayAvatarURL()
+            });
+
         } catch (error) {
-            message.reply('╰┈➤ ❌ Las sombras no retienen a ninguna entidad con ese ID o hubo un error en la revocación.');
+            console.error("Error en el comando unlock:", error);
+            message.reply('╰┈➤ ❌ Hubo una perturbación en las sombras y no se pudo romper el sello del canal.');
         }
     }
 };
