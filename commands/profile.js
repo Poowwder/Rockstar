@@ -56,18 +56,20 @@ module.exports = {
                 }
             ];
 
-            // Si hay alguien en la lista, lo pegamos al primer bloque
+            // Mantenemos la separación que te gusta para el Estado Vital
+            let estadoVitalTexto = `${getE()} **${displayHp} / 3**`;
+
+            // Si hay alguien en la lista, lo ponemos debajo del número de vidas con el tiempo
             if (haremCount > 0) {
                 const firstPartner = haremList[0];
-                // Intentamos sacar el nombre del objeto, si no, mostramos "Alguien"
                 const partnerName = firstPartner.username || firstPartner.tag || 'Alguien';
-                embedFields[0].value += `\n${getE()} **Casada/o con:** \`${partnerName}\``;
+                const timeStrMain = firstPartner.time ? ` - *Desde <t:${Math.floor(firstPartner.time / 1000)}:R>*` : '';
+                estadoVitalTexto += `\n\n${getE()} **Casada/o con:** \`${partnerName}\`${timeStrMain}`;
             }
 
-            // Mantenemos la separación que te gusta para el Estado Vital
             embedFields.push({ 
                 name: `${getE()} Estado Vital ${getE()}`, 
-                value: `${getE()} **${displayHp} / 3**` 
+                value: estadoVitalTexto 
             });
 
             const embed = new EmbedBuilder()
@@ -125,7 +127,8 @@ module.exports = {
                     const haremEmbed = new EmbedBuilder()
                         .setColor('#1a1a1a')
                         .setTitle(`${getE()} Harem de ${target.username} ${getE()}`)
-                        .setDescription(`${getE()} *Espacios: \`[${haremCount} / ${maxMarriages}]\`*\n\n${haremDisplay}`)
+                        // Movimos los espacios (slots) para que queden abajo de todo
+                        .setDescription(`${haremDisplay}\n\n${getE()} *Espacios: \`[${haremCount} / ${maxMarriages}]\`*`)
                         .setThumbnail(target.displayAvatarURL({ dynamic: true }))
                         .setFooter({ text: `Rockstar ⊹ Eternal Vault` }); 
 
