@@ -1,14 +1,30 @@
 const { GuildConfig } = require('../data/mongodb.js'); 
-const { createWelcomeFarewellEmbed } = require('./embedBuilder.js'); // Nuestra forja de embeds
+const { createWelcomeFarewellEmbed } = require('./embedBuilder.js'); 
 
 module.exports = {
     name: 'guildMemberAdd',
     async execute(member) {
         const { guild } = member;
         
-        // 1. Buscamos la configuración en la central MongoDB
+        // --- 📊 CONTADORES DEL IMPERIO (Se ejecuta siempre) ---
+        const canalTotales = guild.channels.cache.find(c => c.name.startsWith('🌍 Totales:'));
+        const canalHumanos = guild.channels.cache.find(c => c.name.startsWith('👤 Humanos:'));
+
+        if (canalTotales || canalHumanos) {
+            const totalMembers = guild.memberCount;
+            const humanMembers = guild.members.cache.filter(m => !m.user.bot).size;
+
+            try {
+                if (canalTotales) await canalTotales.setName(`🌍 Totales: ${totalMembers}`);
+                if (canalHumanos) await canalHumanos.setName(`👤 Humanos: ${humanMembers}`);
+            } catch (error) {
+                // Silenciamos el límite restrictivo de Discord (2 renombrados cada 10 mins)
+            }
+        }
+
+        // --- 🗄️ CONEXIÓN A LA MATRIZ DE DATOS ---
         const config = await GuildConfig.findOne({ GuildID: guild.id });
-        if (!config) return;
+        if (!config) return; // Si no hay configuración en la DB, abortamos el resto.
 
         // --- 🎭 SISTEMA DE AUTO-ROLE (Prioridad Inmediata) ---
         try {
