@@ -6,6 +6,23 @@ module.exports = {
     async execute(member) {
         const { guild } = member;
 
+        // --- 📊 CONTADORES DEL IMPERIO (Se ejecuta siempre al salir alguien) ---
+        const canalTotales = guild.channels.cache.find(c => c.name.startsWith('🌍 Totales:'));
+        const canalHumanos = guild.channels.cache.find(c => c.name.startsWith('👤 Humanos:'));
+
+        if (canalTotales || canalHumanos) {
+            const totalMembers = guild.memberCount;
+            const humanMembers = guild.members.cache.filter(m => !m.user.bot).size;
+
+            try {
+                if (canalTotales) await canalTotales.setName(`🌍 Totales: ${totalMembers}`);
+                if (canalHumanos) await canalHumanos.setName(`👤 Humanos: ${humanMembers}`);
+            } catch (error) {
+                // Silenciamos el límite restrictivo de Discord (2 renombrados cada 10 mins)
+            }
+        }
+
+        // --- 🗄️ CONEXIÓN A LA MATRIZ DE DATOS ---
         // 1. Localizamos el expediente del servidor en MongoDB
         const config = await GuildConfig.findOne({ GuildID: guild.id });
         
