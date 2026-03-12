@@ -20,11 +20,11 @@ module.exports = {
             });
         }
 
-        // --- 👁️ SISTEMA DE LOGS (AUDITORÍA) ---
+        // --- 👁️ SISTEMA DE LOGS (AUDITORÍA PURIFICADA) ---
         await sendAuditLog(interaction.guild, {
             title: '⊹ Acceso a Gestión de Fronteras ⊹',
             description: 
-                `**Operador:** ${interaction.user.tag} (\`${interaction.user.id}\`)\n` +
+                `**Sujeto:** ${interaction.user.tag}\n\n` +
                 `> *Se ha abierto el protocolo de configuración de ingresos y egresos del servidor.*`,
             color: '#1a1a1a',
             icon: interaction.user.displayAvatarURL()
@@ -36,7 +36,7 @@ module.exports = {
                 `*“Controla quién cruza el umbral de las sombras...”*\n\n` +
                 `📢 **B1:** Canal formal de bienvenidas (Embed detallado).\n` +
                 `💬 **B2:** Saludo rápido para el sector de convivencia.\n` +
-                `👋 **Despedida:** Registro de almas que abandonan el dominio.`
+                `🥀 **Despedida:** Registro de almas que abandonan el dominio.`
             )
             .addFields(
                 { name: '📋 Variables de Sistema', value: 'Puedes usar `{user}`, `{server}` y `{membercount}`.' }
@@ -78,6 +78,10 @@ module.exports = {
                 .setEmoji('🌑')
         );
 
+        // --- 📨 ENVÍO DEL PANEL (Aquí estaba el corte) ---
         await interaction.reply({ 
             embeds: [embed], 
-            components: [rowConfig, row
+            components: [rowConfig, rowExtra] 
+        });
+    }
+};
