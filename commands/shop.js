@@ -188,7 +188,12 @@ module.exports = {
         });
 
         collector.on('end', collected => {
-            response.edit({ components: [] }).catch(() => {});
+            // Manejador híbrido por si el mensaje fue borrado o si es Slash
+            if (isSlash) {
+                 input.editReply({ components: [] }).catch(() => {});
+            } else {
+                 response.edit({ components: [] }).catch(() => {});
+            }
         });
     }
 };
