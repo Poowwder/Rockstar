@@ -1,14 +1,15 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const { GuildConfig } = require('../data/mongodb.js'); // Conexión para logs
 
 const warningsPath = path.join(__dirname, '../data/warnings.json');
 
-// --- ✨ EMOJIS AL AZAR ---
+// --- 🌑 EMOJIS OSCUROS AL AZAR ---
 const getRndEmoji = (guild) => {
-    if (!guild) return '✨';
+    if (!guild) return '🌑';
     const emojis = guild.emojis.cache.filter(e => e.available);
-    return emojis.size > 0 ? emojis.random().toString() : '✨';
+    return emojis.size > 0 ? emojis.random().toString() : '🌑';
 };
 
 module.exports = {
@@ -28,9 +29,9 @@ module.exports = {
         const guild = input.guild;
         const e = () => getRndEmoji(guild);
 
-        // 1. Verificar Permisos (Para comando de prefijo)
+        // 1. Verificar Permisos (Prefijo)
         if (!isSlash && !input.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-            return input.reply(`╰┈➤ ❌ No tienes autoridad para usar las sombras contra otros.`);
+            return input.reply(`╰┈➤ ❌ Careces de autoridad para dictar veredictos.`);
         }
 
         // 2. Obtener Usuario y Razón
@@ -38,7 +39,7 @@ module.exports = {
         const reason = isSlash ? input.options.getString('razon') : args?.slice(1).join(' ');
 
         if (!targetUser || !reason) {
-            return input.reply(`╰┈➤ ${e()} **Uso correcto:** \`!!warn @usuario [razón]\``);
+            return input.reply(`╰┈➤ ⚠️ **Uso correcto:** \`!!warn @usuario [razón]\``);
         }
 
         if (targetUser.bot) return input.reply("╰┈➤ ❌ No puedes advertir a un ente mecánico.");
@@ -81,12 +82,31 @@ module.exports = {
             .setFooter({ text: `Rockstar ⊹ Vigilance System`, iconURL: guild.iconURL() })
             .setTimestamp();
 
-        // Intentar avisar al usuario por MD (Opcional)
+        // --- 👁️ SISTEMA DE LOGS (AUDITORÍA) ---
         try {
-            await targetUser.send({ content: `⚠️ Has sido advertido en **${guild.name}**.\n**Motivo:** ${reason}` });
-        } catch (err) {
-            console.log("No se pudo enviar MD al usuario.");
-        }
+            const config = await GuildConfig.findOne({ GuildID: guild.id });
+            if (config && config.LogChannelID) {
+                const logChannel = guild.channels.cache.get(config.LogChannelID);
+                if (logChannel) {
+                    const logEmbed = new EmbedBuilder()
+                        .setColor('#1a1a1a')
+                        .setAuthor({ name: '⊹ Nueva Advertencia (Log) ⊹', iconURL: moderator.displayAvatarURL() })
+                        .setDescription(
+                            `**Usuario:** ${targetUser.tag} (\`${targetUser.id}\`)\n` +
+                            `**Moderador:** ${moderator.tag}\n` +
+                            `**Razón:** ${reason}\n` +
+                            `**ID de Warn:** \`${warnEntry.id}\`\n` +
+                            `**Total Histórico:** ${totalWarns}`
+                        )
+                        .setTimestamp();
+                    await logChannel.send({ embeds: [logEmbed] });
+                }
+            }
+        } catch (err) { console.error("Error en log de warn:", err); }
+
+        // Avisar al usuario por MD
+        try {
+            await targetUser.send({ content: `⚠️ Has sido advertido en **${guild.name}**.\n**Motivo:** ${reason}\n*Acumulas ${totalWarns} advertencias.*
 
         return input.reply({ embeds: [warnEmbed] });
     }
