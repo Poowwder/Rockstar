@@ -5,28 +5,35 @@ const path = require('path');
 
 module.exports = {
     name: 'crime',
-    description: '🕵️ Intenta un crimen para ganar flores.',
+    description: 'Comete un crimen en las sombras.',
+    category: 'economía',
     data: new SlashCommandBuilder()
         .setName('crime')
-        .setDescription('🕵️ Comete un crimen bajo tu propio riesgo'),
+        .setDescription('Comete un acto ilícito bajo tu propio riesgo.'),
 
     async execute(input) {
         const isSlash = !!input.user;
         const user = isSlash ? input.user : input.author;
-        const member = input.member;
+        const client = input.client;
+        const guild = input.guild;
+        
+        const getE = () => {
+            const source = guild ? guild.emojis.cache : client.emojis.cache;
+            const available = source.filter(e => e.available);
+            return available.size > 0 ? available.random().toString() : '🌑';
+        };
+
         let data = await getUserData(user.id);
         const premium = (data.premiumType || 'none').toLowerCase();
 
         // --- 🌍 INTEGRACIÓN DE EVENTOS GLOBALES ---
-        // Dentro de work.js, crime.js y daily.js
-const activePath = path.join(__dirname, '../data/activeEvent.json');
-let multiEvento = 1;
+        const activePath = path.join(__dirname, '../data/activeEvent.json');
+        let multiEvento = 1;
 
-if (fs.existsSync(activePath)) {
-    const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
-    // Estos comandos solo dan bonus si el evento es de dinero.
-    if (ev.type === 'money') multiEvento = ev.multiplier;
-}
+        if (fs.existsSync(activePath)) {
+            const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
+            if (ev.type === 'money') multiEvento = ev.multiplier;
+        }
 
         // --- 💎 BONO POR RANGO PREMIUM ---
         let bonoRango = 1.03; // Normal: 3%
@@ -37,7 +44,8 @@ if (fs.existsSync(activePath)) {
         const exito = Math.random() > 0.50; // 50% de probabilidad
 
         if (!exito) {
-            return input.reply({ content: `╰┈➤ 🚨 **¡Te atraparon!** No pudiste llevarte nada esta vez, reina. Ten más cuidado.` });
+            const failMsg = `╰┈➤ ${getE()} **Emboscada.** Las autoridades te acorralaron. Escapas con vida, pero con los bolsillos vacíos.`;
+            return isSlash ? input.reply({ content: failMsg }) : input.reply(failMsg);
         }
 
         // --- 💰 CÁLCULO DE RECOMPENSA ---
@@ -47,21 +55,21 @@ if (fs.existsSync(activePath)) {
         data.wallet = (data.wallet || 0) + finalReward;
         await updateUserData(user.id, data);
 
-        // --- 🖼️ EMBED ORIGINAL ---
+        // --- 🖼️ EMBED DARK ROCKSTAR ---
         const embed = new EmbedBuilder()
-            .setTitle('🕵️ ¡Golpe Maestro!')
-            .setColor('#FFB6C1')
-            .setThumbnail('https://i.pinimg.com/originals/4d/30/1e/4d301e523315f013346e9198305c5678.gif')
+            .setColor('#1a1a1a')
+            .setAuthor({ 
+                name: `⊹ Operación Clandestina: ${user.username} ⊹`, 
+                iconURL: user.displayAvatarURL({ dynamic: true }) 
+            })
             .setDescription(
-                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧\n\n` +
-                `**${member.displayName}**, el plan salió a la perfección.\n\n` +
-                `╰┈➤ Conseguiste: **${finalReward.toLocaleString()} 🌸**\n` +
-                `╰┈➤ En mano: \`${data.wallet.toLocaleString()} 🌸\`\n\n` +
-                (multiEvento > 1 ? `✨ **¡Bonus de Evento x${multiEvento} aplicado!**\n` : "") +
-                `*No dejes rastro de lo que hiciste...* ✨\n\n` +
-                `୨୧┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈୨୧`
+                `${getE()} *“Las sombras ocultan tus huellas...”* ${getE()}\n\n` +
+                `${getE()} **Botín asegurado:** \`${finalReward.toLocaleString()}\` Flores\n` +
+                `${getE()} **Cartera actual:** \`${data.wallet.toLocaleString()}\` Flores\n` +
+                (multiEvento > 1 ? `\n${getE()} *Bono global de evento (x${multiEvento}) activo.*` : "")
             )
-            .setFooter({ text: `Acción de: ${member.displayName}`, iconURL: user.displayAvatarURL() });
+            .setFooter({ text: `Rockstar ⊹ Nightfall` })
+            .setTimestamp();
 
         return input.reply({ embeds: [embed] });
     }
