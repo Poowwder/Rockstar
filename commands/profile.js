@@ -43,10 +43,11 @@ module.exports = {
             const hp = data.health || 0;
             const displayHp = Math.max(0, Math.floor(hp)); 
 
-            const haremList = data.harem || [];
+            // --- 💍 LÓGICA DE DATOS DE MATRIMONIO ---
+            // Revisamos tanto 'harem' como 'marriages' por si acaso
+            const haremList = data.harem || data.marriages || [];
             const haremCount = haremList.length;
 
-            // --- 📝 CONSTRUCCIÓN CON SEPARACIÓN (FIELDS) ---
             const embedFields = [
                 { name: ' ', value: 
                     `${getE()} **Rango:** \`${rango}\`\n` +
@@ -55,19 +56,24 @@ module.exports = {
                 }
             ];
 
-            // --- 💍 SECCIÓN DE MATRIMONIO PURA ---
+            // Si hay alguien en la lista, lo pegamos al primer bloque
             if (haremCount > 0) {
                 const firstPartner = haremList[0];
-                embedFields[0].value += `\n${getE()} **Casada/o con:** \`${firstPartner.username || 'Alguien'}\``;
+                // Intentamos sacar el nombre del objeto, si no, mostramos "Alguien"
+                const partnerName = firstPartner.username || firstPartner.tag || 'Alguien';
+                embedFields[0].value += `\n${getE()} **Casada/o con:** \`${partnerName}\``;
             }
 
-            // Aquí restauramos el field separado para el Estado Vital (el hueco que te gusta)
-            embedFields.push({ name: `${getE()} Estado Vital ${getE()}`, value: `${getE()} **${displayHp} / 3**` });
+            // Mantenemos la separación que te gusta para el Estado Vital
+            embedFields.push({ 
+                name: `${getE()} Estado Vital ${getE()}`, 
+                value: `${getE()} **${displayHp} / 3**` 
+            });
 
             const embed = new EmbedBuilder()
                 .setColor('#1a1a1a')
                 .setAuthor({ 
-                    name: `⊹ ${target.username} ⊹`, // ¡Adiós a "Expediente Clasificado"!
+                    name: `⊹ ${target.username} ⊹`, // Título limpio como pediste
                     iconURL: target.displayAvatarURL({ dynamic: true }) 
                 })
                 .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 1024 }))
@@ -78,7 +84,6 @@ module.exports = {
 
             const row = new ActionRowBuilder();
             
-            // --- 🔘 BOTÓN DE HAREM ---
             if (haremCount > 0) {
                 row.addComponents(
                     new ButtonBuilder()
@@ -107,7 +112,6 @@ module.exports = {
                     return setTimeout(() => msg.delete().catch(() => {}), 2000);
                 }
                 
-                // --- 💍 LÓGICA DEL BOTÓN HAREM ---
                 if (i.customId === 'btn_harem') {
                     let maxMarriages = 10;
                     if (premium === 'pro' || premium === 'mensual') maxMarriages = 15;
