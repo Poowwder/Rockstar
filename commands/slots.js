@@ -9,26 +9,40 @@ const getRndEmoji = (guild) => {
 };
 
 module.exports = {
+    name: 'slots',
+    description: '🎰 Apuesta tus flores en la máquina tragamonedas',
     data: new SlashCommandBuilder()
         .setName('slots')
         .setDescription('🎰 Apuesta tus flores en la máquina tragamonedas')
         .addIntegerOption(opt => opt.setName('cantidad').setDescription('Flores a apostar').setRequired(true)),
 
-    async execute(interaction) {
-        const userId = interaction.user.id;
-        const apuesta = interaction.options.getInteger('cantidad');
-        const guild = interaction.guild;
+    async execute(input, args) {
+        const isSlash = !!input.user;
+        const author = isSlash ? input.user : input.author;
+        const guild = input.guild;
+        const userId = author.id;
         const e = () => getRndEmoji(guild);
+
+        // --- 🔢 OBTENER LA APUESTA (HÍBRIDO) ---
+        let apuesta;
+        if (isSlash) {
+            apuesta = input.options.getInteger('cantidad');
+        } else {
+            apuesta = parseInt(args[0]);
+            if (isNaN(apuesta) || apuesta <= 0) {
+                return input.reply({ content: `╰┈➤ ❌ Debes ingresar una cantidad válida. Ejemplo: \`!!slots 100\`` });
+            }
+        }
         
         let data = await getUserData(userId);
 
         // --- 🛡️ VALIDACIONES ---
-        if (apuesta <= 0) return interaction.reply({ content: "╰┈➤ ❌ La apuesta mínima es de `1 🌸`.", ephemeral: true });
-        if (data.wallet < apuesta) return interaction.reply({ content: `╰┈➤ ❌ Fondos insuficientes. Tienes \`${data.wallet.toLocaleString()} 🌸\`.`, ephemeral: true });
+        if (apuesta <= 0) return input.reply({ content: "╰┈➤ ❌ La apuesta mínima es de `1 🌸`.", ephemeral: true });
+        if (data.wallet < apuesta) return input.reply({ content: `╰┈➤ ❌ Fondos insuficientes. Tienes \`${data.wallet.toLocaleString()} 🌸\`.`, ephemeral: true });
         
         // Límite de apuesta (Premium tienen más límite)
         const limiteMax = (data.premiumType === 'pro' || data.premiumType === 'ultra') ? 50000 : 10000;
-        if (apuesta > limiteMax) return interaction.reply({ content: `╰┈➤ ❌ La apuesta máxima es de \`${limiteMax.toLocaleString()} 🌸\`.`, ephemeral: true });
+        if (apuesta > limiteMax) return input.reply({ content: `╰┈➤ ❌ La apuesta máxima es de \`${limiteMax.toLocaleString()} 🌸\`.`, ephemeral: true });
 
         // --- 🎰 MÁQUINA GIRANDO (Efecto Visual) ---
         const embedGiro = new EmbedBuilder()
@@ -37,7 +51,8 @@ module.exports = {
             .setThumbnail('https://i.pinimg.com/originals/80/f3/92/80f392231e342880783353272d54e565.gif')
             .setDescription(`> \`|———————|\`\n> \`| 🎰 | 🎰 | 🎰 |\`\n> \`|———————|\`\n\n*La suerte está echada...*`);
 
-        await interaction.reply({ embeds: [embedGiro] });
+        // Guardamos el mensaje para editarlo después
+        const loadingMsg = await input.reply({ embeds: [embedGiro], fetchReply: true });
 
         // Simulamos 2 segundos de tensión
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -79,7 +94,7 @@ module.exports = {
             .setColor(win ? '#2ecc71' : '#1a1a1a')
             .setThumbnail(win ? 'https://i.pinimg.com/originals/30/85/6a/30856a9080b06b0b009e86749fcb186b.gif' : null)
             .setDescription(
-                `**${interaction.user.username}** tiró de la palanca...\n\n` +
+                `**${author.username}** tiró de la palanca...\n\n` +
                 `> \`|———————|\`\n` +
                 `> \`| ${resultado} |\`\n` +
                 `> \`|———————|\`\n\n` +
@@ -90,6 +105,11 @@ module.exports = {
             )
             .setFooter({ text: 'El casino siempre gana... o no. ⊹ Rockstar Casino' });
 
-        return interaction.editReply({ embeds: [finalEmbed] });
+        // Edición híbrida
+        if (isSlash) {
+            return input.editReply({ embeds: [finalEmbed] });
+        } else {
+            return loadingMsg.edit({ embeds: [finalEmbed] });
+        }
     }
 };
