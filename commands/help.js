@@ -28,39 +28,56 @@ module.exports = {
             return available.size > 0 ? available.random().toString() : '✨';
         };
 
-        const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+        // Escudo anticaídas: Si str no existe, devuelve 'Desconocido'
+        const capitalize = (str) => {
+            if (!str) return 'Desconocido';
+            return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+        };
+
+        // --- 🛡️ EXTRACTORES SEGUROS ---
+        // Buscan tanto en la raíz como en "data" para que el bot nunca se estrelle.
+        const getCmdName = (c) => c.name || c.data?.name || 'desconocido';
+        const getCmdDesc = (c) => c.description || c.data?.description || 'Sin descripción.';
+        const getCmdCat  = (c) => c.category || 'general';
 
         // --- 📂 FILTRADO DE COMANDOS ---
-        const allCommands = [...new Map(client.commands.map(cmd => [cmd.name, cmd])).values()];
-        const categories = [...new Set(allCommands.map(cmd => cmd.category || 'general'))]
+        const allCommands = [...new Map(client.commands.map(cmd => [getCmdName(cmd), cmd])).values()];
+        const categories = [...new Set(allCommands.map(cmd => getCmdCat(cmd)))]
             .filter(cat => cat !== 'oculto');
 
         const query = isSlash ? input.options.getString('comando') : args?.[0];
 
         // --- 🔍 1. MODO MANUAL ---
         if (query) {
-            const cmd = allCommands.find(c => c.name === query.toLowerCase() || (c.aliases && c.aliases.includes(query.toLowerCase())));
+            const cmd = allCommands.find(c => {
+                const name = getCmdName(c).toLowerCase();
+                return name === query.toLowerCase() || (c.aliases && c.aliases.includes(query.toLowerCase()));
+            });
             
             if (cmd) {
                 const isDM = !isSlash; 
-                let finalDesc = cmd.description;
-                if (cmd.name === 'work') finalDesc = 'Ficha tu entrada y cumple con tu jornada laboral para recibir flores.';
+                const cName = getCmdName(cmd);
+                const cDesc = getCmdDesc(cmd);
+                const cCat = getCmdCat(cmd);
+
+                let finalDesc = cDesc;
+                if (cName === 'work') finalDesc = 'Ficha tu entrada y cumple con tu jornada laboral para recibir flores.';
 
                 const detailEmbed = new EmbedBuilder()
                     .setColor('#1a1a1a')
-                    .setTitle(`${getE(isDM)} Manual: ${capitalize(cmd.name)} ${getE(isDM)}`)
+                    .setTitle(`${getE(isDM)} Manual: ${capitalize(cName)} ${getE(isDM)}`)
                     .setThumbnail(client.user.displayAvatarURL())
                     .setDescription(
-                        `${getE(isDM)} **¿Para qué sirve?**\n> -# ${finalDesc || 'Sin descripción disponible.'}\n\n` +
-                        `${getE(isDM)} **Funcionamiento & Uso:**\n> -# Se ejecuta usando el comando ${cmd.usage || '!!' + cmd.name}.\n` +
-                        `> -# Pertenece a la sección de **${capitalize(cmd.category || 'general')}**.\n\n` +
+                        `${getE(isDM)} **¿Para qué sirve?**\n> -# ${finalDesc}\n\n` +
+                        `${getE(isDM)} **Funcionamiento & Uso:**\n> -# Se ejecuta usando el comando ${cmd.usage || '!!' + cName}.\n` +
+                        `> -# Pertenece a la sección de **${capitalize(cCat)}**.\n\n` +
                         `${getE(isDM)} -# Explora más comandos usando el menú principal del sistema.`
                     )
                     .addFields(
                         { name: `${getE(isDM)} Aliases ${getE(isDM)}`, value: `-# ${cmd.aliases ? cmd.aliases.join(', ') : 'Ninguno'}`, inline: true },
-                        { name: `${getE(isDM)} Categoría ${getE(isDM)}`, value: `-# ${capitalize(cmd.category || 'general')}`, inline: true }
+                        { name: `${getE(isDM)} Categoría ${getE(isDM)}`, value: `-# ${capitalize(cCat)}`, inline: true }
                     )
-                    .setFooter({ text: `Rockstar Nova ⊹ Manual Detallado`, iconURL: user.displayAvatarURL() }); // ✅ Sin emojis
+                    .setFooter({ text: `Rockstar Nova ⊹ Manual Detallado`, iconURL: user.displayAvatarURL() });
 
                 if (isSlash) {
                     return input.reply({ embeds: [detailEmbed], ephemeral: true });
@@ -80,7 +97,7 @@ module.exports = {
         const pages = ['home'];
 
         categories.forEach(cat => {
-            const catCmds = allCommands.filter(c => (c.category || 'general') === cat);
+            const catCmds = allCommands.filter(c => getCmdCat(c) === cat);
             for (let i = 0; i < catCmds.length; i += 10) {
                 pages.push({
                     cat: cat,
@@ -102,17 +119,20 @@ module.exports = {
                         `${getE()} Navega por las secciones usando los botones inferiores.\n\n` +
                         `${getE()} **Tip:** Usa \`!!help [comando]\` para un manual en tu DM.`
                     )
-                    .setFooter({ text: `Página de Inicio ⊹ ${user.username}`, iconURL: user.displayAvatarURL() }); // ✅ Sin emojis
+                    .setFooter({ text: `Página de Inicio ⊹ ${user.username}`, iconURL: user.displayAvatarURL() });
             } else {
                 embed.setTitle(`${getE()} Sección: ${capitalize(pageData.cat)} ${getE()}`)
                     .setDescription(`${getE()} **Comandos de esta categoría:**\n-# Los comandos están distribuidos en columnas para tu comodidad.`)
-                    .setFooter({ text: `Página ${p} de ${pages.length - 1} ⊹ ${user.username}`, iconURL: user.displayAvatarURL() }); // ✅ Sin emojis
+                    .setFooter({ text: `Página ${p} de ${pages.length - 1} ⊹ ${user.username}`, iconURL: user.displayAvatarURL() });
 
                 const fields = pageData.cmds.map(c => {
-                    let d = (c.name === 'work') ? 'Ficha tu entrada y cumple con tu jornada laboral.' : c.description;
+                    const cName = getCmdName(c);
+                    const cDesc = getCmdDesc(c);
+                    let d = (cName === 'work') ? 'Ficha tu entrada y cumple con tu jornada laboral.' : cDesc;
+                    
                     return {
-                        name: `${getE()} ${capitalize(c.name)}`,
-                        value: `-# ${d || 'Sin descripción.'}`, 
+                        name: `${getE()} ${capitalize(cName)}`,
+                        value: `-# ${d}`, 
                         inline: true 
                     };
                 });
@@ -137,7 +157,6 @@ module.exports = {
             fetchReply: true 
         });
 
-        // ✅ Tiempo de los botones subido a 5 minutos (300,000 ms)
         const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
 
         collector.on('collect', async i => {
@@ -152,7 +171,11 @@ module.exports = {
             if (i.customId === 'prev') page = page > 0 ? page - 1 : pages.length - 1;
             if (i.customId === 'next') page = page < pages.length - 1 ? page + 1 : 0;
 
-            await i.update({ embeds: [generarEmbed(page)], components: [generarBotones()] });
+            try {
+                await i.update({ embeds: [generarEmbed(page)], components: [generarBotones()] });
+            } catch (err) {
+                console.error("❌ Error actualizando la página:", err);
+            }
         });
 
         collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
