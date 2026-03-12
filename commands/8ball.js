@@ -3,18 +3,18 @@ const { SlashCommandBuilder, EmbedBuilder, MessageFlags, ActionRowBuilder, Butto
 const commands = [
     {
         name: '8ball',
-        description: 'Pregúntale algo a la bola 8 mágica.',
+        description: 'Pregúntale algo al oráculo de las sombras.',
         builder: (builder) => builder.addStringOption(opt => opt.setName('pregunta').setDescription('La pregunta que quieres hacer.').setRequired(true)),
         async execute(ctx, question) {
             const responses = ['Es cierto.', 'Sin duda.', 'Sí, definitivamente.', 'Puedes contar con ello.', 'Como yo lo veo, sí.', 'Lo más probable.', 'Las perspectivas son buenas.', 'Sí.', 'Los signos apuntan a que sí.', 'Respuesta confusa, intenta de nuevo.', 'Pregunta de nuevo más tarde.', 'Mejor no decírtelo ahora.', 'No se puede predecir ahora.', 'Concéntrate y pregunta de nuevo.', 'No cuentes con ello.', 'Mi respuesta es no.', 'Mis fuentes dicen que no.', 'Las perspectivas no son tan buenas.', 'Muy dudoso.'];
             const response = responses[Math.floor(Math.random() * responses.length)];
             const embed = new EmbedBuilder()
-                .setTitle('🎱 Bola 8 Mágica')
+                .setTitle('🎱 Oráculo de las Sombras')
                 .addFields(
                     { name: 'Tu Pregunta', value: question },
                     { name: 'Mi Respuesta', value: response }
                 )
-                .setColor('#AEC6CF');
+                .setColor('#1a1a1a'); // Color oscuro
             await ctx.reply({ embeds: [embed] });
         }
     },
@@ -23,10 +23,8 @@ const commands = [
         description: 'Haz que el bot diga algo.',
         builder: b => b.addStringOption(o => o.setName('texto').setDescription('El texto que dirá el bot.').setRequired(true)),
         async execute(ctx, text) {
-            // En un bot público, es importante sanitizar este input para evitar abusos como @everyone.
-            // Por simplicidad, aquí se envía directamente.
             if (ctx.isChatInputCommand?.()) {
-                await ctx.reply({ content: '✅ Mensaje enviado.', ephemeral: true });
+                await ctx.reply({ content: '╰┈➤ Mensaje enviado desde las sombras.', ephemeral: true });
                 await ctx.channel.send(text);
             } else {
                 await ctx.delete();
@@ -42,15 +40,15 @@ const commands = [
             const userTwo = user2 || (ctx.user || ctx.author);
             const percentage = Math.floor(Math.random() * 101);
             let message;
-            if (percentage < 10) message = 'Casi nula. 😬';
-            else if (percentage < 40) message = 'No está mal, podría haber algo. 🤔';
-            else if (percentage < 75) message = '¡Una gran compatibilidad! ❤️';
-            else message = '¡Son almas gemelas! 💖';
+            if (percentage < 10) message = 'Casi nula. 💀';
+            else if (percentage < 40) message = 'No está mal, podría haber algo. 🌑';
+            else if (percentage < 75) message = '¡Una gran compatibilidad! 🖤';
+            else message = '¡Son almas gemelas! 🦇';
 
             const embed = new EmbedBuilder()
-                .setTitle('💕 Medidor de Ship')
+                .setTitle('🖤 Vínculo de Almas')
                 .setDescription(`La compatibilidad entre **${user1.username}** y **${userTwo.username}** es del... **${percentage}%**!\n\n${message}`)
-                .setColor('#FF69B4');
+                .setColor('#1a1a1a'); // Color oscuro
             await ctx.reply({ embeds: [embed] });
         }
     },
@@ -68,18 +66,17 @@ const commands = [
         description: 'Envía una confesión anónima.',
         builder: b => b.addStringOption(o => o.setName('confesion').setDescription('Tu confesión.').setRequired(true)),
         async execute(ctx, confession) {
-            // Intenta buscar un canal llamado "confesiones"
             const channel = ctx.guild.channels.cache.find(c => c.name.includes('confesiones'));
-            if (!channel) return ctx.reply({ content: '❌ No encontré un canal llamado "confesiones".', flags: MessageFlags.Ephemeral });
+            if (!channel) return ctx.reply({ content: '╰┈➤ ❌ No encontré un canal llamado "confesiones".', flags: MessageFlags.Ephemeral });
 
             const embed = new EmbedBuilder()
-                .setTitle('🤫 Confesión Anónima')
+                .setTitle('🌑 Susurro Anónimo')
                 .setDescription(confession)
-                .setColor('#FF69B4')
+                .setColor('#1a1a1a') // Color oscuro
                 .setTimestamp();
             
             await channel.send({ embeds: [embed] });
-            await ctx.reply({ content: '✅ Confesión enviada.', flags: MessageFlags.Ephemeral });
+            await ctx.reply({ content: '╰┈➤ Confesión liberada en las sombras.', flags: MessageFlags.Ephemeral });
         }
     },
     {
@@ -87,15 +84,15 @@ const commands = [
         description: 'Mide el tamaño de tu banana.',
         async execute(ctx) {
             const size = Math.floor(Math.random() * 30);
-            await ctx.reply(`🍌 Tu banana mide **${size} cm**. ¡Impresionante!`);
-		}
+            await ctx.reply(`🍌 Tu banana mide **${size} cm**.`);
+        }
     },
     {
         name: 'lucky',
         description: 'Descubre tu porcentaje de suerte hoy.',
         async execute(ctx) {
             const luck = Math.floor(Math.random() * 101);
-            await ctx.reply(`🍀 Tu suerte hoy es del **${luck}%**.`);
+            await ctx.reply(`🌑 Tu suerte hoy es del **${luck}%**.`);
         }
     },
     {
@@ -104,19 +101,18 @@ const commands = [
         builder: b => b.addStringOption(o => o.setName('texto').setDescription('Contenido del tweet.').setRequired(true)),
         async execute(ctx, text) {
             const user = ctx.user || ctx.author;
-            // Usamos una API pública para generar la imagen (nekobot)
             const url = `https://nekobot.xyz/api/imagegen?type=tweet&username=${user.username}&text=${encodeURIComponent(text)}`;
             try {
                 const res = await fetch(url);
                 const json = await res.json();
                 if (json.success) {
-                    const embed = new EmbedBuilder().setImage(json.message).setColor('#1DA1F2');
+                    const embed = new EmbedBuilder().setImage(json.message).setColor('#1a1a1a'); // Adaptado a dark
                     await ctx.reply({ embeds: [embed] });
                 } else {
-                    await ctx.reply('❌ Error al generar el tweet.');
+                    await ctx.reply('╰┈➤ ❌ Error al generar el tweet.');
                 }
             } catch (e) {
-                await ctx.reply('❌ Error de conexión con la API.');
+                await ctx.reply('╰┈➤ ❌ Error de conexión con la API.');
             }
         }
     },
@@ -147,8 +143,8 @@ const commands = [
         builder: b => b.addIntegerOption(o => o.setName('numero').setDescription('Tu número.').setRequired(true)),
         async execute(ctx, number) {
             const target = Math.floor(Math.random() * 10) + 1;
-            if (number === target) await ctx.reply(`🎉 ¡Correcto! El número era ${target}.`);
-            else await ctx.reply(`❌ Incorrecto. El número era ${target}.`);
+            if (number === target) await ctx.reply(`🖤 ¡Acertaste! El número era ${target}.`);
+            else await ctx.reply(`╰┈➤ ❌ Fallaste. El número era ${target}.`);
         }
     },
     {
@@ -156,8 +152,8 @@ const commands = [
         description: 'Da reputación a un usuario.',
         builder: b => b.addUserOption(o => o.setName('usuario').setDescription('Usuario.').setRequired(true)),
         async execute(ctx, target) {
-            if (target.id === (ctx.user || ctx.author).id) return ctx.reply('❌ No puedes darte reputación a ti mismo.');
-            await ctx.reply(`🌟 Has dado +1 punto de reputación a **${target.username}**.`);
+            if (target.id === (ctx.user || ctx.author).id) return ctx.reply('╰┈➤ ❌ No puedes darte reputación a ti mismo.');
+            await ctx.reply(`🖤 Has dado +1 punto de carisma a **${target.username}**.`);
         }
     },
     {
@@ -170,18 +166,16 @@ const commands = [
                 { q: '¿De qué color es el caballo blanco de Santiago?', a: 'blanco' }
             ];
             const q = questions[Math.floor(Math.random() * questions.length)];
-            await ctx.reply(`❓ **Trivia:** ${q.q}\n*(Responde mentalmente, no puedo verificar tu respuesta aún)*\nRespuesta: ||${q.a}||`);
+            await ctx.reply(`❓ **Trivia:** ${q.q}\n*(Responde mentalmente)*\nRespuesta: ||${q.a}||`);
         }
     },
-    // Juegos simplificados
     {
         name: 'tictactoe',
         description: 'Juega al tres en raya (simplificado).',
         async execute(ctx) {
             const board = ['⬜', '⬜', '⬜', '⬜', '⬜', '⬜', '⬜', '⬜', '⬜'];
-            // Simulación simple: Bot hace un movimiento random
             const botMove = Math.floor(Math.random() * 9);
-            board[botMove] = '⭕';
+            board[botMove] = '❌'; // Cambiado a X roja/negra para encajar mejor
             
             let boardStr = '';
             for (let i = 0; i < 9; i++) {
@@ -189,17 +183,17 @@ const commands = [
                 if ((i + 1) % 3 === 0) boardStr += '\n';
             }
             
-            await ctx.reply(`🎮 **Tic Tac Toe** (Demo)\nEl bot ha movido:\n${boardStr}\n*Versión completa requiere interactividad avanzada.*`);
+            await ctx.reply(`🎮 **Tic Tac Toe** (Demo)\nLas sombras han movido:\n${boardStr}`);
         }
     },
     {
         name: 'hangman',
         description: 'Juego del ahorcado (simplificado).',
         async execute(ctx) {
-            const words = ['discord', 'bot', 'javascript', 'rockstar'];
+            const words = ['discord', 'bot', 'javascript', 'rockstar', 'nightfall', 'sombras'];
             const word = words[Math.floor(Math.random() * words.length)];
             const hidden = word.replace(/./g, '_ ');
-            await ctx.reply(`😵 **Ahorcado**\nPalabra: \`${hidden}\`\n*Intenta adivinar la palabra completa!* (Solución: ||${word}||)`);
+            await ctx.reply(`💀 **Ahorcado**\nPalabra: \`${hidden}\`\n(Solución: ||${word}||)`);
         }
     },
     {
@@ -220,7 +214,7 @@ const individualCommands = commands.map(cmdConfig => {
         data: new SlashCommandBuilder()
             .setName(cmdConfig.name)
             .setDescription(cmdConfig.description),
-        skipSlash: true, // No registrar individualmente
+        skipSlash: true,
         category: 'fun',
         description: cmdConfig.description,
         usage: cmdConfig.usage || `!!${cmdConfig.name}`,
@@ -229,8 +223,9 @@ const individualCommands = commands.map(cmdConfig => {
         async execute(message, args) {
             switch(cmdConfig.name) {
                 case '8ball':
-                    return cmdConfig.execute(message, args.join(' '));
                 case 'say':
+                case 'confess':
+                case 'tweet':
                     return cmdConfig.execute(message, args.join(' '));
                 case 'ship':
                     const user1 = message.mentions.users.first();
@@ -239,9 +234,6 @@ const individualCommands = commands.map(cmdConfig => {
                     return cmdConfig.execute(message, user1, user2 === user1 ? null : user2);
                 case 'roll':
                     return cmdConfig.execute(message, parseInt(args[0]) || 6);
-                case 'confess':
-                case 'tweet':
-                    return cmdConfig.execute(message, args.join(' '));
                 case 'rps':
                 case 'guess-game':
                     return cmdConfig.execute(message, args[0]);
@@ -271,7 +263,6 @@ const masterFunCommand = {
 
         if (!cmdConfig) return;
 
-        // Lógica de enrutamiento idéntica a la anterior, pero usando el config encontrado
         switch(cmdConfig.name) {
             case '8ball':
                 return cmdConfig.execute(interaction, interaction.options.getString('pregunta'));
@@ -302,7 +293,7 @@ const masterFunCommand = {
 commands.forEach(cmd => {
     masterFunCommand.data.addSubcommand(sub => {
         sub.setName(cmd.name).setDescription(cmd.description);
-        if (cmd.builder) cmd.builder(sub); // Reutilizamos el builder original
+        if (cmd.builder) cmd.builder(sub); 
         return sub;
     });
 });
