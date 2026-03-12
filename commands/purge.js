@@ -1,12 +1,12 @@
-const { EmbedBuilder } = require('discord.js');
-const { GuildConfig } = require('../data/mongodb.js'); // Conectamos los logs
+const { PermissionFlagsBits } = require('discord.js');
+const { sendAuditLog } = require('../functions/auditLogger.js'); // Importamos el logger maestro
 
 module.exports = {
     name: 'purge',
     aliases: ['clear'],
     async execute(message, args) {
         // --- 🛡️ VALIDACIÓN DE PERMISOS ---
-        if (!message.member.permissions.has('ManageMessages')) {
+        if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
             return message.reply('╰┈➤ ❌ Careces de autoridad para manipular el vacío.');
         }
 
@@ -20,7 +20,7 @@ module.exports = {
             await message.delete().catch(() => {});
 
             // --- 🗑️ LÓGICA DE PURGA ---
-            // 'true' ignora los mensajes de más de 14 días para que Discord no crashee
+            // 'true' ignora los mensajes de más de 14 días para evitar errores de la API de Discord
             const deleted = await message.channel.bulkDelete(amount, true);
             
             const replyMsg = await message.channel.send(`╰┈➤ 🌑 **${deleted.size}** mensajes han sido devorados por las sombras.`);
@@ -29,30 +29,21 @@ module.exports = {
             setTimeout(() => replyMsg.delete().catch(() => {}), 3000);
 
             // --- 👁️ SISTEMA DE LOGS (ROCKSTAR AUDITORÍA) ---
-            const config = await GuildConfig.findOne({ GuildID: message.guild.id });
-            
-            if (config && config.LogChannelID) {
-                const logChannel = message.guild.channels.cache.get(config.LogChannelID);
-                
-                if (logChannel) {
-                    const logEmbed = new EmbedBuilder()
-                        .setColor('#1a1a1a')
-                        .setAuthor({ name: '⊹ Limpieza de Sombras (Purge) ⊹', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                        .setDescription(
-                            `**Canal:** <#${message.channel.id}>\n` +
-                            `**Ejecutor:** ${message.author.tag} (\`${message.author.id}\`)\n` +
-                            `**Cantidad:** \`${deleted.size}\` mensajes erradicados\n` +
-                            `> *El historial ha sido borrado de la existencia.*`
-                        )
-                        .setFooter({ text: `Rockstar ⊹ Vigilancia` })
-                        .setTimestamp();
-                    
-                    await logChannel.send({ embeds: [logEmbed] });
-                }
-            }
+            await sendAuditLog(message.guild, {
+                title: '⊹ Limpieza de Sombras (Purge) ⊹',
+                description: 
+                    `**Canal:** <#${message.channel.id}>\n` +
+                    `**Ejecutor:** ${message.author.tag} (\`${message.author.id}\`)\n` +
+                    `**Cantidad:** \`${deleted.size}\` mensajes erradicados\n` +
+                    `> *El historial de este sector ha sido borrado de la existencia.*`,
+                color: '#1a1a1a', // Negro Rockstar
+                icon: message.author.displayAvatarURL()
+            });
+
         } catch (error) {
-            console.error("Error en purge:", error);
-            message.channel.send('╰┈➤ ❌ Las sombras se resistieron. Hubo un error al purgar.').then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
+            console.error("Error en el comando purge:", error);
+            const errorMsg = await message.channel.send('╰┈➤ ❌ Las sombras se resistieron. Hubo un error al purgar.');
+            setTimeout(() => errorMsg.delete().catch(() => {}), 3000);
         }
     }
 };
