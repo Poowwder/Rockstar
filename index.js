@@ -52,12 +52,19 @@ console.log('--- 🎭 SINCRONIZANDO EVENTOS ---');
 const eventFiles = fs.readdirSync('./events').filter(file => file.endsWith('.js'));
 for (const file of eventFiles) {
     const event = require(`./events/${file}`);
+    
+    // 🛡️ EL ESCUDO: Ignoramos los archivos de utilidad (como embedBuilder.js)
+    if (!event.name) {
+        console.log(`[⚠️] Archivo de utilidad detectado e ignorado por el bucle: ${file}`);
+        continue; 
+    }
+
     if (event.once) {
         client.once(event.name, (...args) => event.execute(...args));
     } else {
         client.on(event.name, (...args) => event.execute(...args));
     }
-    console.log(`[✨] Evento cargado: ${event.name}`);
+    console.log(`[✨] Evento cargado exitosamente: ${event.name}`);
 }
 
 // --- 💬 MANEJADOR DE MENSAJES (XP & PREFIJO) ---
@@ -109,11 +116,15 @@ client.on(Events.InteractionCreate, async interaction => {
             await run(interaction);
         } catch (e) { 
             console.error(`Error en /${interaction.commandName}:`, e);
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ content: '╰┈➤ ❌ Error ejecutando el comando.', ephemeral: true });
+            } else {
+                await interaction.reply({ content: '╰┈➤ ❌ Error ejecutando el comando.', ephemeral: true });
+            }
         }
     }
 
-    // Aquí es donde se procesarán los botones de sugerencias y los Modals de configuración
-    // que creamos en los pasos anteriores.
+    // Aquí es donde procesarás tus botones y modals en el futuro
 });
 
 client.login(process.env.TOKEN);
