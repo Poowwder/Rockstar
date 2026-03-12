@@ -7,7 +7,6 @@ const BOLSA_ROTATIVA = [
     // --- 🌸 TUS ÍTEMS ESTÉTICOS ORIGINALES ---
     { id: "vida", name: "Vida Extra 💖", price: 3500, emoji: "💖", tipo: "rotativo" },
     { id: "anillo", name: "Anillo de Compromiso 💍", price: 15000, emoji: "💍", tipo: "rotativo" },
-    { id: "koko", name: "Insignia: Koko 🍓", price: 85000, emoji: "🍓", tipo: "rotativo", premium: true },
     { id: "guitarra", name: "Guitarra de Cristal", price: 150000, emoji: "🎸", tipo: "rotativo" },
     { id: "camara", name: "Cámara Vintage", price: 45000, emoji: "📸", tipo: "rotativo" },
     { id: "perfume", name: "Perfume de Rosas", price: 12000, emoji: "🌹", tipo: "rotativo" },
