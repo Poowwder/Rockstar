@@ -3,30 +3,34 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
+// 👑 TU ID DE DISCORD (Solo tú podrás usar el comando)
+const CREATOR_ID = '1428164600091902055'; 
+
 module.exports = {
     name: 'deploy',
-    description: '🚀 Registra los Slash Commands en Discord y recarga el código.',
+    description: 'Comando clasificado. Acceso denegado a usuarios estándar.',
+    category: 'oculto', // 🛡️ Esto lo hace invisible en el comando !!help
     data: new SlashCommandBuilder()
         .setName('deploy')
-        .setDescription('🚀 Sincroniza comandos y recarga el sistema')
+        .setDescription('Comando clasificado. Acceso denegado a usuarios estándar.')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(input) {
         const isSlash = !!input.user;
-        const member = input.member;
+        const author = isSlash ? input.user : input.author;
         const client = input.client;
 
-        // Validar permisos (Solo Administradores)
-        if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
-            const errorMsg = '❌ No tienes permisos suficientes para ejecutar un deploy en el servidor.';
+        // --- 🔒 SEGURIDAD DE NIVEL DIOS ---
+        if (author.id !== CREATOR_ID) {
+            const errorMsg = '╰┈➤ ❌ **Acceso denegado.** Comando encriptado. Solo la creadora del sistema posee las credenciales necesarias.';
             return isSlash ? input.reply({ content: errorMsg, ephemeral: true }) : input.reply(errorMsg);
         }
 
         let loadingMsg;
         if (isSlash) {
-            loadingMsg = await input.reply({ content: '⏳ **Iniciando sincronización de comandos y recarga de código...**', fetchReply: true });
+            loadingMsg = await input.reply({ content: '╰┈➤ ⏳ **Iniciando protocolo de sincronización y recarga del núcleo...**', fetchReply: true });
         } else {
-            loadingMsg = await input.reply('⏳ **Iniciando sincronización de comandos y recarga de código...**');
+            loadingMsg = await input.reply('╰┈➤ ⏳ **Iniciando protocolo de sincronización y recarga del núcleo...**');
         }
 
         // --- 🔄 HOT RELOAD: RECARGA EL CÓDIGO ANTES DEL DEPLOY ---
@@ -50,7 +54,7 @@ module.exports = {
         }
         // --- FIN DEL HOT RELOAD ---
 
-        // --- DEPLOY A LA API DE DISCORD ---
+        // --- 🚀 DEPLOY A LA API DE DISCORD ---
         const commands = [];
         const commandFiles = client.commands.filter(cmd => cmd.data);
 
@@ -58,7 +62,7 @@ module.exports = {
             commands.push(command.data.toJSON());
         }
 
-        // Usamos el ID del archivo .env O el ID del bot actual para evitar el error "undefined"
+        // Usamos el ID del archivo .env O el ID del bot actual
         const clientId = process.env.CLIENT_ID || client.user.id;
         const token = process.env.TOKEN;
 
@@ -72,23 +76,23 @@ module.exports = {
             );
 
             const embed = new EmbedBuilder()
-                .setTitle('🚀 DEPLOY EXITOSO')
-                .setColor('#1a1a1a')
-                .setDescription(`Se han recargado y sincronizado **${commands.length}** comandos correctamente.\n\n> *Ya puedes usar los comandos de barra (/) y el código nuevo está activo en memoria.*`)
-                .setTimestamp();
+                .setTitle('⊹ NÚCLEO SINCRONIZADO ⊹')
+                .setColor('#1a1a1a') // Negro Rockstar
+                .setDescription(`Se han recargado y enlazado **${commands.length}** archivos de sistema.\n\n> *La matriz está actualizada. Los comandos de barra (/) y el nuevo código ya operan en las sombras.*`)
+                .setTimestamp()
+                .setFooter({ text: 'Protocolo Deploy ⊹ Rockstar Nova', iconURL: author.displayAvatarURL() });
 
-            // Editamos el mensaje original dependiendo de cómo se ejecutó
             if (isSlash) {
-                await input.editReply({ content: '✅ **Proceso finalizado.**', embeds: [embed] });
+                await input.editReply({ content: '╰┈➤ ✅ **Sincronización completa.**', embeds: [embed] });
             } else {
-                await loadingMsg.edit({ content: '✅ **Proceso finalizado.**', embeds: [embed] });
+                await loadingMsg.edit({ content: '╰┈➤ ✅ **Sincronización completa.**', embeds: [embed] });
             }
 
         } catch (error) {
             console.error(error);
             const errorEmbed = new EmbedBuilder()
-                .setTitle('❌ ERROR EN EL DEPLOY')
-                .setColor('#ff0000')
+                .setTitle('❌ FALLO CRÍTICO EN EL DEPLOY')
+                .setColor('#ff4d4d')
                 .setDescription(`\`\`\`js\n${error.message}\n\`\`\``);
             
             if (isSlash) {
