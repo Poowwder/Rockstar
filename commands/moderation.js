@@ -53,14 +53,20 @@ module.exports = {
             if (sub === 'unban') {
                 const id = interaction.options.getString('id');
                 return guild.members.unban(id)
-                    .then(() => interaction.reply(`╰┈➤ ✅ ID \`${id}\` ha sido restaurada en las sombras.`))
+                    .then(async () => {
+                        await sendLog(guild, new EmbedBuilder().setColor('#1a1a1a').setTitle('🕊️ PROTOCOLO: Desbaneo').setDescription(`> *Un alma ha sido liberada del abismo.*\n\n**ID:** \`${id}\`\n**Por:** ${modUser}`));
+                        interaction.reply(`╰┈➤ ✅ ID \`${id}\` ha sido restaurada en las sombras.`);
+                    })
                     .catch(() => interaction.reply('❌ La ID no es válida o no está baneada.'));
             }
             const user = interaction.options.getUser('usuario');
             const target = guild.members.cache.get(user.id);
             if (target && modMember.roles.highest.position <= target.roles.highest.position) return interaction.reply('❌ Jerarquía insuficiente.');
             
-            sub === 'ban' ? await guild.members.ban(user) : await target.kick();
+            const reason = interaction.options.getString('razon') || 'Sin razón especificada';
+            sub === 'ban' ? await guild.members.ban(user, { reason }) : await target.kick(reason);
+            
+            await sendLog(guild, new EmbedBuilder().setColor('#1a1a1a').setTitle(sub === 'ban' ? '🔨 PROTOCOLO: Exilio (Ban)' : '👢 PROTOCOLO: Expulsión (Kick)').setDescription(`> *Las sombras han juzgado a un ciudadano.*\n\n**Usuario:** ${user.tag} (\`${user.id}\`)\n**Motivo:** ${reason}\n**Por:** ${modUser}`));
             await interaction.reply(`╰┈➤ ⚖️ **${user.tag}** ha sido ${sub === 'ban' ? 'eliminado' : 'expulsado'} del servidor.`);
         }
 
@@ -77,11 +83,16 @@ module.exports = {
 
             if (sub === 'mute') {
                 const time = interaction.options.getString('tiempo');
+                const reason = interaction.options.getString('razon') || 'Sin razón especificada';
                 await target.roles.add(muteRole);
                 if (time) setTimeout(() => target.roles.remove(muteRole).catch(() => {}), ms(time));
+                
+                await sendLog(guild, new EmbedBuilder().setColor('#1a1a1a').setTitle('🤐 PROTOCOLO: Silencio (Mute)').setDescription(`**Usuario:** ${user.tag} (\`${user.id}\`)\n**Motivo:** ${reason}\n**Tiempo:** ${time || 'Indefinido'}\n**Por:** ${modUser}`));
                 await interaction.reply(`╰┈➤ 🤐 **${user.tag}** ha sido silenciado.`);
             } else {
                 await target.roles.remove(muteRole);
+                
+                await sendLog(guild, new EmbedBuilder().setColor('#1a1a1a').setTitle('🔊 PROTOCOLO: Voz Restaurada (Unmute)').setDescription(`**Usuario:** ${user.tag} (\`${user.id}\`)\n**Por:** ${modUser}`));
                 await interaction.reply(`╰┈➤ 🔊 **${user.tag}** recuperó su voz.`);
             }
         }
@@ -95,8 +106,11 @@ module.exports = {
 
             if (sub === 'warn') {
                 const reason = interaction.options.getString('razon');
-                warns[guild.id][user.id].push({ id: Date.now().toString(36), reason, mod: modUser.id });
+                const warnId = Date.now().toString(36);
+                warns[guild.id][user.id].push({ id: warnId, reason, mod: modUser.id });
                 writeData(warningsPath, warns);
+                
+                await sendLog(guild, new EmbedBuilder().setColor('#1a1a1a').setTitle('⚠️ PROTOCOLO: Advertencia').setDescription(`**Usuario:** ${user.tag} (\`${user.id}\`)\n**Warn ID:** \`${warnId}\`\n**Motivo:** ${reason}\n**Por:** ${modUser}`));
                 await interaction.reply(`╰┈➤ ⚠️ **Advertencia aplicada:** ${user.tag} | Motivo: ${reason}`);
             } else if (sub === 'warns') {
                 const list = warns[guild.id][user.id];
@@ -108,6 +122,8 @@ module.exports = {
             } else if (sub === 'clearwarns') {
                 warns[guild.id][user.id] = [];
                 writeData(warningsPath, warns);
+                
+                await sendLog(guild, new EmbedBuilder().setColor('#1a1a1a').setTitle('✨ PROTOCOLO: Purificación (ClearWarns)').setDescription(`**Usuario:** ${user.tag} (\`${user.id}\`)\n**Por:** ${modUser}`));
                 await interaction.reply(`╰┈➤ ✨ Historial de advertencias purificado para ${user.tag}.`);
             }
         }
@@ -116,6 +132,8 @@ module.exports = {
         if (sub === 'purge') {
             const amount = interaction.options.getInteger('cantidad');
             await channel.bulkDelete(amount, true);
+            
+            await sendLog(guild, new EmbedBuilder().setColor('#1a1a1a').setTitle('🧹 PROTOCOLO: Purga Masiva').setDescription(`**Canal:** ${channel}\n**Cantidad:** ${amount} mensajes eliminados.\n**Por:** ${modUser}`));
             return interaction.reply({ content: `╰┈➤ 🧹 Se han incinerado **${amount}** mensajes.`, flags: MessageFlags.Ephemeral });
         }
         if (sub === 'nuke') {
@@ -124,9 +142,13 @@ module.exports = {
             await channel.delete();
             await newCh.setPosition(pos);
             await newCh.send({ embeds: [new EmbedBuilder().setColor('#1a1a1a').setTitle('💥 CANAL RECONSTRUIDO').setImage('https://i.pinimg.com/originals/de/13/8d/de138d68962534575975d4f7c975a5c5.gif')] });
+            
+            await sendLog(guild, new EmbedBuilder().setColor('#1a1a1a').setTitle('💥 PROTOCOLO: Nuke').setDescription(`**Canal reconstruido:** ${newCh}\n**Por:** ${modUser}`));
         }
         if (sub === 'lock' || sub === 'unlock') {
             await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: sub === 'unlock' ? null : false });
+            
+            await sendLog(guild, new EmbedBuilder().setColor('#1a1a1a').setTitle(sub === 'lock' ? '🔒 PROTOCOLO: Bloqueo' : '🔓 PROTOCOLO: Desbloqueo').setDescription(`**Canal:** ${channel}\n**Por:** ${modUser}`));
             return interaction.reply(`╰┈➤ 🔒 Canal **${sub === 'lock' ? 'BLOQUEADO' : 'DESBLOQUEADO'}**.`);
         }
 
@@ -136,7 +158,7 @@ module.exports = {
             let config = readData(configPath);
             config.logChannelId = logCh.id;
             writeData(configPath, config);
-            return interaction.reply(`╰┈➤ ✅ Canal de vigilancia establecido en <#${logCh.id}>.`);
+            return interaction.reply(`╰┈➤ ✅ Canal de vigilancia establecido en <#${logCh.id}>. Esperando iniciar protocolos individuales...`);
         }
     }
 };
