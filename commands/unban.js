@@ -1,48 +1,42 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { GuildConfig } = require('../data/mongodb.js'); // Conexión a la base de datos para los logs
+const { PermissionFlagsBits } = require('discord.js');
+const { sendAuditLog } = require('../functions/auditLogger.js'); // Importamos el logger maestro
 
 module.exports = {
     name: 'unban',
-    description: 'Desbanea a un usuario mediante su ID.',
+    description: 'Revoca el exilio de un usuario mediante su ID.',
     async execute(message, args) {
-        // --- 🛡️ VALIDACIÓN DE PERMISOS ---
+        // --- 🛡️ VALIDACIÓN DE AUTORIDAD ---
         if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
             return message.reply('╰┈➤ ❌ Careces de autoridad para perdonar a los exiliados.');
         }
         
         const userId = args[0];
         if (!userId) {
-            return message.reply('╰┈➤ ⚠️ Debes proveer el ID del alma que deseas retornar de las sombras.');
+            return message.reply('╰┈➤ ⚠️ Identifica al alma que deseas retornar de las sombras (Provee su ID).');
         }
 
         try {
-            // --- 🔓 LÓGICA DE UNBAN ---
-            await message.guild.members.unban(userId);
-            message.reply(`╰┈➤ 🌑 El usuario con ID \`${userId}\` ha sido perdonado. Las puertas se abren de nuevo.`);
+            // --- 🔓 PROTOCOLO DE RETORNO ---
+            // Intentamos desbanear al usuario
+            const bannedUser = await message.guild.members.unban(userId);
+            
+            // Respuesta estética en el chat
+            message.reply(`╰┈➤ 🌑 **${bannedUser.tag || userId}** ha sido perdonado. Las puertas del dominio se abren para su retorno.`);
 
             // --- 👁️ SISTEMA DE LOGS (ROCKSTAR AUDITORÍA) ---
-            const config = await GuildConfig.findOne({ GuildID: message.guild.id });
-            
-            if (config && config.LogChannelID) {
-                const logChannel = message.guild.channels.cache.get(config.LogChannelID);
-                
-                if (logChannel) {
-                    const logEmbed = new EmbedBuilder()
-                        .setColor('#1a1a1a')
-                        .setAuthor({ name: '⊹ Exilio Revocado (Unban) ⊹', iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                        .setDescription(
-                            `**Usuario Perdonado (ID):** \`${userId}\`\n` +
-                            `**Moderador:** ${message.author.tag} (\`${message.author.id}\`)\n` +
-                            `> *Un alma ha sido liberada del abismo y puede volver a caminar entre nosotros.*`
-                        )
-                        .setFooter({ text: `Rockstar ⊹ Vigilancia` })
-                        .setTimestamp();
-                    
-                    await logChannel.send({ embeds: [logEmbed] });
-                }
-            }
+            await sendAuditLog(message.guild, {
+                title: '⊹ Exilio Revocado (Unban) ⊹',
+                description: 
+                    `**Sujeto Liberado:** ${bannedUser.tag || 'Desconocido'} (\`${userId}\`)\n` +
+                    `**Moderador:** ${message.author.tag} (\`${message.author.id}\`)\n` +
+                    `> *Un alma ha sido liberada del abismo y su acceso ha sido restaurado.*`,
+                color: '#1a1a1a', // Negro Rockstar
+                icon: message.author.displayAvatarURL()
+            });
+
         } catch (error) {
-            message.reply('╰┈➤ ❌ Las sombras no retienen a ninguna entidad con ese ID o hubo un error en la revocación.');
+            console.error("Error en unban:", error);
+            message.reply('╰┈➤ ❌ El abismo no retiene a ninguna entidad con ese ID o el perdón ha sido rechazado.');
         }
     }
 };
