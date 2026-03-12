@@ -1,56 +1,54 @@
-const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Events, Partials } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { connectDB } = require('./data/mongodb.js');
+require('./data/mongodb.js'); // Conexión automática al búnker
 const { addXP } = require('./userManager.js'); 
 require('dotenv').config();
 
 // --- 🌐 SERVIDOR KEEP-ALIVE ---
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Rockstar Bot está en línea 🌑 Nightfall Edition');
+    res.end('Rockstar Bot 🌑 Nightfall Edition: SISTEMAS OPERATIVOS');
 });
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`[🌐] Puerto ${PORT} abierto.`));
+server.listen(PORT, () => console.log(`╰┈➤ [🌐] Puerto ${PORT} abierto.`));
 
 // --- 🤖 CONFIGURACIÓN DEL CLIENTE ---
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
+        GatewayIntentBits.GuildMembers, // Vital para bienvenidas y logs de miembros
+        GatewayIntentBits.GuildMessages, // Vital para logs de borrado/editado
+        GatewayIntentBits.MessageContent, // Vital para leer comandos de prefijo
+        GatewayIntentBits.GuildModeration // Vital para logs de ban/kick
+    ],
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User] 
+    // Los Partials permiten que el bot detecte eventos en mensajes viejos (logs)
 });
 
 client.commands = new Collection();
-const prefix = "!!";
+const prefix = process.env.PREFIX || "!!";
 
-// Conexión a Base de Datos
-connectDB();
-
-// --- 📂 CARGA DE COMANDOS ---
-console.log('--- 🛠️ CARGANDO COMANDOS ---');
+// --- 📂 CARGA DINÁMICA DE COMANDOS ---
+console.log('--- 🛠️ SINCRONIZANDO COMANDOS ---');
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 for (const file of commandFiles) {
     try {
-        const filePath = `./commands/${file}`;
-        delete require.cache[require.resolve(filePath)];
-        const command = require(filePath);
+        const command = require(`./commands/${file}`);
         const cmdName = command.name || (command.data && command.data.name);
         
         if (cmdName) {
             client.commands.set(cmdName, command);
-            console.log(`[📦] ${cmdName} cargado.`);
+            console.log(`[📦] Comando cargado: ${cmdName}`);
         }
     } catch (error) {
-        console.error(`🚨 Error en ${file}: ${error.message}`);
+        console.error(`🚨 Error en el archivo ${file}: ${error.message}`);
     }
 }
 
-// --- 📂 CARGA DE EVENTOS (Auto-Role, Bienvenidas, etc.) ---
-console.log('--- 🎭 CARGANDO EVENTOS ---');
+// --- 📂 CARGA DINÁMICA DE EVENTOS ---
+console.log('--- 🎭 SINCRONIZANDO EVENTOS ---');
 const eventFiles = fs.readdirSync('./events').filter(file => file.endsWith('.js'));
 for (const file of eventFiles) {
     const event = require(`./events/${file}`);
@@ -62,61 +60,60 @@ for (const file of eventFiles) {
     console.log(`[✨] Evento cargado: ${event.name}`);
 }
 
-client.once(Events.ClientReady, (c) => { 
-    console.log(`✅ Rockstar operativo: ${c.user.tag}`);
-});
-
-// --- 💬 EVENTO: MESSAGE (XP y Comandos de Prefijo) ---
-client.on('messageCreate', async message => {
+// --- 💬 MANEJADOR DE MENSAJES (XP & PREFIJO) ---
+client.on(Events.MessageCreate, async message => {
     if (message.author.bot || !message.guild) return;
 
-    // --- 📈 SISTEMA DE XP CON EVENTOS ---
+    // --- 📈 SISTEMA DE XP ---
     try {
+        // Lógica de multiplicador (Eventos de XP)
         let multiXP = 1;
         const activePath = './data/activeEvent.json';
         if (fs.existsSync(activePath)) {
             const ev = JSON.parse(fs.readFileSync(activePath, 'utf8'));
-            if (ev.type === 'xp') multiXP = ev.multiplier; // Bonus si el evento es de XP
+            if (ev.type === 'xp') multiXP = ev.multiplier;
         }
 
         const xpGained = Math.floor((Math.random() * 11) + 15) * multiXP; 
         const levelStatus = await addXP(message.author.id, xpGained, client);
         
-        if (levelStatus && levelStatus.leveledUp) {
-            message.channel.send(`> ✨ Las sombras reconocen tu ascenso, <@${message.author.id}>. Eres **Nivel ${levelStatus.level}**.`);
+        if (levelStatus?.leveledUp) {
+            message.channel.send(`╰┈➤ ✨ Las sombras reconocen tu ascenso, <@${message.author.id}>. Eres **Nivel ${levelStatus.level}**.`);
         }
-    } catch (err) { console.error("Error en XP:", err); }
+    } catch (err) { console.error("Error en sistema de XP:", err); }
 
-    // --- ⌨️ MANEJADOR DE PREFIJO ---
-    if (message.content.startsWith(prefix)) {
-        const args = message.content.slice(prefix.length).trim().split(/ +/);
-        const commandName = args.shift().toLowerCase();
-        const cmd = client.commands.get(commandName) || client.commands.find(c => c.aliases && c.aliases.includes(commandName));
+    // --- ⌨️ SISTEMA DE PREFIJO ---
+    if (!message.content.startsWith(prefix)) return;
 
-        if (cmd && cmd.execute) {
-            try { await cmd.execute(message, args); } catch (e) { console.error(e); }
+    const args = message.content.slice(prefix.length).trim().split(/ +/);
+    const commandName = args.shift().toLowerCase();
+    const cmd = client.commands.get(commandName) || client.commands.find(c => c.aliases && c.aliases.includes(commandName));
+
+    if (cmd && cmd.execute) {
+        try { 
+            await cmd.execute(message, args); 
+        } catch (e) { 
+            console.error(`Error ejecutando !!${commandName}:`, e);
+            message.reply('╰┈➤ ❌ Hubo un error al ejecutar ese comando en las sombras.');
         }
     }
 });
 
-// --- ⚡ EVENTO: INTERACTION (Slash, Modals, Buttons) ---
-client.on('interactionCreate', async interaction => {
-    // 1. Comandos de Barra (Slash)
+// --- ⚡ MANEJADOR DE INTERACCIONES (SLASH / BOTONES / MODALS) ---
+client.on(Events.InteractionCreate, async interaction => {
     if (interaction.isChatInputCommand()) {
         const cmd = client.commands.get(interaction.commandName);
         if (!cmd) return;
         try {
-            // Soporte para archivos con execute o executeSlash
             const run = cmd.executeSlash || cmd.execute;
             await run(interaction);
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error(`Error en /${interaction.commandName}:`, e);
+        }
     }
 
-    // 2. Autocompletado
-    if (interaction.isAutocomplete()) {
-        const cmd = client.commands.get(interaction.commandName);
-        if (cmd && cmd.autocomplete) await cmd.autocomplete(interaction);
-    }
+    // Aquí es donde se procesarán los botones de sugerencias y los Modals de configuración
+    // que creamos en los pasos anteriores.
 });
 
 client.login(process.env.TOKEN);
