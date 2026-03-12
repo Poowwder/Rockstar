@@ -1,74 +1,36 @@
-const fs = require('fs');
-const path = require('path');
 const { PermissionFlagsBits } = require('discord.js');
-const { sendAuditLog } = require('../functions/auditLogger.js'); // Logger maestro
-
-const warningsPath = path.join(__dirname, '../data/warnings.json');
+const { Warning } = require('../data/mongodb.js');
+const { sendAuditLog } = require('../functions/auditLogger.js');
 
 module.exports = {
     name: 'unwarn',
-    description: 'Elimina una advertencia específica del expediente de un usuario.',
     async execute(message, args) {
-        // --- 🛡️ VALIDACIÓN DE AUTORIDAD ---
         if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-            return message.reply('╰┈➤ ❌ Careces de autoridad para alterar los expedientes de las sombras.');
+            return message.reply('╰┈➤ ❌ Careces de autoridad para alterar los expedientes.');
         }
 
-        const user = message.mentions.users.first() || message.guild.members.cache.get(args[0])?.user;
-        const warnId = args[1];
+        const warnId = args[0]?.toUpperCase();
+        if (!warnId) return message.reply('╰┈➤ ⚠️ Indica el ID de la advertencia que deseas erradicar.');
 
-        if (!user || !warnId) {
-            return message.reply('╰┈➤ ⚠️ **Uso correcto:** `!!unwarn @usuario [ID_del_warn]`');
+        // --- 🧹 PURGA EN DATABASE ---
+        const deletedWarn = await Warning.findOneAndDelete({ GuildID: message.guild.id, WarnID: warnId });
+
+        if (!deletedWarn) {
+            return message.reply(`╰┈➤ ❌ No se encontró ningún registro con el ID \`${warnId}\`.`);
         }
 
-        // --- 📂 LECTURA DE EXPEDIENTES ---
-        let warns = {};
-        try {
-            if (fs.existsSync(warningsPath)) {
-                warns = JSON.parse(fs.readFileSync(warningsPath, 'utf8'));
-            }
-        } catch (e) {
-            console.error("Error leyendo warnings.json:", e);
-            return message.reply('╰┈➤ ❌ Error al acceder a los archivos del sistema.');
-        }
+        message.reply(`╰┈➤ 🌑 El registro \`${warnId}\` ha sido borrado de la existencia.`);
 
-        const guildWarns = warns[message.guild.id];
-        const userWarns = guildWarns ? guildWarns[user.id] : null;
-
-        if (!userWarns || userWarns.length === 0) {
-            return message.reply('╰┈➤ ❌ Este sujeto no posee antecedentes registrados en este dominio.');
-        }
-
-        // --- 🧹 PROCESO DE INDULTO ---
-        const initialLength = userWarns.length;
-        warns[message.guild.id][user.id] = userWarns.filter(w => w.id !== warnId);
-
-        if (warns[message.guild.id][user.id].length === initialLength) {
-            return message.reply(`╰┈➤ ❌ No se encontró ninguna advertencia con el ID \`${warnId}\` en su expediente.`);
-        }
-
-        try {
-            // Guardar cambios en el archivo
-            fs.writeFileSync(warningsPath, JSON.stringify(warns, null, 2));
-            
-            message.reply(`╰┈➤ 🌑 El indulto ha sido procesado. La advertencia \`${warnId}\` de **${user.tag}** ha sido erradicada.`);
-
-            // --- 👁️ SISTEMA DE LOGS (ROCKSTAR AUDITORÍA) ---
-            await sendAuditLog(message.guild, {
-                title: '⊹ Indulto de Expediente (Unwarn) ⊹',
-                description: 
-                    `**Sujeto Indultado:** ${user.tag} (\`${user.id}\`)\n` +
-                    `**Moderador:** ${message.author.tag}\n` +
-                    `**Warn ID Removido:** \`${warnId}\`\n` +
-                    `> *Una mancha en su historial ha sido borrada de la existencia.*`,
-                thumbnail: user.displayAvatarURL({ dynamic: true }),
-                color: '#1a1a1a',
-                icon: message.author.displayAvatarURL()
-            });
-
-        } catch (error) {
-            console.error("Error guardando unwarn:", error);
-            message.reply('╰┈➤ ❌ Fallo crítico al intentar actualizar el expediente físico.');
-        }
+        // --- 👁️ AUDITORÍA AUTOMÁTICA ---
+        await sendAuditLog(message.guild, {
+            title: '⊹ Indulto de Expediente ⊹',
+            description: 
+                `**ID Removido:** \`${warnId}\`\n` +
+                `**Moderador:** ${message.author.tag}\n` +
+                `**Sujeto Afectado:** <@${deletedWarn.UserID}>\n` +
+                `> *Una mancha en el historial ha sido purgada.*`,
+            color: '#1a1a1a',
+            icon: message.author.displayAvatarURL()
+        });
     }
 };
