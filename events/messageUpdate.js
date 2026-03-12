@@ -3,36 +3,33 @@ const { sendAuditLog } = require('../functions/auditLogger.js');
 module.exports = {
     name: 'messageUpdate',
     async execute(oldMessage, newMessage) {
-        console.log(`[🔍 DEBUG UPDATE] Evento disparado en el canal: ${oldMessage.channel?.name || 'Desconocido'}`);
-
+        // 1. Recuperación del abismo (si el mensaje estaba fuera de la caché)
         if (oldMessage.partial) {
-            console.log(`[🔍 DEBUG UPDATE] Mensaje antiguo es parcial. Intentando recuperación (fetch)...`);
             try {
                 await oldMessage.fetch();
-                console.log(`[🔍 DEBUG UPDATE] Mensaje antiguo recuperado exitosamente.`);
             } catch (error) {
-                console.log(`[❌ DEBUG UPDATE] Abortado: El mensaje no pudo ser recuperado (${error.message}).`);
-                return;
+                return; // Si ya no existe, abortamos en silencio
             }
         }
         
+        // 2. Filtros de ruido
         if (oldMessage.author?.bot) return;
-        
-        if (oldMessage.content === newMessage.content) {
-            console.log(`[🔍 DEBUG UPDATE] Ignorado: El texto es idéntico (probablemente Discord cargó un embed o imagen).`);
-            return;
-        }
+        if (oldMessage.content === newMessage.content) return;
 
-        console.log(`[🔍 DEBUG UPDATE] Edición real detectada. Autor: ${oldMessage.author?.tag}. Preparando log...`);
+        // 3. Formateo limpio del contenido (Sin enlaces, solo el texto puro)
+        const contenidoAntes = oldMessage.content ? `\`\`\`\n${oldMessage.content}\n\`\`\`` : '`[Sin texto original]`';
+        const contenidoDespues = newMessage.content ? `\`\`\`\n${newMessage.content}\n\`\`\`` : '`[Texto eliminado por completo]`';
+
+        // 4. Manifiesto final enviado al canal de Logs
         await sendAuditLog(oldMessage.guild, {
             title: '⊹ Alteración de Mensaje ⊹',
             description: 
-                `**Autor:** ${oldMessage.author.tag} (\`${oldMessage.author.id}\`)\n` +
+                `**Sujeto:** ${oldMessage.author.tag}\n` +
                 `**Sector:** ${oldMessage.channel}\n\n` +
-                `**Antes:**\n\`\`\`${oldMessage.content || '[Vacío/Multimedia]'}\`\`\`\n` +
-                `**Después:**\n\`\`\`${newMessage.content || '[Vacío/Multimedia]'}\`\`\`\n` +
+                `**Original:**\n${contenidoAntes}\n` +
+                `**Modificado:**\n${contenidoDespues}\n\n` +
                 `> *La realidad del mensaje ha sido distorsionada.*`,
-            color: '#f1c40f',
+            color: '#f1c40f', // Amarillo de advertencia
             icon: oldMessage.author.displayAvatarURL({ dynamic: true })
         });
     }
