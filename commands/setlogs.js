@@ -1,7 +1,8 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder } = require('discord.js');
 const { GuildConfig } = require('../data/mongodb.js'); // <--- Importamos el modelo central
 
 module.exports = {
+    name: 'setlogs',
     data: new SlashCommandBuilder()
         .setName('setlogs')
         .setDescription('⚙️ Configura el canal de auditoría para Rockstar.')
@@ -15,16 +16,27 @@ module.exports = {
     async execute(interaction) {
         const channel = interaction.options.getChannel('canal');
 
-        // Usamos el modelo que ya está definido en mongodb.js
-        await GuildConfig.findOneAndUpdate(
-            { GuildID: interaction.guild.id },
-            { LogChannelID: channel.id },
-            { upsert: true }
-        );
+        try {
+            // Usamos el modelo que ya está definido en mongodb.js (Intacto)
+            await GuildConfig.findOneAndUpdate(
+                { GuildID: interaction.guild.id },
+                { LogChannelID: channel.id },
+                { upsert: true }
+            );
 
-        return interaction.reply({ 
-            content: `✅ Sistema de auditoría vinculado a ${channel}. ¡Rockstar ahora vigila! 🌸`, 
-            ephemeral: true 
-        });
+            const embed = new EmbedBuilder()
+                .setColor('#1a1a1a')
+                .setTitle('👁️ PROTOCOLO DE VIGILANCIA: ACTIVADO')
+                .setDescription(`> *Las sombras ahora observan cada movimiento en este servidor.*\n\n╰┈➤ Sistema de auditoría vinculado a ${channel}.`);
+
+            return interaction.reply({ embeds: [embed], ephemeral: true });
+
+        } catch (error) {
+            console.error("Error en setlogs:", error);
+            return interaction.reply({ 
+                content: '╰┈➤ ❌ Error al conectar con la base de datos central.', 
+                ephemeral: true 
+            });
+        }
     }
 };
