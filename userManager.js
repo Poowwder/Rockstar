@@ -18,6 +18,7 @@ const UserSchema = new mongoose.Schema({
     durabilidades: { type: Object, default: {} },
     xp: { type: Number, default: 0 },
     level: { type: Number, default: 1 },
+    harem: { type: Array, default: [] }, // 💍 <--- AÑADÍ ESTO PARA QUE SE GUARDEN LOS MATRIMONIOS
 
     // --- ⏳ CONTROL DE TIEMPOS Y RACHAS ---
     lastWork: { type: Number, default: 0 },
@@ -64,6 +65,7 @@ async function updateUserData(userId, data) {
         Object.assign(user, data);
         user.markModified('inventory');
         user.markModified('activeBoosts');
+        user.markModified('harem'); // 💍 <--- LE AVISAMOS A MONGOOSE QUE ACTUALICE EL HAREM
         await user.save();
         return true;
     } catch (err) { return false; }
