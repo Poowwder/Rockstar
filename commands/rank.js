@@ -1,7 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getUserData } = require('../userManager.js');
 const { UserProfile } = require('../data/mongodb.js'); 
-const { checkNekos } = require('../functions/checkNekos.js');
 
 // --- ✨ EMOJIS AL AZAR ---
 const getRndEmoji = (guild) => {
@@ -36,20 +35,15 @@ module.exports = {
         const nextLevelXP = currentLevel * 500;
         const percent = Math.min(Math.floor((currentXP / nextLevelXP) * 100), 100);
 
-        // --- 🐱 Sincronización con el sistema de Nekos (Nyx) ---
+        // --- 💾 Sincronización de Nivel en Base de Datos ---
         try {
             await UserProfile.findOneAndUpdate(
                 { UserID: target.id, GuildID: guild.id },
                 { Level: currentLevel },
                 { upsert: true }
             );
-
-            // Verificamos si desbloqueó a Nyx (solo si es el propio usuario viéndose a sí mismo)
-            if (target.id === author.id && checkNekos) {
-                await checkNekos(input, 'levelUp');
-            }
         } catch (e) {
-            console.error("Error sincronizando Nekos en el Rank:", e);
+            console.error("Error sincronizando el nivel en el Rank:", e);
         }
 
         // --- 📊 BARRA DE PROGRESO ROCKSTAR ---
