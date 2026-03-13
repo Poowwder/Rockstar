@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
+const { GuildConfig } = require('../data/mongodb.js');
 const { sendAuditLog } = require('../functions/auditLogger.js');
 
 module.exports = {
@@ -6,40 +7,68 @@ module.exports = {
     async execute(oldMember, newMember) {
         const guild = newMember.guild;
 
-        // --- 💎 DETECTOR DE INYECCIÓN DE PODER (BOOST) ---
-        // Verificamos si antes NO era booster y ahora SÍ lo es.
+        // --- 💎 DETECTOR DE BOOST ---
         if (!oldMember.premiumSince && newMember.premiumSince) {
             
-            // 1. Buscamos el canal donde enviar el anuncio. 
-            // Usa el canal del sistema por defecto, o busca uno llamado "chat-general"
-            const canalAnuncio = guild.systemChannel || guild.channels.cache.find(c => c.name.includes('general') || c.name.includes('chat'));
+            // 1. Buscamos el formulario guardado en la Base de Datos
+            const config = await GuildConfig.findOne({ GuildID: guild.id });
+            const b = config?.BoostConfig;
+            
+            // Si el servidor no ha configurado el comando !!boosts, el bot se queda en silencio
+            if (!b || !b.channelId) return;
 
-            if (canalAnuncio) {
-                const boostEmbed = new EmbedBuilder()
-                    .setTitle('⊹ EL DOMINIO SE FORTALECE ⊹')
-                    .setColor('#1a1a1a') // Negro Rockstar
-                    .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
-                    .setImage('https://i.pinimg.com/originals/c6/3e/4d/c63e4dd19fccf4bcbd82ec1e78eb3cc5.gif') // GIF elegante de Nightfall/Nitro
-                    .setDescription(
-                        `> *“Un nuevo mecenas ha inyectado poder puro en el núcleo del abismo...”*\n\n` +
-                        `╰┈➤ 💎 **${newMember.user.username}** ha mejorado las instalaciones del servidor.\n` +
-                        `╰┈➤ 📈 **Nivel del dominio:** \`${guild.premiumTier}\`\n` +
-                        `╰┈➤ 🔮 **Mejoras totales:** \`${guild.premiumSubscriptionCount}\`\n\n` +
-                        `-# Las sombras te otorgan su gratitud eterna y privilegios exclusivos.`
-                    )
-                    .setFooter({ text: 'Rockstar Nova ⊹ Patronato', iconURL: guild.iconURL() });
+            const canalAnuncio = guild.channels.cache.get(b.channelId);
+            if (!canalAnuncio) return;
 
-                // Mencionamos al usuario fuera del embed para que le llegue la notificación
-                await canalAnuncio.send({ content: `╰┈➤ <@${newMember.id}>`, embeds: [boostEmbed] });
+            // --- 2. TRADUCTOR DE VARIABLES ---
+            const replaceVars = (text) => {
+                if (!text) return null;
+                return text
+                    .replace(/{user}/g, `<@${newMember.id}>`)
+                    .replace(/{server}/g, guild.name)
+                    .replace(/{membercount}/g, guild.memberCount)
+                    .replace(/{boosts}/g, guild.premiumSubscriptionCount || 1)
+                    .replace(/{tier}/g, guild.premiumTier || 0);
+            };
+
+            const contentText = replaceVars(b.content);
+            const titleText = replaceVars(b.title);
+            const descText = replaceVars(b.description);
+            const footerText = replaceVars(b.footer);
+
+            // --- 3. ARMADO DEL EMBED Y VALIDACIÓN DE COLOR ---
+            // Validamos que sea un código HEX válido, si no, usamos el Rosa Nitro por defecto
+            let finalColor = '#ff73fa'; 
+            if (b.color && /^#[0-9A-F]{6}$/i.test(b.color.trim())) {
+                finalColor = b.color.trim();
             }
 
-            // 2. Registro silencioso en los Logs de Auditoría
+            const boostEmbed = new EmbedBuilder().setColor(finalColor);
+
+            // Agregamos solo las piezas que rellenaste en el formulario
+            if (titleText) boostEmbed.setTitle(titleText);
+            if (descText) boostEmbed.setDescription(descText);
+            if (footerText) boostEmbed.setFooter({ text: footerText });
+            if (b.timestamp) boostEmbed.setTimestamp();
+
+            // Verificamos enlaces de imagen para no romper el bot si pones algo inválido
+            if (b.thumbnail && b.thumbnail.startsWith('http')) boostEmbed.setThumbnail(b.thumbnail);
+            if (b.image && b.image.startsWith('http')) boostEmbed.setImage(b.image);
+
+            // Comprobamos si hay algún dato en el embed
+            const hasEmbed = titleText || descText || footerText || b.image || b.thumbnail;
+
+            // --- 4. MANIFIESTO FINAL ---
+            await canalAnuncio.send({ 
+                content: contentText || null, 
+                embeds: hasEmbed ? [boostEmbed] : [] 
+            }).catch(() => {});
+
+            // --- 5. REGISTRO SILENCIOSO (LOGS) ---
             await sendAuditLog(guild, {
                 title: '⊹ Inyección de Poder (Boost) ⊹',
-                description: 
-                    `**Sujeto:** ${newMember.user.tag}\n\n` +
-                    `> *El individuo ha utilizado sus recursos de Discord Nitro para expandir la infraestructura de este servidor.*`,
-                color: '#ff73fa', // Color Rosa Nitro para que resalte en los logs
+                description: `**Sujeto:** ${newMember.user.tag}\n> *El individuo ha mejorado el servidor usando Nitro.*`,
+                color: finalColor,
                 icon: newMember.user.displayAvatarURL()
             });
         }
