@@ -63,7 +63,6 @@ module.exports = {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         // --- ⚙️ LÓGICA DE PROBABILIDAD ---
-        // Se mantienen los símbolos, pero presentados con más clase
         const simbolos = ['🍒', '🍒', '🍋', '🍋', '🍇', '🍇', '🔔', '🔔', '💎', '🌸'];
         const r1 = simbolos[Math.floor(Math.random() * simbolos.length)];
         const r2 = simbolos[Math.floor(Math.random() * simbolos.length)];
@@ -109,7 +108,7 @@ module.exports = {
                 )
             )
             .addFields(
-                { name: `${e()} Patrimonio Restante`, value: `-# \`${data.wallet.toLocaleString()} 🌸\``, inline: true }
+                { name: `${e} Patrimonio Restante`, value: `-# \`${data.wallet.toLocaleString()} 🌸\``, inline: true } // ⚠️ AQUÍ ESTABA EL ERROR
             )
             .setFooter({ text: 'El casino subterráneo nunca pierde... ⊹ Rockstar', iconURL: guild?.iconURL() });
 
