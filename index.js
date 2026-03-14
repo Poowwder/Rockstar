@@ -1,4 +1,5 @@
-const { Client, GatewayIntentBits, Collection, Events, Partials } = require('discord.js');
+// Agregamos MessageFlags a la importación principal
+const { Client, GatewayIntentBits, Collection, Events, Partials, MessageFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -12,7 +13,20 @@ const server = http.createServer((req, res) => {
     res.end('Rockstar Bot 🌑 Nightfall Edition: SISTEMAS OPERATIVOS');
 });
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`╰┈➤ [🌐] Puerto ${PORT} abierto.`));
+
+server.listen(PORT, () => {
+    console.log(`╰┈➤ [🌐] Puerto ${PORT} abierto.`);
+    
+    // --- 🫀 MARCAPASOS DE ROCKSTAR (ANTI-SUEÑO DE RENDER) ---
+    setInterval(async () => {
+        try {
+            await fetch('https://rockstar-fuwv.onrender.com'); 
+            console.log('╰┈➤ [🫀] Latido de red enviado. Rockstar sigue despierto.');
+        } catch (error) {
+            console.log('╰┈➤ [⚠️] Ligera arritmia en el latido de red.');
+        }
+    }, 14 * 60 * 1000); // Late cada 14 minutos para burlar los 15 min de inactividad
+});
 
 // --- 🤖 CONFIGURACIÓN DEL CLIENTE ---
 const client = new Client({
@@ -116,10 +130,12 @@ client.on(Events.InteractionCreate, async interaction => {
             await run(interaction);
         } catch (e) { 
             console.error(`Error en /${interaction.commandName}:`, e);
+            
+            // 🛡️ REGLA MODERNA DE DISCORD (Sin advertencias naranjas)
             if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: '╰┈➤ ❌ Error ejecutando el comando.', ephemeral: true });
+                await interaction.followUp({ content: '╰┈➤ ❌ Error ejecutando el comando.', flags: MessageFlags.Ephemeral });
             } else {
-                await interaction.reply({ content: '╰┈➤ ❌ Error ejecutando el comando.', ephemeral: true });
+                await interaction.reply({ content: '╰┈➤ ❌ Error ejecutando el comando.', flags: MessageFlags.Ephemeral });
             }
         }
     }
